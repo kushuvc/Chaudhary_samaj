@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Chaudhary Samaj",
+    "slug": "chaudhary-samaj-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.chaudharysamaj.mobile"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

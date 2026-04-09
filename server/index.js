@@ -87,7 +87,24 @@ app.post('/api/auth/login', (request, response) => {
 })
 
 app.post('/api/auth/signup', (request, response) => {
-  const { fullName, email, password, confirmPassword, gender, dateOfBirth, phone, otpCode } = request.body || {}
+  const {
+    fullName,
+    email,
+    password,
+    confirmPassword,
+    gender,
+    dateOfBirth,
+    phone,
+    otpCode,
+    age,
+    location,
+    community,
+    subCommunity,
+    education,
+    occupation,
+    maritalStatus,
+    language,
+  } = request.body || {}
 
   if (!fullName || !email || !password || !otpCode) {
     response.status(400).json({ success: false, error: 'Name, email, password and OTP are required' })
@@ -122,6 +139,14 @@ app.post('/api/auth/signup', (request, response) => {
     gender: gender ? String(gender).trim() : null,
     dateOfBirth: dateOfBirth ? String(dateOfBirth).trim() : null,
     phone: phone ? String(phone).trim() : null,
+    age: age !== undefined && age !== null && String(age).trim() !== '' ? Number(age) : null,
+    location: location ? String(location).trim() : null,
+    community: community ? String(community).trim() : null,
+    subCommunity: subCommunity ? String(subCommunity).trim() : null,
+    education: education ? String(education).trim() : null,
+    occupation: occupation ? String(occupation).trim() : null,
+    maritalStatus: maritalStatus ? String(maritalStatus).trim() : null,
+    language: language ? String(language).trim() : null,
   })
 
   if (!result.ok) {

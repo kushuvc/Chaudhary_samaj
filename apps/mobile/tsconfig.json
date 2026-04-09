@@ -1,0 +1,12 @@
+{
+  "extends": "./node_modules/expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@chaudhary/shared-types": ["../../packages/shared-types/src"],
+      "@chaudhary/api-client": ["../../packages/api-client/src"]
+    }
+  }
+}

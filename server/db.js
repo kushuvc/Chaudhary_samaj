@@ -1647,7 +1647,22 @@ function authenticateUser(email, password) {
   return toAuthUser(row)
 }
 
-const createAuthUserTx = database.transaction(({ fullName, email, password, gender, dateOfBirth, phone }) => {
+const createAuthUserTx = database.transaction(({
+  fullName,
+  email,
+  password,
+  gender,
+  dateOfBirth,
+  phone,
+  age,
+  location,
+  community,
+  subCommunity,
+  education,
+  occupation,
+  maritalStatus,
+  language,
+}) => {
   const existing = database.prepare('SELECT id FROM users WHERE lower(email) = lower(?) LIMIT 1').get(email)
   if (existing) {
     return { ok: false, error: 'Email already registered' }
@@ -1657,9 +1672,20 @@ const createAuthUserTx = database.transaction(({ fullName, email, password, gend
   const profileId = `profile-${randomUUID()}`
   const preferenceId = `pref-${randomUUID()}`
   const createdAt = now()
-  const calculatedAge = dateOfBirth
-    ? Math.max(18, Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
-    : 25
+  const numericAge = Number(age)
+  const calculatedAge = Number.isFinite(numericAge) && numericAge >= 18 && numericAge <= 100
+    ? Math.round(numericAge)
+    : dateOfBirth
+      ? Math.max(18, Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
+      : 25
+
+  const safeValue = (value, fallback = '') => {
+    if (value === null || value === undefined) {
+      return fallback
+    }
+    const normalized = String(value).trim()
+    return normalized.length > 0 ? normalized : fallback
+  }
 
   insertUser.run({
     id: userId,
@@ -1683,17 +1709,17 @@ const createAuthUserTx = database.transaction(({ fullName, email, password, gend
     user_id: userId,
     date_of_birth: dateOfBirth || null,
     age: calculatedAge,
-    gender: gender || 'unspecified',
-    location: 'Not set',
-    community: 'Chaudhary',
-    sub_community: 'General',
-    education: 'Not set',
-    occupation: 'Not set',
+    gender: safeValue(gender, 'unspecified'),
+    location: safeValue(location, ''),
+    community: safeValue(community, 'Chaudhary'),
+    sub_community: safeValue(subCommunity, ''),
+    education: safeValue(education, ''),
+    occupation: safeValue(occupation, ''),
     bio: 'New member profile. Please update details in Profile section.',
-    marital_status: 'Never Married',
-    height: 'Not set',
-    income: 'Not set',
-    language: 'Hindi',
+    marital_status: safeValue(maritalStatus, 'Never Married'),
+    height: '',
+    income: '',
+    language: safeValue(language, 'Hindi'),
     compatibility_score: 0,
     is_unlocked: 1,
     is_shortlisted: 0,

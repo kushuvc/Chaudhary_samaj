@@ -7,7 +7,11 @@
     "dev": "vite",
     "server": "node server/index.js",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "mobile:start": "npm --prefix apps/mobile start",
+    "mobile:android": "npm --prefix apps/mobile android",
+    "mobile:ios": "npm --prefix apps/mobile ios",
+    "mobile:typecheck": "npm --prefix apps/mobile exec tsc -- --noEmit"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
@@ -25,6 +29,7 @@
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
+    "babel-preset-expo": "^54.0.10",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.0",
     "typescript": "^5.3.0",

@@ -11,7 +11,9 @@
     "mobile:start": "npm --prefix apps/mobile start",
     "mobile:android": "npm --prefix apps/mobile android",
     "mobile:ios": "npm --prefix apps/mobile ios",
-    "mobile:typecheck": "npm --prefix apps/mobile exec tsc -- --noEmit"
+    "mobile:typecheck": "npm --prefix apps/mobile exec tsc -- --noEmit",
+    "mobile:build:apk": "npm --prefix apps/mobile run build:apk",
+    "mobile:build:aab": "npm --prefix apps/mobile run build:aab"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
@@ -20,6 +22,7 @@
     "express": "^5.2.1",
     "lucide-react": "^1.7.0",
     "nodemailer": "^8.0.4",
+    "pg": "^8.20.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.20.0"

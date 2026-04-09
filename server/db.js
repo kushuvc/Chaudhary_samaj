@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
 import Database from 'better-sqlite3'
 
@@ -7,16 +8,187 @@ const serverDir = path.resolve('server')
 const dataDir = path.join(serverDir, 'data')
 const dbPath = path.join(dataDir, 'chaudhary-samaj.sqlite')
 const schemaPath = path.join(serverDir, 'schema.sql')
+const usingSupabase = Boolean(process.env.DATABASE_URL)
 
-fs.mkdirSync(dataDir, { recursive: true })
+let database
+let currentTransaction = null
 
-const database = new Database(dbPath)
-database.pragma('foreign_keys = ON')
-database.exec(fs.readFileSync(schemaPath, 'utf8'))
+function normalizePostgresSql(sql) {
+  let normalized = String(sql || '').trim()
 
-const profileColumns = database.prepare('PRAGMA table_info(matrimony_profiles)').all()
-if (!profileColumns.some((column) => column.name === 'sub_community')) {
-  database.exec('ALTER TABLE matrimony_profiles ADD COLUMN sub_community TEXT')
+  if (/^INSERT\s+OR\s+IGNORE\s+INTO/i.test(normalized)) {
+    normalized = normalized.replace(/^INSERT\s+OR\s+IGNORE\s+INTO/i, 'INSERT INTO')
+    if (!/ON\s+CONFLICT/i.test(normalized)) {
+      normalized = normalized.replace(/;\s*$/, '') + ' ON CONFLICT DO NOTHING'
+    }
+  }
+
+  normalized = normalized.replace(/datetime\(created_at\)/gi, 'created_at::timestamptz')
+  normalized = normalized.replace(/datetime\(meeting_date\)/gi, 'meeting_date::timestamptz')
+  normalized = normalized.replace(/datetime\('now',\s*'-24 hours'\)/gi, "NOW() - INTERVAL '24 hours'")
+  normalized = normalized.replace(/datetime\('now',\s*'-1 hour'\)/gi, "NOW() - INTERVAL '1 hour'")
+  normalized = normalized.replace(/datetime\('now',\s*'-1 day'\)/gi, "NOW() - INTERVAL '1 day'")
+  normalized = normalized.replace(/datetime\('now'\)/gi, 'NOW()')
+
+  return normalized
+}
+
+function bindPostgresParams(sql, rawParams) {
+  const params = rawParams.length === 1 && rawParams[0] && typeof rawParams[0] === 'object' && !Array.isArray(rawParams[0])
+    ? rawParams[0]
+    : rawParams
+  const values = []
+
+  if (Array.isArray(params)) {
+    let index = 0
+    const text = normalizePostgresSql(sql).replace(/\?/g, () => {
+      values.push(params[index++])
+      return `$${values.length}`
+    })
+
+    return { text, values }
+  }
+
+  const text = normalizePostgresSql(sql).replace(/@([a-zA-Z_][a-zA-Z0-9_]*)/g, (_match, key) => {
+    values.push(params[key])
+    return `$${values.length}`
+  })
+
+  return { text, values }
+}
+
+function executePostgresStatementsSync(queries, useTransaction = false) {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required for Postgres mode')
+  }
+
+  const payload = { queries, transaction: useTransaction }
+  const script = `
+    import { Client } from 'pg'
+
+    const payload = JSON.parse(process.argv[1])
+    const client = new Client({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    })
+
+    await client.connect()
+
+    try {
+      if (payload.transaction) {
+        await client.query('BEGIN')
+      }
+
+      let result = { rows: [], rowCount: 0 }
+      for (const query of payload.queries) {
+        result = await client.query(query.text, query.values)
+      }
+
+      if (payload.transaction) {
+        await client.query('COMMIT')
+      }
+
+      process.stdout.write(JSON.stringify({ rows: result.rows, rowCount: result.rowCount }))
+    } catch (error) {
+      if (payload.transaction) {
+        try {
+          await client.query('ROLLBACK')
+        } catch {}
+      }
+
+      process.stderr.write(JSON.stringify({ message: error.message, code: error.code }))
+      process.exit(1)
+    } finally {
+      await client.end()
+    }
+  `
+
+  const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script, JSON.stringify(payload)], {
+    env: process.env,
+    encoding: 'utf8',
+  })
+
+  if (result.status !== 0) {
+    let errorMessage = 'Postgres query failed'
+    if (result.stderr) {
+      try {
+        const parsed = JSON.parse(result.stderr)
+        errorMessage = parsed.message || errorMessage
+      } catch {
+        errorMessage = result.stderr.trim() || errorMessage
+      }
+    }
+    throw new Error(errorMessage)
+  }
+
+  try {
+    return JSON.parse(result.stdout || '{"rows":[],"rowCount":0}')
+  } catch {
+    return { rows: [], rowCount: 0 }
+  }
+}
+
+function createPostgresLikeDatabase() {
+  const makeStatement = (sql) => ({
+    all: (...params) => {
+      const query = bindPostgresParams(sql, params)
+      const response = executePostgresStatementsSync([query], false)
+      return response.rows || []
+    },
+    get: (...params) => {
+      const rows = makeStatement(sql).all(...params)
+      return rows[0] || null
+    },
+    run: (...params) => {
+      const query = bindPostgresParams(sql, params)
+
+      if (currentTransaction) {
+        currentTransaction.queries.push(query)
+        return { changes: 0, lastInsertRowid: null }
+      }
+
+      const response = executePostgresStatementsSync([query], false)
+      return { changes: response.rowCount || 0, lastInsertRowid: null }
+    },
+  })
+
+  return {
+    prepare: (sql) => makeStatement(sql),
+    transaction: (fn) =>
+      (...args) => {
+        const previousTransaction = currentTransaction
+        currentTransaction = { queries: [] }
+
+        try {
+          const result = fn(...args)
+
+          if (currentTransaction.queries.length > 0) {
+            executePostgresStatementsSync(currentTransaction.queries, true)
+          }
+
+          return result
+        } finally {
+          currentTransaction = previousTransaction
+        }
+      },
+    exec: () => undefined,
+    pragma: () => undefined,
+  }
+}
+
+if (usingSupabase) {
+  database = createPostgresLikeDatabase()
+} else {
+  fs.mkdirSync(dataDir, { recursive: true })
+
+  database = new Database(dbPath)
+  database.pragma('foreign_keys = ON')
+  database.exec(fs.readFileSync(schemaPath, 'utf8'))
+
+  const profileColumns = database.prepare('PRAGMA table_info(matrimony_profiles)').all()
+  if (!profileColumns.some((column) => column.name === 'sub_community')) {
+    database.exec('ALTER TABLE matrimony_profiles ADD COLUMN sub_community TEXT')
+  }
 }
 
 const now = () => new Date().toISOString()

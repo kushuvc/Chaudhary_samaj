@@ -233,7 +233,12 @@ app.post('/api/auth/otp/request', async (request, response) => {
 })
 
 app.get('/api/health', (_request, response) => {
-  response.json({ success: true, service: 'chaudhary-samaj-api', database: 'sqlite', status: 'ok' })
+  response.json({
+    success: true,
+    service: 'chaudhary-samaj-api',
+    database: process.env.DATABASE_URL ? 'postgres' : 'sqlite',
+    status: 'ok',
+  })
 })
 
 app.get('/api/community/posts', (request, response) => {

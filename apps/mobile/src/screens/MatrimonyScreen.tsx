@@ -431,6 +431,26 @@ const styles = StyleSheet.create({
   },
   tab: {
     borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 999,
+    backgroundColor: '#fff',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  tabActive: {
+    borderColor: '#115e59',
+    backgroundColor: '#ccfbf1',
+  },
+  tabText: {
+    color: '#334155',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  tabTextActive: {
+    color: '#134e4a',
+  },
+  filterActionsRow: {
+    flexDirection: 'row',
     gap: 10,
   },
   filterButton: {

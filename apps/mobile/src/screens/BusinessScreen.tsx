@@ -108,7 +108,14 @@ export function BusinessScreen() {
   };
 
   const submitListing = async () => {
-    if (!form.name.trim() || !form.category.trim() || !form.ownerName.trim() || !form.description.trim() || !form.contactPhone.trim() || !form.location.trim()) {
+    if (
+      !form.name.trim() ||
+      !form.category.trim() ||
+      !form.ownerName.trim() ||
+      !form.description.trim() ||
+      !form.contactPhone.trim() ||
+      !form.location.trim()
+    ) {
       setError('Please fill required fields: name, category, owner, description, phone, location.');
       return;
     }
@@ -229,9 +236,24 @@ export function BusinessScreen() {
           <Text style={styles.modalTitle}>Create Business Listing</Text>
 
           <ScrollView>
-            <LabeledInput label="Business Name" value={form.name} onChangeText={(v) => updateForm('name', v)} placeholder="Business name*" />
-            <OptionSelector label="Category" value={form.category} options={CATEGORY_OPTIONS} onChange={(v) => updateForm('category', v)} />
-            <LabeledInput label="Owner Name" value={form.ownerName} onChangeText={(v) => updateForm('ownerName', v)} placeholder="Owner name*" />
+            <LabeledInput
+              label="Business Name"
+              value={form.name}
+              onChangeText={(v) => updateForm('name', v)}
+              placeholder="Business name*"
+            />
+            <OptionSelector
+              label="Category"
+              value={form.category}
+              options={CATEGORY_OPTIONS}
+              onChange={(v) => updateForm('category', v)}
+            />
+            <LabeledInput
+              label="Owner Name"
+              value={form.ownerName}
+              onChangeText={(v) => updateForm('ownerName', v)}
+              placeholder="Owner name*"
+            />
             <LabeledInput label="Location" value={form.location} onChangeText={(v) => updateForm('location', v)} placeholder="Location*" />
             <LabeledInput
               label="Contact Phone"
@@ -284,6 +306,15 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   title: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
   subtitle: { marginTop: 4, color: '#475569', marginBottom: 12 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: '#0f172a',
+  },
   textArea: { minHeight: 90, textAlignVertical: 'top' },
   primaryButton: {
     backgroundColor: '#0f766e',

@@ -1,3 +1,25 @@
+## Backend Deploy Quick Start (Render)
+
+This repository now includes `render.yaml` for one-click Render setup.
+
+### Required environment variable
+
+Set `DATABASE_URL` in Render using this format for Supabase:
+
+`postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres?uselibpqcompat=true&sslmode=require`
+
+### Render settings
+
+- Build Command: `npm install`
+- Start Command: `npm run server`
+- Health Check Path: `/api/health`
+
+### Verify after deploy
+
+- `GET /api/health`
+- `GET /api/community/posts`
+- `GET /api/help-requests`
+
 Use this prompt in Copilot:
 
 Build a **frontend-only web app** for a **community platform** with a clean, modern UI and a modular structure so backend APIs can be added later.

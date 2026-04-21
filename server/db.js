@@ -738,15 +738,15 @@ function getHelpRequests({ category, urgency, status, search } = {}) {
       ), 0) AS supporter_count
     FROM help_requests r
     JOIN users u ON u.id = r.creator_user_id
-    WHERE (@category IS NULL OR r.category = @category)
-      AND (@urgency IS NULL OR r.urgency = @urgency)
-      AND (@status IS NULL OR r.status = @status)
+    WHERE (@category::text IS NULL OR r.category = @category::text)
+      AND (@urgency::text IS NULL OR r.urgency = @urgency::text)
+      AND (@status::text IS NULL OR r.status = @status::text)
       AND (
-        @search IS NULL OR
-        LOWER(r.title) LIKE LOWER(@search_like) OR
-        LOWER(r.description) LIKE LOWER(@search_like) OR
-        LOWER(r.location) LIKE LOWER(@search_like) OR
-        LOWER(u.full_name) LIKE LOWER(@search_like)
+        @search::text IS NULL OR
+        LOWER(r.title) LIKE LOWER(@search_like::text) OR
+        LOWER(r.description) LIKE LOWER(@search_like::text) OR
+        LOWER(r.location) LIKE LOWER(@search_like::text) OR
+        LOWER(u.full_name) LIKE LOWER(@search_like::text)
       )
     ORDER BY
       CASE r.status
@@ -1088,13 +1088,13 @@ function getCommunityPosts({ category, search, pinnedOnly } = {}) {
   const query = `
     SELECT *
     FROM community_posts
-    WHERE (@category IS NULL OR category = @category)
-      AND (@pinned_only = 0 OR pinned = 1)
+    WHERE (@category::text IS NULL OR category = @category::text)
+      AND (@pinned_only::int = 0 OR pinned = 1)
       AND (
-        @search IS NULL OR
-        LOWER(title) LIKE LOWER(@search_like) OR
-        LOWER(content) LIKE LOWER(@search_like) OR
-        LOWER(author_name) LIKE LOWER(@search_like)
+        @search::text IS NULL OR
+        LOWER(title) LIKE LOWER(@search_like::text) OR
+        LOWER(content) LIKE LOWER(@search_like::text) OR
+        LOWER(author_name) LIKE LOWER(@search_like::text)
       )
     ORDER BY pinned DESC, created_at DESC
   `

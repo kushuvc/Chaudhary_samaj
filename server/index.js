@@ -12,6 +12,7 @@ import {
   createAuthUser,
   createCommunityEvent,
   createHelpRequest,
+  databaseEngine,
   database,
   getHelpRequestById,
   getHelpRequests,
@@ -236,7 +237,7 @@ app.get('/api/health', (_request, response) => {
   response.json({
     success: true,
     service: 'chaudhary-samaj-api',
-    database: process.env.DATABASE_URL ? 'postgres' : 'sqlite',
+    database: databaseEngine,
     status: 'ok',
   })
 })

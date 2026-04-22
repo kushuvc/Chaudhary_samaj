@@ -8,9 +8,10 @@ const serverDir = path.resolve('server')
 const dataDir = path.join(serverDir, 'data')
 const dbPath = path.join(dataDir, 'chaudhary-samaj.sqlite')
 const schemaPath = path.join(serverDir, 'schema.sql')
-const usingSupabase = Boolean(process.env.DATABASE_URL)
+const preferPostgres = Boolean(process.env.DATABASE_URL)
 
 let database
+let databaseEngine = 'sqlite'
 let currentTransaction = null
 
 function normalizePostgresSql(sql) {
@@ -176,19 +177,31 @@ function createPostgresLikeDatabase() {
   }
 }
 
-if (usingSupabase) {
-  database = createPostgresLikeDatabase()
-} else {
+function initializeSqliteDatabase() {
   fs.mkdirSync(dataDir, { recursive: true })
 
   database = new Database(dbPath)
   database.pragma('foreign_keys = ON')
   database.exec(fs.readFileSync(schemaPath, 'utf8'))
+  databaseEngine = 'sqlite'
 
   const profileColumns = database.prepare('PRAGMA table_info(matrimony_profiles)').all()
   if (!profileColumns.some((column) => column.name === 'sub_community')) {
     database.exec('ALTER TABLE matrimony_profiles ADD COLUMN sub_community TEXT')
   }
+}
+
+if (preferPostgres) {
+  try {
+    database = createPostgresLikeDatabase()
+    database.prepare('SELECT 1 AS ok').get()
+    databaseEngine = 'postgres'
+  } catch (error) {
+    console.warn(`Postgres initialization failed, falling back to SQLite: ${error instanceof Error ? error.message : String(error)}`)
+    initializeSqliteDatabase()
+  }
+} else {
+  initializeSqliteDatabase()
 }
 
 const now = () => new Date().toISOString()
@@ -1964,6 +1977,7 @@ function getMatrimonyFilterOptions(userId) {
 
 export {
   database,
+  databaseEngine,
   getPublicProfiles,
   getSavedFiltersByUserId,
   getCurrentMemberPayload,

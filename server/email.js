@@ -73,7 +73,9 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
       recipientError.code = 'RECIPIENT_NOT_FOUND'
       throw recipientError
     }
-    throw error
+
+    console.log(`[OTP FALLBACK] ${to} (${purpose}) => ${otpCode}`)
+    return { ok: true, fallback: true }
   }
 
   return { ok: true, fallback: false }

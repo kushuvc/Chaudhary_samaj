@@ -6,7 +6,7 @@ import type { AuthSession, OtpPurpose, SignupPayload } from '../types';
 interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
-  requestOtp: (email: string, purpose: OtpPurpose) => Promise<void>;
+  requestOtp: (email: string, purpose: OtpPurpose) => Promise<{ message?: string; debugOtp?: string }>;
   login: (payload: { email: string; password: string; otpCode: string }) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
   logout: () => Promise<void>;
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       loading,
       requestOtp: async (email, purpose) => {
-        await api.requestOtp(email, purpose);
+        return api.requestOtp(email, purpose);
       },
       login: async (payload) => {
         const next = await api.login(payload);

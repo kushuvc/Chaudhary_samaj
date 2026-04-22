@@ -66,7 +66,10 @@ export const api = {
       body: JSON.stringify({ email, purpose })
     });
 
-    return { message: response.message || 'OTP sent successfully' };
+    return {
+      message: response.message || 'OTP sent successfully',
+      debugOtp: (response as { debugOtp?: string }).debugOtp,
+    };
   },
   signup: async (payload: SignupPayload) => {
     const response = await request<{ data?: { user?: any; authToken?: string } }>('/auth/signup', {

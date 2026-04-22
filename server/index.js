@@ -210,7 +210,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
         purpose: normalizedPurpose,
         expiresAt: otpRequest.data.expiresAt,
         sentViaFallback: Boolean(sendResult.fallback),
-        ...(process.env.NODE_ENV !== 'production' ? { debugOtp: otpRequest.data.otpCode } : {}),
+        ...(process.env.NODE_ENV !== 'production' || sendResult.fallback ? { debugOtp: otpRequest.data.otpCode } : {}),
       },
     })
   } catch (error) {

@@ -82,9 +82,13 @@ export function LoginScreen() {
         return;
       }
       setSubmitting(true);
-      await requestOtp(email.trim(), purpose);
+      const response = await requestOtp(email.trim(), purpose) as unknown as { message?: string; debugOtp?: string };
       setOtpSent(true);
-      Alert.alert('OTP Sent', 'Check your inbox for verification code.');
+      if (response?.debugOtp) {
+        Alert.alert('OTP Ready', `Use this code for testing: ${response.debugOtp}`);
+      } else {
+        Alert.alert('OTP Sent', response?.message || 'Check your inbox for verification code.');
+      }
     } catch (error) {
       Alert.alert('OTP Error', (error as Error).message);
     } finally {

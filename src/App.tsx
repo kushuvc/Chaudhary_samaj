@@ -8,7 +8,6 @@ import HelpCenter from './pages/HelpCenter'
 import Business from './pages/Business'
 import CommunityFeed from './pages/CommunityFeed'
 import Profile from './pages/Profile'
-import Notifications from './pages/Notifications'
 import Settings from './pages/Settings'
 import Admin from './pages/Admin'
 import authService from './services/auth'
@@ -60,7 +59,7 @@ function App() {
           <Route path="/business" element={<Business />} />
           <Route path="/community" element={<CommunityFeed />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/notifications" element={<Navigate to="/dashboard" replace />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/admin" element={<Admin />} />
         </Route>

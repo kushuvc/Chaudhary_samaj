@@ -4,11 +4,14 @@
 
 /* Global styles */
 :root {
-  --primary-color: #9333ea;
-  --secondary-color: #64748b;
+  --primary-color: #ff6b35;
+  --secondary-color: #0f172a;
   --success-color: #10b981;
   --error-color: #ef4444;
   --warning-color: #f59e0b;
+  --page-bg: #f5efe7;
+  --page-bg-soft: #ecf2f9;
+  --page-ink: #0f172a;
 }
 
 * {
@@ -19,17 +22,45 @@
 
 html {
   scroll-behavior: smooth;
+  min-height: 100%;
 }
 
 body {
-  font-family: 'Inter', 'Segoe UI', sans-serif;
-  background-color: #f8fafc;
-  color: #1e293b;
+  min-height: 100%;
+  font-family: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(255, 107, 53, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.12), transparent 24%),
+    linear-gradient(180deg, var(--page-bg) 0%, #f8fafc 44%, var(--page-bg-soft) 100%);
+  color: var(--page-ink);
+}
+
+#root {
+  min-height: 100vh;
 }
 
 /* Smooth transitions */
 * {
   transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+::selection {
+  background: rgba(255, 107, 53, 0.2);
+  color: #0f172a;
 }
 
 /* Custom scrollbar */

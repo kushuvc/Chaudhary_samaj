@@ -164,30 +164,34 @@ export default function Business() {
   }, [businesses, category, location, searchTerm, trending, verification])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-slate-100 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Business & Marketing</h1>
-            <p className="mt-2 text-slate-600">Promote trusted community businesses with future-ready monetization placeholders.</p>
+    <div className="space-y-6 pb-8">
+      <section className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-8">
+        <div className="absolute -right-20 -top-16 h-56 w-56 rounded-full bg-orange-200/40 blur-3xl" />
+        <div className="absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-indigo-200/30 blur-3xl" />
+
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Marketplace lane</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Business & Marketing</h1>
+            <p className="mt-3 max-w-xl text-slate-600">Promote trusted community businesses with a premium discovery layout and future-ready monetization placeholders.</p>
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5"
           >
             <Building2 size={18} /> Add Business Listing
           </button>
         </div>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-amber-100 bg-gradient-to-r from-amber-50 to-orange-50 p-5 shadow-sm lg:col-span-2">
-            <div className="mb-2 flex items-center gap-2 text-amber-700">
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-[1.6rem] border border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50 p-5 shadow-sm lg:col-span-2">
+            <div className="mb-2 flex items-center gap-2 text-orange-700">
               <Megaphone size={18} />
               <p className="font-semibold">Paid Promotion Placeholder</p>
             </div>
             <p className="text-sm text-slate-700">Reserve premium ad slots for top visibility. Subscription and billing APIs can be connected here later.</p>
           </div>
-          <div className="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-cyan-50 p-5 shadow-sm">
+          <div className="rounded-[1.6rem] border border-sky-100 bg-gradient-to-br from-sky-50 to-cyan-50 p-5 shadow-sm">
             <div className="mb-2 flex items-center gap-2 text-sky-700">
               <TrendingUp size={18} />
               <p className="font-semibold">Trending Businesses</p>
@@ -195,6 +199,8 @@ export default function Business() {
             <p className="text-sm text-slate-700">{businesses.filter((item) => item.trending).length} listings are trending this week.</p>
           </div>
         </div>
+
+      </section>
 
         <div className="mb-8 grid gap-4 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-2 xl:grid-cols-5">
           <div className="relative md:col-span-2 xl:col-span-2">
@@ -419,7 +425,6 @@ export default function Business() {
             </div>
           </aside>
         </div>
-      </div>
 
       {selectedBusiness && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

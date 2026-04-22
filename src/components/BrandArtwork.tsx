@@ -1,0 +1,67 @@
+type BrandArtworkProps = {
+  className?: string
+}
+
+export default function BrandArtwork({ className = '' }: BrandArtworkProps) {
+  return (
+    <svg
+      viewBox="0 0 280 280"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="brand-core" x1="30" y1="36" x2="246" y2="246" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFB36B" />
+          <stop offset="0.42" stopColor="#FF6B35" />
+          <stop offset="1" stopColor="#111827" />
+        </linearGradient>
+        <linearGradient id="brand-ring" x1="56" y1="48" x2="214" y2="220" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFF7ED" />
+          <stop offset="1" stopColor="#FED7AA" stopOpacity="0.2" />
+        </linearGradient>
+        <linearGradient id="brand-accent" x1="92" y1="72" x2="208" y2="184" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#FFF7ED" />
+          <stop offset="1" stopColor="#F97316" />
+        </linearGradient>
+      </defs>
+
+      <circle cx="140" cy="140" r="118" fill="url(#brand-core)" />
+      <circle cx="140" cy="140" r="92" stroke="url(#brand-ring)" strokeWidth="18" opacity="0.65" />
+      <circle cx="140" cy="140" r="70" stroke="rgba(255,255,255,0.16)" strokeWidth="2" />
+
+      <path
+        d="M76 164C92 132 110 120 139 120C168 120 188 137 205 160"
+        stroke="rgba(255,255,255,0.35)"
+        strokeWidth="10"
+        strokeLinecap="round"
+      />
+      <path
+        d="M82 109C108 81 138 69 166 71C188 73 208 84 222 100"
+        stroke="url(#brand-accent)"
+        strokeWidth="8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M118 198C126 183 136 174 150 172C163 170 175 175 186 188"
+        stroke="rgba(255,255,255,0.4)"
+        strokeWidth="7"
+        strokeLinecap="round"
+      />
+
+      <circle cx="98" cy="100" r="11" fill="#FFF7ED" />
+      <circle cx="181" cy="92" r="9" fill="#FDBA74" />
+      <circle cx="204" cy="167" r="10" fill="#FFFFFF" fillOpacity="0.9" />
+      <circle cx="120" cy="190" r="8" fill="#FDBA74" />
+
+      <path
+        d="M108 129C108 114 120 102 135 102H148C163 102 175 114 175 129V166C175 174 169 180 161 180H122C114 180 108 174 108 166V129Z"
+        fill="rgba(17,24,39,0.82)"
+      />
+      <path d="M118 130C118 121 125 114 134 114H149C158 114 165 121 165 130V161C165 166 161 170 156 170H127C122 170 118 166 118 161V130Z" fill="white" fillOpacity="0.95" />
+      <circle cx="144" cy="141" r="11" fill="#FF6B35" />
+      <path d="M139 141.5L143 145.5L149 138.5" stroke="white" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

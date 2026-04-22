@@ -230,31 +230,32 @@ export default function CommunityFeed() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-stone-50 via-white to-rose-50 p-4 md:p-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">Community Feed</h1>
-            <p className="mt-2 text-slate-600">Live community announcements, achievements, lost-and-found alerts, and upcoming meetings.</p>
+    <div className="space-y-6 pb-8">
+      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Social lane</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">Community Feed</h1>
+            <p className="mt-3 max-w-xl text-slate-600">Live announcements, achievements, lost-and-found posts, and upcoming meetings presented in a cleaner discovery flow.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setShowCreateMeetingModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-800 transition hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
             >
               <CalendarDays size={18} /> Add Meeting
             </button>
             <button
               onClick={() => setShowCreatePostModal(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 font-semibold text-white transition hover:bg-slate-800"
+              className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-3 font-semibold text-white shadow-lg shadow-slate-950/10 transition hover:-translate-y-0.5"
             >
               <Plus size={18} /> Create Post
             </button>
           </div>
         </div>
 
-        <div className="mb-6 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-sky-50 p-5 shadow-sm">
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="rounded-[1.6rem] border border-indigo-100 bg-gradient-to-br from-indigo-50 to-sky-50 p-5 shadow-sm">
             <p className="text-sm text-indigo-700">Total Posts</p>
             <p className="mt-1 text-2xl font-bold text-indigo-900">{feedStats.totalPosts}</p>
           </div>
@@ -302,6 +303,8 @@ export default function CommunityFeed() {
             <option value="most_liked">Most Liked</option>
           </select>
         </div>
+
+      </section>
 
         <div className="mb-8 grid gap-6 xl:grid-cols-[1fr_320px]">
           <div className="space-y-6">
@@ -445,7 +448,6 @@ export default function CommunityFeed() {
             </div>
           </aside>
         </div>
-      </div>
 
       {showCreatePostModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">

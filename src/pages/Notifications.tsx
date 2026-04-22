@@ -13,38 +13,10 @@ interface NotificationItem {
 }
 
 const initialNotifications: NotificationItem[] = [
-  {
-    id: 'ntf-1',
-    title: 'General Meeting Reminder',
-    message: 'Community general meeting starts tomorrow at 6:30 PM in Town Hall.',
-    type: 'announcement',
-    createdAt: '2026-03-30T18:30:00.000Z',
-    read: false
-  },
-  {
-    id: 'ntf-2',
-    title: 'New Matrimony Match',
-    message: 'You have 3 new compatibility matches based on saved preferences.',
-    type: 'event',
-    createdAt: '2026-03-30T10:10:00.000Z',
-    read: false
-  },
-  {
-    id: 'ntf-3',
-    title: 'Security Update',
-    message: 'Your password was updated successfully on this device.',
-    type: 'security',
-    createdAt: '2026-03-29T09:50:00.000Z',
-    read: true
-  },
-  {
-    id: 'ntf-4',
-    title: 'Support Reply',
-    message: 'An admin replied to your Help and Need request. Check the thread for details.',
-    type: 'message',
-    createdAt: '2026-03-28T15:05:00.000Z',
-    read: true
-  }
+  { id: 'ntf-1', title: 'General Meeting Reminder', message: 'Community general meeting starts tomorrow at 6:30 PM in Town Hall.', type: 'announcement', createdAt: '2026-03-30T18:30:00.000Z', read: false },
+  { id: 'ntf-2', title: 'New Matrimony Match', message: 'You have 3 new compatibility matches based on saved preferences.', type: 'event', createdAt: '2026-03-30T10:10:00.000Z', read: false },
+  { id: 'ntf-3', title: 'Security Update', message: 'Your password was updated successfully on this device.', type: 'security', createdAt: '2026-03-29T09:50:00.000Z', read: true },
+  { id: 'ntf-4', title: 'Support Reply', message: 'An admin replied to your Help and Need request. Check the thread for details.', type: 'message', createdAt: '2026-03-28T15:05:00.000Z', read: true }
 ]
 
 const typeLabel: Record<NotificationType, string> = {
@@ -105,38 +77,37 @@ export default function Notifications() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-indigo-50 p-4 md:p-6">
-      <div className="mx-auto max-w-5xl space-y-5">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Notifications</h1>
-              <p className="mt-1 text-sm text-slate-600">Stay updated with community announcements and account activity.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={markAllRead}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-              >
-                <CheckCheck size={16} /> Mark All Read
-              </button>
-              <button
-                onClick={clearRead}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                <Trash2 size={16} /> Clear Read
-              </button>
-            </div>
+    <div className="space-y-5 pb-8">
+      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Signal lane</p>
+            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">Notifications</h1>
+            <p className="mt-3 max-w-2xl text-sm text-slate-600">Stay updated with community announcements and account activity.</p>
           </div>
-
-          <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-            <p className="text-sm text-slate-700">
-              <span className="font-bold text-slate-900">{unreadCount}</span> unread notifications
-            </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={markAllRead}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 hover:-translate-y-0.5"
+            >
+              <CheckCheck size={16} /> Mark All Read
+            </button>
+            <button
+              onClick={clearRead}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              <Trash2 size={16} /> Clear Read
+            </button>
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-2xl bg-white p-4 shadow-sm md:grid-cols-[auto_1fr_auto]">
+        <div className="mt-4 rounded-[1.6rem] bg-slate-50 p-4">
+          <p className="text-sm text-slate-700"><span className="font-bold text-slate-900">{unreadCount}</span> unread notifications</p>
+        </div>
+      </section>
+
+      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-5">
+        <div className="grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-center">
           <div className="inline-flex items-center gap-2 text-sm text-slate-600">
             <Filter size={16} /> Filter
           </div>
@@ -160,52 +131,48 @@ export default function Notifications() {
             Unread only
           </label>
         </div>
+      </section>
 
-        {filteredNotifications.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
-            <p className="text-lg font-semibold text-slate-700">No notifications found</p>
-            <p className="text-sm text-slate-500">Try changing your notification filters.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {filteredNotifications.map((notification) => (
-              <article
-                key={notification.id}
-                className={`rounded-2xl border p-4 shadow-sm transition ${
-                  notification.read ? 'border-slate-200 bg-white' : 'border-indigo-200 bg-indigo-50/40'
-                }`}
-              >
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${typeStyle[notification.type]}`}>
-                        {typeIcon[notification.type]}
-                        {typeLabel[notification.type]}
-                      </span>
-                      {!notification.read && (
-                        <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">Unread</span>
-                      )}
-                    </div>
-
-                    <h3 className="text-base font-bold text-slate-900">{notification.title}</h3>
-                    <p className="text-sm text-slate-600">{notification.message}</p>
-                    <p className="text-xs text-slate-500">{formatTimeAgo(notification.createdAt)}</p>
+      {filteredNotifications.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+          <p className="text-lg font-semibold text-slate-700">No notifications found</p>
+          <p className="text-sm text-slate-500">Try changing your notification filters.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredNotifications.map((notification) => (
+            <article
+              key={notification.id}
+              className={`rounded-2xl border p-4 shadow-sm transition ${notification.read ? 'border-slate-200 bg-white' : 'border-indigo-200 bg-indigo-50/40'}`}
+            >
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${typeStyle[notification.type]}`}>
+                      {typeIcon[notification.type]}
+                      {typeLabel[notification.type]}
+                    </span>
+                    {!notification.read && <span className="rounded-full bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white">Unread</span>}
                   </div>
 
-                  {!notification.read && (
-                    <button
-                      onClick={() => markAsRead(notification.id)}
-                      className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-                    >
-                      Mark Read
-                    </button>
-                  )}
+                  <h3 className="text-base font-bold text-slate-900">{notification.title}</h3>
+                  <p className="text-sm text-slate-600">{notification.message}</p>
+                  <p className="text-xs text-slate-500">{formatTimeAgo(notification.createdAt)}</p>
                 </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </div>
+
+                {!notification.read && (
+                  <button
+                    onClick={() => markAsRead(notification.id)}
+                    className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                  >
+                    Mark Read
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -164,14 +164,16 @@ export default function Matrimony() {
       .join(' ')
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Matrimony</h1>
-        <p className="text-gray-600">Find your perfect match with our compatibility filtering</p>
-      </div>
+    <div className="space-y-6 pb-8">
+      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-8">
+        <div className="mb-6">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Matchmaking lane</p>
+          <h1 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">Matrimony</h1>
+          <p className="mt-3 max-w-2xl text-slate-600">Find your match with a cleaner compatibility-first browsing experience.</p>
+        </div>
 
       {/* Premium Banner */}
-      <div className="mb-6 bg-gradient-to-r from-purple-600 to-purple-800 rounded-lg p-6 text-white">
+      <div className="mb-6 rounded-[1.8rem] bg-gradient-to-r from-slate-950 to-slate-700 p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold mb-1">Unlock Premium Features</h3>
@@ -183,10 +185,12 @@ export default function Matrimony() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
         {/* Filters Panel */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow sticky top-20">
+          <div className="sticky top-20 rounded-[1.6rem] bg-white shadow">
             <div className="p-4 border-b flex items-center justify-between">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                 <Sliders size={18} />

@@ -158,9 +158,10 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-emerald-50 p-4 md:p-6">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="space-y-6 pb-8">
+      <section className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.08)] md:p-8">
+        <div className="space-y-6">
+        <div className="rounded-[1.8rem] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
               <div className="relative">
@@ -196,6 +197,9 @@ export default function Profile() {
             </div>
           </div>
         </div>
+
+        </div>
+      </section>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -441,7 +445,6 @@ export default function Profile() {
             </div>
           </div>
         </section>
-      </div>
     </div>
   )
 }

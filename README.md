@@ -20,6 +20,12 @@ Set `DATABASE_URL` in Render using this format for Supabase:
 - `GET /api/community/posts`
 - `GET /api/help-requests`
 
+### Frontend API wiring
+
+- Web app: set `VITE_API_URL` to your deployed API base, for example `https://chaudhary-samaj.onrender.com/api`.
+- Mobile app: `apps/mobile/eas.json` already injects `EXPO_PUBLIC_API_BASE_URL` for EAS preview and production builds.
+- Local web development can keep using the default same-origin `/api` proxy from `vite.config.ts`.
+
 Use this prompt in Copilot:
 
 Build a **frontend-only web app** for a **community platform** with a clean, modern UI and a modular structure so backend APIs can be added later.

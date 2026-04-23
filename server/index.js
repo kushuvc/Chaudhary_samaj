@@ -40,6 +40,12 @@ import {
   userExists,
 } from './db.js'
 import { sendEmailOtp } from './email.js'
+import {
+  getBusinessListingsFast,
+  getCommunityFeedStatsFast,
+  getCommunityPostsFast,
+  getHelpRequestsFast,
+} from './fast-queries.js'
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -242,17 +248,29 @@ app.get('/api/health', (_request, response) => {
   })
 })
 
-app.get('/api/community/posts', (request, response) => {
+app.get('/api/community/posts', async (request, response) => {
   const { category, search, pinned } = request.query
   const pinnedOnly = String(pinned || '').toLowerCase() === 'true'
 
+  const payload = {
+    category: category ? String(category) : null,
+    search: search ? String(search) : null,
+    pinnedOnly,
+  }
+
+  try {
+    const fastData = await getCommunityPostsFast(payload)
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({
     success: true,
-    data: getCommunityPosts({
-      category: category ? String(category) : null,
-      search: search ? String(search) : null,
-      pinnedOnly,
-    }),
+    data: getCommunityPosts(payload),
   })
 })
 
@@ -298,11 +316,31 @@ app.post('/api/community/meetings', (request, response) => {
   response.status(201).json({ success: true, data: meeting })
 })
 
-app.get('/api/community/stats', (_request, response) => {
+app.get('/api/community/stats', async (_request, response) => {
+  try {
+    const fastData = await getCommunityFeedStatsFast()
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({ success: true, data: getCommunityFeedStats() })
 })
 
-app.get('/api/business/listings', (_request, response) => {
+app.get('/api/business/listings', async (_request, response) => {
+  try {
+    const fastData = await getBusinessListingsFast()
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({ success: true, data: getBusinessListings() })
 })
 
@@ -335,16 +373,29 @@ app.post('/api/business/listings', (request, response) => {
   response.status(201).json({ success: true, data: listing })
 })
 
-app.get('/api/help-requests', (request, response) => {
+app.get('/api/help-requests', async (request, response) => {
   const { category, urgency, status, search } = request.query
+
+  const payload = {
+    category: category ? String(category) : null,
+    urgency: urgency ? String(urgency) : null,
+    status: status ? String(status) : null,
+    search: search ? String(search) : null,
+  }
+
+  try {
+    const fastData = await getHelpRequestsFast(payload)
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({
     success: true,
-    data: getHelpRequests({
-      category: category ? String(category) : null,
-      urgency: urgency ? String(urgency) : null,
-      status: status ? String(status) : null,
-      search: search ? String(search) : null,
-    }),
+    data: getHelpRequests(payload),
   })
 })
 

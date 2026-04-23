@@ -41,10 +41,20 @@ import {
 } from './db.js'
 import { sendEmailOtp } from './email.js'
 import {
+  authAccountExistsByEmailFast,
   getBusinessListingsFast,
+  getCurrentMemberPayloadFast,
   getCommunityFeedStatsFast,
   getCommunityPostsFast,
   getHelpRequestsFast,
+  getMatrimonyFilterOptionsFast,
+  getMatrimonyProfileByIdFast,
+  getOwnedEventByIdFast,
+  getOwnedEventGuestsFast,
+  getOwnedEventsFast,
+  getOwnedEventSummaryFast,
+  getPublicProfilesFast,
+  getSavedFiltersByUserIdFast,
 } from './fast-queries.js'
 
 const app = express()
@@ -184,12 +194,20 @@ app.post('/api/auth/otp/request', async (request, response) => {
     return
   }
 
-  if (normalizedPurpose === 'login' && !authAccountExistsByEmail(normalizedEmail)) {
+  let accountExists = null
+  try {
+    accountExists = await authAccountExistsByEmailFast(normalizedEmail)
+  } catch {
+    accountExists = null
+  }
+  const doesAccountExist = accountExists === null ? authAccountExistsByEmail(normalizedEmail) : accountExists
+
+  if (normalizedPurpose === 'login' && !doesAccountExist) {
     response.status(404).json({ success: false, error: 'Account not found for this email' })
     return
   }
 
-  if (normalizedPurpose === 'signup' && authAccountExistsByEmail(normalizedEmail)) {
+  if (normalizedPurpose === 'signup' && doesAccountExist) {
     response.status(409).json({ success: false, error: 'Email already registered' })
     return
   }
@@ -441,7 +459,7 @@ app.post('/api/help-requests/:id/support', (request, response) => {
   response.status(201).json({ success: true, data: result.data })
 })
 
-app.get('/api/matrimony/profiles', (request, response) => {
+app.get('/api/matrimony/profiles', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.json({ success: true, data: [] })
@@ -463,7 +481,14 @@ app.get('/api/matrimony/profiles', (request, response) => {
     tab,
   } = request.query
 
-  const profiles = getPublicProfiles(activeUserId).filter((profile) => {
+  let baseProfiles = null
+  try {
+    baseProfiles = await getPublicProfilesFast(activeUserId)
+  } catch {
+    baseProfiles = null
+  }
+
+  const profiles = (baseProfiles || getPublicProfiles(activeUserId)).filter((profile) => {
     const searchText = String(search || '').trim().toLowerCase()
     const matchesSearch =
       !searchText ||
@@ -507,37 +532,57 @@ app.get('/api/matrimony/profiles', (request, response) => {
   response.json({ success: true, data: profiles })
 })
 
-app.get('/api/matrimony/filter-options', (request, response) => {
+app.get('/api/matrimony/filter-options', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
+  try {
+    const fastData = await getMatrimonyFilterOptionsFast(activeUserId)
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({ success: true, data: getMatrimonyFilterOptions(activeUserId) })
 })
 
-app.get('/api/matrimony/profiles/:id', (request, response) => {
+app.get('/api/matrimony/profiles/:id', async (request, response) => {
   const activeUserId = resolveUserId(request)
-  const profile = database
-    .prepare(`
-      SELECT
-        u.full_name,
-        u.email,
-        u.phone,
-        u.avatar_url,
-        p.*,
-        COALESCE(s.is_shortlisted, 0) AS is_shortlisted,
-        COALESCE(s.is_viewed, 0) AS is_viewed,
-        COALESCE(s.is_unlocked, 0) AS is_unlocked
-      FROM matrimony_profiles p
-      JOIN users u ON u.id = p.user_id
-      LEFT JOIN matrimony_profile_states s
-        ON s.profile_id = p.id AND s.viewer_user_id = ?
-      WHERE p.id = ?
-      LIMIT 1
-    `)
-    .get(activeUserId, request.params.id)
+  let profile = null
+
+  try {
+    profile = await getMatrimonyProfileByIdFast(activeUserId, request.params.id)
+  } catch {
+    profile = null
+  }
+
+  if (!profile) {
+    profile = database
+      .prepare(`
+        SELECT
+          u.full_name,
+          u.email,
+          u.phone,
+          u.avatar_url,
+          p.*,
+          COALESCE(s.is_shortlisted, 0) AS is_shortlisted,
+          COALESCE(s.is_viewed, 0) AS is_viewed,
+          COALESCE(s.is_unlocked, 0) AS is_unlocked
+        FROM matrimony_profiles p
+        JOIN users u ON u.id = p.user_id
+        LEFT JOIN matrimony_profile_states s
+          ON s.profile_id = p.id AND s.viewer_user_id = ?
+        WHERE p.id = ?
+        LIMIT 1
+      `)
+      .get(activeUserId, request.params.id)
+  }
 
   if (!profile) {
     response.status(404).json({ success: false, error: 'Profile not found' })
@@ -627,24 +672,43 @@ app.post('/api/matrimony/profiles/:id/unlock', (request, response) => {
   response.json({ success: true, data: { unlocked: true } })
 })
 
-app.get('/api/matrimony/saved-filters', (_request, response) => {
+app.get('/api/matrimony/saved-filters', async (_request, response) => {
   const activeUserId = resolveUserId(_request)
   if (!activeUserId) {
     response.json({ success: true, data: [] })
     return
   }
 
+  try {
+    const fastData = await getSavedFiltersByUserIdFast(activeUserId)
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({ success: true, data: getSavedFiltersByUserId(activeUserId) })
 })
 
-app.get('/api/matrimony/me', (request, response) => {
+app.get('/api/matrimony/me', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  const payload = getCurrentMemberPayload(activeUserId)
+  let payload = null
+  try {
+    payload = await getCurrentMemberPayloadFast(activeUserId)
+  } catch {
+    payload = null
+  }
+
+  if (!payload) {
+    payload = getCurrentMemberPayload(activeUserId)
+  }
 
   if (!payload) {
     response.status(404).json({ success: false, error: 'Current profile not found' })
@@ -654,17 +718,27 @@ app.get('/api/matrimony/me', (request, response) => {
   response.json({ success: true, data: payload })
 })
 
-app.get('/api/events/summary', (request, response) => {
+app.get('/api/events/summary', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
+  try {
+    const fastData = await getOwnedEventSummaryFast(activeUserId)
+    if (fastData) {
+      response.json({ success: true, data: fastData })
+      return
+    }
+  } catch {
+    // fall back to legacy query path
+  }
+
   response.json({ success: true, data: getOwnedEventSummary(activeUserId) })
 })
 
-app.get('/api/events', (request, response) => {
+app.get('/api/events', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
@@ -672,9 +746,16 @@ app.get('/api/events', (request, response) => {
   }
 
   const { tab } = request.query
-  const events = getOwnedEvents(activeUserId)
+  let events = null
+  try {
+    events = await getOwnedEventsFast(activeUserId)
+  } catch {
+    events = null
+  }
 
-  const filtered = events.filter((event) => {
+  const sourceEvents = events || getOwnedEvents(activeUserId)
+
+  const filtered = sourceEvents.filter((event) => {
     const eventDate = new Date(event.date)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -692,37 +773,61 @@ app.get('/api/events', (request, response) => {
   response.json({ success: true, data: filtered })
 })
 
-app.get('/api/events/:id', (request, response) => {
+app.get('/api/events/:id', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  const event = getOwnedEventById(activeUserId, request.params.id)
+  let event = null
+  try {
+    event = await getOwnedEventByIdFast(activeUserId, request.params.id)
+  } catch {
+    event = null
+  }
+
+  if (!event) {
+    event = getOwnedEventById(activeUserId, request.params.id)
+  }
+
   if (!event) {
     response.status(404).json({ success: false, error: 'Event not found' })
     return
   }
 
-  const guests = getOwnedEventGuests(activeUserId, request.params.id) || []
-  response.json({ success: true, data: { event, guests } })
+  let guests = null
+  try {
+    guests = await getOwnedEventGuestsFast(activeUserId, request.params.id)
+  } catch {
+    guests = null
+  }
+
+  const safeGuests = guests || getOwnedEventGuests(activeUserId, request.params.id) || []
+  response.json({ success: true, data: { event, guests: safeGuests } })
 })
 
-app.get('/api/events/:id/guests', (request, response) => {
+app.get('/api/events/:id/guests', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  const guests = getOwnedEventGuests(activeUserId, request.params.id)
-  if (!guests) {
+  let guests = null
+  try {
+    guests = await getOwnedEventGuestsFast(activeUserId, request.params.id)
+  } catch {
+    guests = null
+  }
+
+  const resolvedGuests = guests || getOwnedEventGuests(activeUserId, request.params.id)
+  if (!resolvedGuests) {
     response.status(404).json({ success: false, error: 'Event not found' })
     return
   }
 
-  response.json({ success: true, data: guests })
+  response.json({ success: true, data: resolvedGuests })
 })
 
 app.post('/api/events', (request, response) => {

@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 
 interface SimpleListScreenProps<T> {
   title: string;
@@ -16,6 +18,8 @@ export function SimpleListScreen<T>({
   renderItem,
   keyExtractor
 }: SimpleListScreenProps<T>) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,7 @@ export function SimpleListScreen<T>({
   if (loading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#0f766e" />
+        <ActivityIndicator size="large" color={palette.primary} />
       </View>
     );
   }
@@ -65,43 +69,45 @@ export function SimpleListScreen<T>({
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8fafc'
-  },
-  listContent: {
-    padding: 16,
-    gap: 10,
-    backgroundColor: '#f8fafc'
-  },
-  header: {
-    marginBottom: 8
-  },
-  title: {
-    fontSize: 21,
-    fontWeight: '700',
-    color: '#0f172a'
-  },
-  subtitle: {
-    color: '#475569'
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12
-  },
-  empty: {
-    textAlign: 'center',
-    color: '#64748b',
-    marginTop: 30
-  },
-  error: {
-    color: '#b91c1c',
-    marginTop: 6
-  }
-});
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.bg,
+    },
+    listContent: {
+      padding: 16,
+      gap: 10,
+      backgroundColor: palette.bg,
+    },
+    header: {
+      marginBottom: 8,
+    },
+    title: {
+      fontSize: 21,
+      fontWeight: '700',
+      color: palette.text,
+    },
+    subtitle: {
+      color: palette.muted,
+    },
+    card: {
+      backgroundColor: palette.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      padding: 12,
+    },
+    empty: {
+      textAlign: 'center',
+      color: palette.muted,
+      marginTop: 30,
+    },
+    error: {
+      color: palette.danger,
+      marginTop: 6,
+    },
+  });
+}

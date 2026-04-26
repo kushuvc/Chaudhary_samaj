@@ -22,6 +22,10 @@
         "projectId": "16448aee-83dd-4e42-a306-6a55fad2ed02"
       }
     },
-    "owner": "kushnew"
+    "owner": "kushnew",
+    "plugins": [
+      "expo-font",
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

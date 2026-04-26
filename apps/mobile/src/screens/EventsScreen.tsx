@@ -7,17 +7,21 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
+import { DateInput } from '../components/DateInput';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { EventSummary, EventSummaryStats } from '../types';
 
 const PAYMENT_MODE_OPTIONS = ['cash', 'upi', 'bank_transfer', 'manual'];
 
 export function EventsScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [summary, setSummary] = useState<EventSummaryStats | null>(null);
   const [tab, setTab] = useState<'all' | 'upcoming' | 'past' | 'pending' | 'fully_collected'>('all');
@@ -159,7 +163,7 @@ export function EventsScreen() {
       <FlatList
         data={events}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
@@ -255,11 +259,10 @@ export function EventsScreen() {
             value={createEventForm.title}
             onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, title: text }))}
           />
-          <LabeledInput
+          <DateInput
             label="Event Date"
-            placeholder="Date (YYYY-MM-DD)"
             value={createEventForm.date}
-            onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, date: text }))}
+            onChange={(value) => setCreateEventForm((prev) => ({ ...prev, date: value }))}
           />
           <LabeledInput
             label="Location"
@@ -317,11 +320,10 @@ export function EventsScreen() {
             value={contributionForm.amount}
             onChangeText={(text) => setContributionForm((prev) => ({ ...prev, amount: text }))}
           />
-          <LabeledInput
+          <DateInput
             label="Payment Date"
-            placeholder="Date (YYYY-MM-DD)"
             value={contributionForm.date}
-            onChangeText={(text) => setContributionForm((prev) => ({ ...prev, date: text }))}
+            onChange={(value) => setContributionForm((prev) => ({ ...prev, date: value }))}
           />
           <OptionSelector
             label="Payment Mode"
@@ -353,157 +355,159 @@ export function EventsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  listContent: {
-    padding: 16,
-    gap: 10,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  subtitle: {
-    color: '#64748b',
-    marginTop: 2,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    padding: 10,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  summaryLabel: {
-    color: '#64748b',
-    marginTop: 2,
-  },
-  tabRow: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  tabChip: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
-  },
-  tabChipActive: {
-    backgroundColor: '#0f766e',
-    borderColor: '#0f766e',
-  },
-  tabChipText: {
-    color: '#334155',
-    fontWeight: '600',
-  },
-  tabChipTextActive: {
-    color: '#fff',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12,
-    gap: 4,
-  },
-  cardHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-    paddingRight: 8,
-  },
-  badge: {
-    fontSize: 12,
-    color: '#0f766e',
-    fontWeight: '700',
-    textTransform: 'capitalize',
-  },
-  meta: {
-    color: '#475569',
-    fontSize: 13,
-  },
-  actionRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  primaryBtn: {
-    backgroundColor: '#0f766e',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  primaryBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  secondaryBtn: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#0f766e',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  secondaryBtnText: {
-    color: '#0f766e',
-    fontWeight: '700',
-  },
-  modalWrap: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  modalContent: {
-    padding: 16,
-    gap: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  modalSubtitle: {
-    color: '#475569',
-    marginBottom: 4,
-  },
-  textArea: {
-    minHeight: 90,
-    textAlignVertical: 'top',
-  },
-  modalActions: {
-    marginTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-});
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: palette.bg,
+    },
+    listContent: {
+      padding: 16,
+      gap: 10,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: palette.text,
+    },
+    subtitle: {
+      color: palette.muted,
+      marginTop: 2,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 12,
+    },
+    summaryCard: {
+      flex: 1,
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 12,
+      padding: 10,
+    },
+    summaryValue: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: palette.text,
+    },
+    summaryLabel: {
+      color: palette.muted,
+      marginTop: 2,
+    },
+    tabRow: {
+      gap: 8,
+      marginBottom: 12,
+    },
+    tabChip: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: palette.surface,
+    },
+    tabChipActive: {
+      backgroundColor: palette.primary,
+      borderColor: palette.primary,
+    },
+    tabChipText: {
+      color: palette.accent,
+      fontWeight: '600',
+    },
+    tabChipTextActive: {
+      color: palette.surface,
+    },
+    card: {
+      backgroundColor: palette.surface,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: palette.border,
+      padding: 12,
+      gap: 4,
+    },
+    cardHead: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    cardTitle: {
+      flex: 1,
+      fontSize: 16,
+      fontWeight: '700',
+      color: palette.text,
+      paddingRight: 8,
+    },
+    badge: {
+      fontSize: 12,
+      color: palette.primary,
+      fontWeight: '700',
+      textTransform: 'capitalize',
+    },
+    meta: {
+      color: palette.muted,
+      fontSize: 13,
+    },
+    actionRow: {
+      marginTop: 8,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    primaryBtn: {
+      backgroundColor: palette.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 10,
+    },
+    primaryBtnText: {
+      color: palette.surface,
+      fontWeight: '700',
+    },
+    secondaryBtn: {
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+      borderRadius: 10,
+    },
+    secondaryBtnText: {
+      color: palette.primary,
+      fontWeight: '700',
+    },
+    modalWrap: {
+      flex: 1,
+      backgroundColor: palette.bg,
+    },
+    modalContent: {
+      padding: 16,
+      gap: 10,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: palette.text,
+    },
+    modalSubtitle: {
+      color: palette.muted,
+      marginBottom: 4,
+    },
+    textArea: {
+      minHeight: 90,
+      textAlignVertical: 'top',
+    },
+    modalActions: {
+      marginTop: 8,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 8,
+    },
+  });
+}

@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { CreateHelpNeedPayload, HelpNeedQuery, HelpNeedRequest } from '../types';
 
@@ -21,6 +23,8 @@ const STATUS_OPTIONS = ['all', 'open', 'under_review', 'in_progress', 'resolved'
 const CONTACT_MODE_OPTIONS = ['phone', 'email', 'chat'];
 
 export function HelpNeedScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [requests, setRequests] = useState<HelpNeedRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -166,7 +170,7 @@ export function HelpNeedScreen() {
       <FlatList
         data={requests}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
@@ -309,16 +313,17 @@ export function HelpNeedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.bg,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.bg,
   },
   listContent: {
     padding: 16,
@@ -333,15 +338,15 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.text,
   },
   subtitle: {
-    color: '#64748b',
+    color: palette.muted,
     marginTop: 2,
   },
   searchInput: {
-    backgroundColor: '#ffffff',
-    borderColor: '#cbd5e1',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 12,
@@ -354,31 +359,31 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
   },
   chipActive: {
-    backgroundColor: '#0f766e',
-    borderColor: '#0f766e',
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
   },
   chipText: {
-    color: '#334155',
+    color: palette.accent,
     textTransform: 'capitalize',
   },
   chipTextActive: {
-    color: '#ffffff',
+    color: palette.surface,
   },
   errorText: {
-    color: '#b91c1c',
+    color: palette.danger,
     marginBottom: 8,
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: palette.border,
     borderRadius: 12,
     padding: 12,
   },
@@ -392,64 +397,64 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.text,
   },
   badge: {
-    color: '#0f766e',
+    color: palette.primary,
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'capitalize',
   },
   meta: {
-    color: '#475569',
+    color: palette.muted,
     marginBottom: 3,
   },
   progressTrack: {
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: palette.border,
     overflow: 'hidden',
     marginTop: 4,
     marginBottom: 10,
   },
   progressFill: {
     height: 8,
-    backgroundColor: '#0f766e',
+    backgroundColor: palette.primary,
   },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
   primaryBtn: {
-    backgroundColor: '#0f766e',
+    backgroundColor: palette.primary,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
   },
   primaryBtnText: {
-    color: '#ffffff',
+    color: palette.surface,
     fontWeight: '700',
   },
   secondaryBtn: {
-    backgroundColor: '#ffffff',
-    borderColor: '#cbd5e1',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
     borderWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
   },
   secondaryBtnText: {
-    color: '#334155',
+    color: palette.accent,
     fontWeight: '700',
   },
   emptyText: {
-    color: '#64748b',
+    color: palette.muted,
     textAlign: 'center',
     marginTop: 24,
   },
   modalWrap: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.bg,
   },
   modalContent: {
     padding: 16,
@@ -458,10 +463,10 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.text,
   },
   modalSubtitle: {
-    color: '#64748b',
+    color: palette.muted,
     marginBottom: 4,
   },
   textArea: {
@@ -473,4 +478,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 8,
   },
-});
+  });
+}

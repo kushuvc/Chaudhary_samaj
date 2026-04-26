@@ -8,8 +8,10 @@ import {
 } from 'react-native';
 import { EmptyState } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SecondaryButton, SectionCard } from '../components/AppPrimitives';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { loadJson, saveJson } from '../services/localData';
-import { colors, radius, spacing, type } from '../theme';
+import { radius, spacing, type } from '../theme';
 import type { MobileNotificationState, NotificationItem, NotificationType } from '../types';
 
 const STORAGE_KEY = 'chaudhary_mobile_notifications_state';
@@ -42,6 +44,8 @@ const fallbackNotifications: NotificationItem[] = [
 ];
 
 export function NotificationsScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filterType, setFilterType] = useState<'all' | NotificationType>('all');
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -155,10 +159,11 @@ export function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: palette.bg,
   },
   content: {
     padding: spacing.md,
@@ -176,53 +181,53 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
   },
   chipActive: {
-    backgroundColor: colors.text,
-    borderColor: colors.text,
+    backgroundColor: palette.text,
+    borderColor: palette.text,
   },
   chipText: {
     ...type.caption,
-    color: '#334155',
+    color: palette.accent,
     textTransform: 'capitalize',
   },
   chipTextActive: {
-    color: colors.surface,
+    color: palette.surface,
   },
   toggleRow: {
     marginTop: spacing.sm,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
   },
   toggleRowActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
+    borderColor: palette.primary,
+    backgroundColor: palette.primarySoft,
   },
   toggleText: {
     ...type.body,
     fontWeight: '600',
-    color: colors.text,
+    color: palette.text,
   },
   itemCard: {
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     borderRadius: radius.md,
     padding: spacing.sm,
     gap: spacing.xs,
   },
   unreadCard: {
-    borderColor: '#a5b4fc',
-    backgroundColor: '#eef2ff',
+    borderColor: palette.primary,
+    backgroundColor: palette.primarySoft,
   },
   itemHead: {
     flexDirection: 'row',
@@ -234,19 +239,20 @@ const styles = StyleSheet.create({
     flex: 1,
     ...type.body,
     fontWeight: '700',
-    color: colors.text,
+    color: palette.text,
   },
   timeText: {
     ...type.caption,
   },
   typeTag: {
     ...type.caption,
-    color: colors.primary,
+    color: palette.primary,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
   itemMessage: {
     ...type.body,
-    color: '#334155',
+    color: palette.accent,
   },
-});
+  });
+}

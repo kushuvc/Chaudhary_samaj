@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
-import { colors, radius, spacing, type } from '../theme';
+import { radius, spacing, type } from '../theme';
+import type { ThemePalette } from '../context/ThemeContext';
+import { useAppTheme } from '../context/ThemeContext';
 
 export function SectionCard({ children }: { children: React.ReactNode }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return <View style={styles.card}>{children}</View>;
 }
 
@@ -15,6 +19,8 @@ export function PrimaryButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable style={[styles.primaryButton, disabled ? styles.disabledButton : null]} onPress={onPress} disabled={disabled}>
       <Text style={styles.primaryButtonText}>{label}</Text>
@@ -31,6 +37,8 @@ export function SecondaryButton({
   onPress: () => void;
   disabled?: boolean;
 }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <Pressable style={[styles.secondaryButton, disabled ? styles.disabledButton : null]} onPress={onPress} disabled={disabled}>
       <Text style={styles.secondaryButtonText}>{label}</Text>
@@ -39,6 +47,8 @@ export function SecondaryButton({
 }
 
 export function ScreenTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View>
       <Text style={styles.title}>{title}</Text>
@@ -48,6 +58,8 @@ export function ScreenTitle({ title, subtitle }: { title: string; subtitle?: str
 }
 
 export function FieldLabel({ text }: { text: string }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return <Text style={styles.fieldLabel}>{text}</Text>;
 }
 
@@ -56,13 +68,15 @@ export function LabeledInput({
   style,
   ...props
 }: TextInputProps & { label: string }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.fieldGroup}>
       <FieldLabel text={label} />
       <TextInput
         {...props}
         style={[styles.input, style]}
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={palette.muted}
       />
     </View>
   );
@@ -79,6 +93,8 @@ export function OptionSelector({
   options: string[];
   onChange: (next: string) => void;
 }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.fieldGroup}>
       <FieldLabel text={label} />
@@ -102,95 +118,98 @@ export function OptionSelector({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    color: colors.surface,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-  },
-  secondaryButtonText: {
-    color: colors.text,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  disabledButton: {
-    opacity: 0.55,
-  },
-  title: {
-    ...type.title,
-  },
-  subtitle: {
-    ...type.body,
-    color: colors.muted,
-    marginTop: spacing.xs,
-  },
-  fieldGroup: {
-    marginBottom: spacing.sm,
-  },
-  fieldLabel: {
-    ...type.caption,
-    color: colors.text,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    color: colors.text,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  optionChip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  optionChipActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  optionChipText: {
-    ...type.caption,
-    color: colors.text,
-    textTransform: 'capitalize',
-  },
-  optionChipTextActive: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
-});
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    primaryButton: {
+      backgroundColor: palette.primary,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    primaryButtonText: {
+      color: palette.surface,
+      fontWeight: '700',
+      fontSize: 13,
+    },
+    secondaryButton: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.surface,
+    },
+    secondaryButtonText: {
+      color: palette.text,
+      fontWeight: '700',
+      fontSize: 13,
+    },
+    disabledButton: {
+      opacity: 0.55,
+    },
+    title: {
+      ...type.title,
+      color: palette.text,
+    },
+    subtitle: {
+      ...type.body,
+      color: palette.muted,
+      marginTop: spacing.xs,
+    },
+    fieldGroup: {
+      marginBottom: spacing.sm,
+    },
+    fieldLabel: {
+      ...type.caption,
+      color: palette.text,
+      fontWeight: '700',
+      marginBottom: spacing.xs,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.md,
+      backgroundColor: palette.surface,
+      color: palette.text,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    optionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.xs,
+    },
+    optionChip: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    optionChipActive: {
+      borderColor: palette.primary,
+      backgroundColor: palette.primarySoft,
+    },
+    optionChipText: {
+      ...type.caption,
+      color: palette.text,
+      textTransform: 'capitalize',
+    },
+    optionChipTextActive: {
+      color: palette.primary,
+      fontWeight: '700',
+    },
+  });
+}

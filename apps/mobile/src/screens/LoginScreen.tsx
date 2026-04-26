@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 import type { OtpPurpose } from '../types';
 import { BrandArtwork } from '../components/BrandArtwork';
 
@@ -16,11 +19,13 @@ function SelectField({
   value,
   options,
   onSelect,
+  styles,
 }: {
   label: string;
   value: string;
   options: string[];
   onSelect: (next: string) => void;
+  styles: ReturnType<typeof createStyles>;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -53,6 +58,9 @@ function SelectField({
 
 export function LoginScreen() {
   const { requestOtp, login, signup } = useAuth();
+  const { palette } = useAppTheme();
+  const { language } = useAppLanguage();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -65,7 +73,7 @@ export function LoginScreen() {
   const [gender, setGender] = useState('');
   const [maritalStatus, setMaritalStatus] = useState('Never Married');
   const [community, setCommunity] = useState('Chaudhary');
-  const [language, setLanguage] = useState('Hindi');
+  const [profileLanguage, setProfileLanguage] = useState('Hindi');
   const [education, setEducation] = useState('');
   const [occupation, setOccupation] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -131,7 +139,7 @@ export function LoginScreen() {
           education: education || undefined,
           occupation: occupation || undefined,
           maritalStatus: maritalStatus || undefined,
-          language: language || undefined,
+          language: profileLanguage || undefined,
           gender: gender || undefined,
         });
       }
@@ -200,14 +208,15 @@ export function LoginScreen() {
             </View>
           </View>
 
-          <SelectField label="Gender" value={gender} options={GENDER_OPTIONS} onSelect={setGender} />
+          <SelectField label="Gender" value={gender} options={GENDER_OPTIONS} onSelect={setGender} styles={styles} />
           <SelectField
             label="Marital Status"
             value={maritalStatus}
             options={MARITAL_STATUS_OPTIONS}
             onSelect={setMaritalStatus}
+            styles={styles}
           />
-          <SelectField label="Community" value={community} options={COMMUNITY_OPTIONS} onSelect={setCommunity} />
+          <SelectField label="Community" value={community} options={COMMUNITY_OPTIONS} onSelect={setCommunity} styles={styles} />
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Sub Community</Text>
@@ -219,9 +228,15 @@ export function LoginScreen() {
             />
           </View>
 
-          <SelectField label="Education" value={education} options={EDUCATION_OPTIONS} onSelect={setEducation} />
-          <SelectField label="Occupation" value={occupation} options={OCCUPATION_OPTIONS} onSelect={setOccupation} />
-          <SelectField label="Language" value={language} options={LANGUAGE_OPTIONS} onSelect={setLanguage} />
+          <SelectField label="Education" value={education} options={EDUCATION_OPTIONS} onSelect={setEducation} styles={styles} />
+          <SelectField label="Occupation" value={occupation} options={OCCUPATION_OPTIONS} onSelect={setOccupation} styles={styles} />
+          <SelectField
+            label="Language"
+            value={profileLanguage || (language === 'hi-IN' ? 'Hindi' : language === 'pa-IN' ? 'Punjabi' : 'English')}
+            options={LANGUAGE_OPTIONS}
+            onSelect={setProfileLanguage}
+            styles={styles}
+          />
         </>
       ) : null}
 
@@ -264,10 +279,11 @@ export function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc'
+    backgroundColor: palette.bg,
   },
   content: {
     padding: 24,
@@ -276,11 +292,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#0f172a'
+    color: palette.text,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: palette.muted,
     marginBottom: 16,
     marginTop: 2,
   },
@@ -295,20 +311,20 @@ const styles = StyleSheet.create({
     right: 16,
   },
   heroTag: {
-    color: '#cffafe',
+    color: palette.primarySoft,
     fontWeight: '700',
     letterSpacing: 0.2,
     fontSize: 12,
   },
   heroTitle: {
     marginTop: 6,
-    color: '#ffffff',
+    color: palette.surface,
     fontSize: 27,
     fontWeight: '800',
   },
   heroSub: {
     marginTop: 5,
-    color: '#dbeafe',
+    color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
     maxWidth: 280,
@@ -316,7 +332,7 @@ const styles = StyleSheet.create({
   switchRow: {
     flexDirection: 'row',
     marginBottom: 16,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: palette.accentSoft,
     borderRadius: 10,
     padding: 4
   },
@@ -327,20 +343,21 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   switchButtonActive: {
-    backgroundColor: '#ffffff'
+    backgroundColor: palette.surface,
   },
   switchText: {
-    color: '#334155',
+    color: palette.accent,
     fontWeight: '600'
   },
   switchTextActive: {
-    color: '#0f766e'
+    color: palette.primary,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
+    color: palette.text,
     padding: 12,
     marginBottom: 2
   },
@@ -355,15 +372,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    color: '#334155',
+    color: palette.accent,
     fontWeight: '600',
     marginBottom: 6,
   },
   selectTrigger: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
     paddingVertical: 12,
     paddingHorizontal: 12,
     flexDirection: 'row',
@@ -371,20 +388,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   selectTriggerText: {
-    color: '#0f172a',
+    color: palette.text,
   },
   placeholderText: {
-    color: '#94a3b8',
+    color: palette.muted,
   },
   chevron: {
-    color: '#64748b',
+    color: palette.muted,
     fontSize: 12,
   },
   optionsBox: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
     marginTop: 6,
     overflow: 'hidden',
   },
@@ -392,38 +409,39 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: palette.border,
   },
   optionItemActive: {
-    backgroundColor: '#ecfeff',
+    backgroundColor: palette.primarySoft,
   },
   optionText: {
-    color: '#0f172a',
+    color: palette.text,
   },
   optionTextActive: {
-    color: '#0f766e',
+    color: palette.primary,
     fontWeight: '700',
   },
   primaryButton: {
-    backgroundColor: '#0f766e',
+    backgroundColor: palette.primary,
     borderRadius: 10,
     padding: 12,
     marginTop: 8,
     alignItems: 'center'
   },
   primaryButtonText: {
-    color: '#fff',
+    color: palette.surface,
     fontWeight: '700'
   },
   secondaryButton: {
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#0f766e',
+    borderColor: palette.primary,
     alignItems: 'center'
   },
   secondaryButtonText: {
-    color: '#0f766e',
+    color: palette.primary,
     fontWeight: '700'
   }
-});
+  });
+}

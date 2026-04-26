@@ -11,8 +11,10 @@ import {
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { useAuth } from '../context/AuthContext';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
-import { colors, radius, spacing, type } from '../theme';
+import { radius, spacing, type } from '../theme';
 import type { MatrimonyMemberPayload, MatrimonyMemberProfile, MatrimonyMemberSettings } from '../types';
 
 const emptyProfile: MatrimonyMemberProfile = {
@@ -66,9 +68,10 @@ type OptionSelectProps = {
   options: string[];
   editable: boolean;
   onSelect: (value: string) => void;
+  styles: ReturnType<typeof createStyles>;
 };
 
-function OptionSelect({ label, value, options, editable, onSelect }: OptionSelectProps) {
+function OptionSelect({ label, value, options, editable, onSelect, styles }: OptionSelectProps) {
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -106,6 +109,7 @@ type LabeledInputProps = {
   placeholder: string;
   editable: boolean;
   onChangeText: (value: string) => void;
+  styles: ReturnType<typeof createStyles>;
   keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
   multiline?: boolean;
   numberOfLines?: number;
@@ -118,6 +122,7 @@ function LabeledInput({
   placeholder,
   editable,
   onChangeText,
+  styles,
   keyboardType,
   multiline,
   numberOfLines,
@@ -142,6 +147,8 @@ function LabeledInput({
 }
 
 export function ProfileScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const { session, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -281,6 +288,7 @@ export function ProfileScreen() {
           onChangeText={(value) => setProfile((prev) => ({ ...prev, fullName: value }))}
           editable={isEditing}
           placeholder="Full Name"
+          styles={styles}
         />
         <LabeledInput
           label="Email"
@@ -290,6 +298,7 @@ export function ProfileScreen() {
           placeholder="Email"
           keyboardType="email-address"
           autoCapitalize="none"
+          styles={styles}
         />
         <LabeledInput
           label="Phone"
@@ -298,6 +307,7 @@ export function ProfileScreen() {
           editable={isEditing}
           placeholder="Phone"
           keyboardType="phone-pad"
+          styles={styles}
         />
         <LabeledInput
           label="Location"
@@ -305,6 +315,7 @@ export function ProfileScreen() {
           onChangeText={(value) => setProfile((prev) => ({ ...prev, location: value }))}
           editable={isEditing}
           placeholder="Location"
+          styles={styles}
         />
         <OptionSelect
           label="Occupation"
@@ -312,6 +323,7 @@ export function ProfileScreen() {
           options={OCCUPATION_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setProfile((prev) => ({ ...prev, occupation: value }))}
+          styles={styles}
         />
         <OptionSelect
           label="Education"
@@ -319,6 +331,7 @@ export function ProfileScreen() {
           options={EDUCATION_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setProfile((prev) => ({ ...prev, education: value }))}
+          styles={styles}
         />
         <LabeledInput
           label="Profile Bio"
@@ -328,6 +341,7 @@ export function ProfileScreen() {
           placeholder="Bio"
           multiline
           numberOfLines={4}
+          styles={styles}
         />
       </SectionCard>
 
@@ -343,6 +357,7 @@ export function ProfileScreen() {
           editable={isEditing}
           placeholder="Age"
           keyboardType="number-pad"
+          styles={styles}
         />
         <OptionSelect
           label="Marital Status"
@@ -350,6 +365,7 @@ export function ProfileScreen() {
           options={MARITAL_STATUS_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, maritalStatus: value }))}
+          styles={styles}
         />
         <LabeledInput
           label="Height"
@@ -357,6 +373,7 @@ export function ProfileScreen() {
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, height: value }))}
           editable={isEditing}
           placeholder="Height"
+          styles={styles}
         />
         <LabeledInput
           label="Income"
@@ -364,6 +381,7 @@ export function ProfileScreen() {
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, income: value }))}
           editable={isEditing}
           placeholder="Income"
+          styles={styles}
         />
         <OptionSelect
           label="Community"
@@ -371,6 +389,7 @@ export function ProfileScreen() {
           options={COMMUNITY_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, community: value }))}
+          styles={styles}
         />
         <OptionSelect
           label="Language"
@@ -378,6 +397,7 @@ export function ProfileScreen() {
           options={LANGUAGE_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, language: value }))}
+          styles={styles}
         />
         <LabeledInput
           label="Matrimony Bio"
@@ -387,6 +407,7 @@ export function ProfileScreen() {
           placeholder="Matrimony Bio"
           multiline
           numberOfLines={4}
+          styles={styles}
         />
         <LabeledInput
           label="Preferred Location"
@@ -394,6 +415,7 @@ export function ProfileScreen() {
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, preferredLocation: value }))}
           editable={isEditing}
           placeholder="Preferred Location"
+          styles={styles}
         />
         <OptionSelect
           label="Preferred Education"
@@ -401,6 +423,7 @@ export function ProfileScreen() {
           options={EDUCATION_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, preferredEducation: value }))}
+          styles={styles}
         />
         <OptionSelect
           label="Preferred Occupation"
@@ -408,6 +431,7 @@ export function ProfileScreen() {
           options={OCCUPATION_OPTIONS}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, preferredOccupation: value }))}
+          styles={styles}
         />
       </SectionCard>
 
@@ -418,10 +442,11 @@ export function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: palette.bg,
   },
   content: {
     padding: spacing.md,
@@ -433,7 +458,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...type.body,
     fontWeight: '700',
-    color: colors.text,
+    color: palette.text,
   },
   sectionTitle: {
     ...type.h2,
@@ -444,13 +469,13 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     ...type.caption,
-    color: colors.muted,
+    color: palette.muted,
     marginBottom: spacing.xs,
     fontWeight: '600',
   },
   input: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
     borderWidth: 1,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
@@ -467,27 +492,27 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderRadius: 999,
-    borderColor: colors.border,
+    borderColor: palette.border,
     borderWidth: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   chipSelected: {
-    borderColor: '#0f766e',
-    backgroundColor: '#ccfbf1',
+    borderColor: palette.primary,
+    backgroundColor: palette.primarySoft,
   },
   chipText: {
     ...type.caption,
-    color: colors.text,
+    color: palette.text,
     fontWeight: '600',
   },
   chipTextSelected: {
-    color: '#0f766e',
+    color: palette.primary,
   },
   readOnlyValueWrap: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
     borderWidth: 1,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
@@ -495,32 +520,33 @@ const styles = StyleSheet.create({
   },
   readOnlyValueText: {
     ...type.body,
-    color: colors.text,
+    color: palette.text,
   },
   progressTrack: {
     marginTop: spacing.xs,
     marginBottom: spacing.xs,
     height: 8,
     borderRadius: 999,
-    backgroundColor: colors.border,
+    backgroundColor: palette.border,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#14b8a6',
+    backgroundColor: palette.primary,
   },
   progressFillAlt: {
     height: '100%',
-    backgroundColor: '#f43f5e',
+    backgroundColor: palette.danger,
   },
   logoutButton: {
-    backgroundColor: colors.danger,
+    backgroundColor: palette.danger,
     padding: spacing.sm,
     borderRadius: radius.sm,
     alignItems: 'center',
   },
   logoutButtonText: {
-    color: '#fff',
+    color: palette.surface,
     fontWeight: '700',
   },
-});
+  });
+}

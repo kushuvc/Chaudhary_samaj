@@ -11,12 +11,16 @@ import {
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { BusinessListing } from '../types';
 
 const CATEGORY_OPTIONS = ['Retail', 'Services', 'Education', 'Health', 'Food', 'Real Estate', 'Other'];
 
 export function BusinessScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [listings, setListings] = useState<BusinessListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -155,7 +159,7 @@ export function BusinessScreen() {
     <View style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
         <Text style={styles.title}>Business and Marketing</Text>
         <Text style={styles.subtitle}>Global listings visible to all community members</Text>
@@ -169,7 +173,7 @@ export function BusinessScreen() {
           onChangeText={setSearchText}
           style={styles.input}
           placeholder="Search listings"
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={palette.muted}
         />
 
         <Text style={styles.filterLabel}>Category</Text>
@@ -301,87 +305,89 @@ export function BusinessScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
-  content: { padding: 16, paddingBottom: 32 },
-  title: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
-  subtitle: { marginTop: 4, color: '#475569', marginBottom: 12 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 12,
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    color: '#0f172a',
-  },
-  textArea: { minHeight: 90, textAlignVertical: 'top' },
-  primaryButton: {
-    backgroundColor: '#0f766e',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  primaryButtonText: { color: '#fff', fontWeight: '700' },
-  secondaryButton: {
-    borderWidth: 1,
-    borderColor: '#94a3b8',
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  secondaryButtonText: { color: '#334155', fontWeight: '600' },
-  filterLabel: { marginTop: 6, marginBottom: 6, color: '#0f172a', fontWeight: '600' },
-  chipRow: { marginBottom: 10 },
-  chip: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  chipActive: { backgroundColor: '#ccfbf1', borderColor: '#0f766e' },
-  chipText: { color: '#334155', fontWeight: '600' },
-  chipTextActive: { color: '#0f766e' },
-  errorText: { color: '#dc2626', marginBottom: 10 },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 12,
-    marginBottom: 10,
-  },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', flex: 1, paddingRight: 8 },
-  badge: {
-    fontSize: 12,
-    color: '#0f766e',
-    backgroundColor: '#ccfbf1',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    overflow: 'hidden',
-  },
-  cardSub: { color: '#475569', marginTop: 2 },
-  description: { color: '#1e293b', marginTop: 8 },
-  tags: { color: '#0f766e', marginTop: 8, fontWeight: '600' },
-  emptyCard: {
-    marginTop: 8,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    padding: 14,
-  },
-  emptyTitle: { fontWeight: '700', color: '#0f172a' },
-  emptyText: { marginTop: 4, color: '#64748b' },
-  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8fafc' },
-  stateText: { marginTop: 8, color: '#334155' },
-  modalContainer: { flex: 1, backgroundColor: '#f8fafc', padding: 16, paddingTop: 48 },
-  modalTitle: { fontSize: 22, fontWeight: '700', color: '#0f172a', marginBottom: 12 },
-});
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: palette.bg },
+    content: { padding: 16, paddingBottom: 32 },
+    title: { fontSize: 22, fontWeight: '700', color: palette.text },
+    subtitle: { marginTop: 4, color: palette.muted, marginBottom: 12 },
+    input: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 12,
+      backgroundColor: palette.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      color: palette.text,
+    },
+    textArea: { minHeight: 90, textAlignVertical: 'top' },
+    primaryButton: {
+      backgroundColor: palette.primary,
+      paddingVertical: 12,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    primaryButtonText: { color: palette.surface, fontWeight: '700' },
+    secondaryButton: {
+      borderWidth: 1,
+      borderColor: palette.muted,
+      paddingVertical: 12,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    secondaryButtonText: { color: palette.accent, fontWeight: '600' },
+    filterLabel: { marginTop: 6, marginBottom: 6, color: palette.text, fontWeight: '600' },
+    chipRow: { marginBottom: 10 },
+    chip: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 20,
+      marginRight: 8,
+    },
+    chipActive: { backgroundColor: palette.primarySoft, borderColor: palette.primary },
+    chipText: { color: palette.accent, fontWeight: '600' },
+    chipTextActive: { color: palette.primary },
+    errorText: { color: palette.danger, marginBottom: 10 },
+    card: {
+      backgroundColor: palette.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      padding: 12,
+      marginBottom: 10,
+    },
+    rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    cardTitle: { fontSize: 16, fontWeight: '700', color: palette.text, flex: 1, paddingRight: 8 },
+    badge: {
+      fontSize: 12,
+      color: palette.primary,
+      backgroundColor: palette.primarySoft,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      overflow: 'hidden',
+    },
+    cardSub: { color: palette.muted, marginTop: 2 },
+    description: { color: palette.accent, marginTop: 8 },
+    tags: { color: palette.primary, marginTop: 8, fontWeight: '600' },
+    emptyCard: {
+      marginTop: 8,
+      backgroundColor: palette.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: palette.border,
+      padding: 14,
+    },
+    emptyTitle: { fontWeight: '700', color: palette.text },
+    emptyText: { marginTop: 4, color: palette.muted },
+    centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.bg },
+    stateText: { marginTop: 8, color: palette.accent },
+    modalContainer: { flex: 1, backgroundColor: palette.bg, padding: 16, paddingTop: 48 },
+    modalTitle: { fontSize: 22, fontWeight: '700', color: palette.text, marginBottom: 12 },
+  });
+}

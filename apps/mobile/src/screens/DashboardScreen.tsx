@@ -7,12 +7,14 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useAppTheme } from '../context/ThemeContext';
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { api } from '../services/api';
-import { colors, radius, spacing, type } from '../theme';
+import { radius, spacing, type } from '../theme';
 import type { CommunityFeedStats, EventSummaryStats, HelpNeedRequest } from '../types';
 import { BrandArtwork } from '../components/BrandArtwork';
+import type { ThemePalette } from '../context/ThemeContext';
 
 const defaultEventStats: EventSummaryStats = {
   totalCreated: 0,
@@ -30,6 +32,8 @@ const defaultCommunityStats: CommunityFeedStats = {
 };
 
 export function DashboardScreen() {
+  const { palette } = useAppTheme();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,13 +94,13 @@ export function DashboardScreen() {
       <View style={styles.heroWrap}>
         <BrandArtwork compact />
         <View style={styles.heroOverlay}>
-          <Text style={styles.heroBadge}>Live Dashboard</Text>
+          <Text style={styles.heroBadge}>Premium Community Lane</Text>
           <Text style={styles.heroTitle}>Community Snapshot</Text>
         </View>
       </View>
 
       <SectionCard>
-        <ScreenTitle title={`Welcome, ${session?.user?.name || 'Member'}`} subtitle="Here is a quick summary of your community app activity." />
+        <ScreenTitle title={`Welcome, ${session?.user?.name || 'Member'}`} subtitle="Swiggy-style discovery shell is now active for mobile." />
       </SectionCard>
 
       {error ? <InlineError message={error} /> : null}
@@ -147,10 +151,11 @@ export function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: palette.bg,
   },
   content: {
     padding: spacing.md,
@@ -167,14 +172,15 @@ const styles = StyleSheet.create({
     right: spacing.md,
   },
   heroBadge: {
-    color: '#cffafe',
+    color: palette.primarySoft,
     fontWeight: '700',
     fontSize: 11,
+    textTransform: 'uppercase',
   },
   heroTitle: {
     marginTop: 4,
-    color: '#ffffff',
-    fontSize: 20,
+    color: palette.surface,
+    fontSize: 24,
     fontWeight: '800',
   },
   gridRow: {
@@ -183,11 +189,16 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: palette.surface,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: palette.border,
     padding: spacing.sm,
+    shadowColor: palette.text,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
   metricLabel: {
     ...type.caption,
@@ -196,23 +207,24 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
     fontSize: 22,
     fontWeight: '700',
-    color: colors.text,
+    color: palette.text,
   },
   cardTitle: {
     fontWeight: '700',
-    color: colors.text,
+    color: palette.text,
     marginBottom: spacing.xs,
   },
   cardText: {
-    color: '#475569',
+    color: palette.muted,
     marginBottom: 2,
   },
   noteTitle: {
     fontWeight: '700',
-    color: colors.text,
+    color: palette.text,
   },
   noteText: {
     marginTop: spacing.xs,
-    color: '#155e75',
+    color: palette.primary,
   },
-});
+  });
+}

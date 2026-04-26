@@ -1,15 +1,15 @@
 export const colors = {
-  bg: '#f8fafc',
+  bg: '#f5efe7',
   surface: '#ffffff',
   text: '#0f172a',
   muted: '#64748b',
   border: '#e2e8f0',
-  primary: '#0f766e',
-  primarySoft: '#ecfeff',
+  primary: '#ea580c',
+  primarySoft: '#fff7ed',
   danger: '#b91c1c',
   dangerSoft: '#fef2f2',
-  accent: '#1d4ed8',
-  accentSoft: '#eff6ff',
+  accent: '#334155',
+  accentSoft: '#f1f5f9',
 };
 
 export const radius = {

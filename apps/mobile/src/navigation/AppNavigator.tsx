@@ -13,8 +13,10 @@ import { HelpNeedScreen } from '../screens/HelpNeedScreen';
 import { BusinessScreen } from '../screens/BusinessScreen';
 import { CommunityScreen } from '../screens/CommunityScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
-import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { LanguageSelectionScreen } from '../screens/LanguageSelectionScreen';
+import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
@@ -25,44 +27,57 @@ function tabIcon(name: keyof typeof Ionicons.glyphMap) {
 
 function MainTabs() {
   const insets = useSafeAreaInsets();
+  const { resolvedTheme, palette } = useAppTheme();
+  const { t } = useAppLanguage();
 
   return (
     <Tabs.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#0f766e',
-        tabBarInactiveTintColor: '#64748b',
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarActiveTintColor: palette.primary,
+        tabBarInactiveTintColor: palette.muted,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
         tabBarHideOnKeyboard: true,
         tabBarStyle: {
-          minHeight: 64,
-          height: 56 + Math.max(insets.bottom, 8),
-          paddingBottom: Math.max(insets.bottom, 8),
-          paddingTop: 6,
-          borderTopColor: '#e2e8f0',
+          minHeight: 66,
+          height: 58 + Math.max(insets.bottom, 10),
+          paddingBottom: Math.max(insets.bottom, 10),
+          paddingTop: 7,
+          borderTopLeftRadius: 18,
+          borderTopRightRadius: 18,
+          borderTopColor: palette.border,
           borderTopWidth: 1,
-          backgroundColor: '#ffffff',
+          backgroundColor: palette.tabBg,
+          shadowColor: '#000000',
+          shadowOpacity: resolvedTheme === 'dark' ? 0.24 : 0.08,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: -5 },
+          elevation: 10,
         },
       }}
     >
-      <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarIcon: tabIcon('home-outline') }} />
-      <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarIcon: tabIcon('heart-outline') }} />
-      <Tabs.Screen name="Events" component={EventsScreen} options={{ tabBarIcon: tabIcon('calendar-outline') }} />
-      <Tabs.Screen name="Help" component={HelpNeedScreen} options={{ tabBarIcon: tabIcon('medkit-outline') }} />
-      <Tabs.Screen name="Business" component={BusinessScreen} options={{ tabBarIcon: tabIcon('briefcase-outline') }} />
-      <Tabs.Screen name="Community" component={CommunityScreen} options={{ tabBarIcon: tabIcon('people-outline') }} />
-      <Tabs.Screen name="Alerts" component={NotificationsScreen} options={{ tabBarIcon: tabIcon('notifications-outline') }} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline') }} />
-      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('person-outline') }} />
+      <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarIcon: tabIcon('home-outline'), tabBarLabel: t('home') }} />
+      <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarIcon: tabIcon('heart-outline'), tabBarLabel: t('matrimony') }} />
+      <Tabs.Screen name="Events" component={EventsScreen} options={{ tabBarIcon: tabIcon('calendar-outline'), tabBarLabel: t('events') }} />
+      <Tabs.Screen name="Help" component={HelpNeedScreen} options={{ tabBarIcon: tabIcon('medkit-outline'), tabBarLabel: t('help') }} />
+      <Tabs.Screen name="Business" component={BusinessScreen} options={{ tabBarIcon: tabIcon('briefcase-outline'), tabBarLabel: t('business') }} />
+      <Tabs.Screen name="Community" component={CommunityScreen} options={{ tabBarIcon: tabIcon('people-outline'), tabBarLabel: t('community') }} />
+      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline'), tabBarLabel: t('settings') }} />
+      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('person-outline'), tabBarLabel: t('profile') }} />
     </Tabs.Navigator>
   );
 }
 
 export function AppNavigator() {
   const { session, loading } = useAuth();
+  const { ready, language } = useAppLanguage();
 
-  if (loading) {
+  if (loading || !ready) {
     return <LoadingScreen />;
+  }
+
+  if (!language) {
+    return <LanguageSelectionScreen />;
   }
 
   return (

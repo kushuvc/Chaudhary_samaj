@@ -11,6 +11,9 @@ import {
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
+import { DateInput } from '../components/DateInput';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { CommunityFeedStats, CommunityMeeting, CommunityPost } from '../types';
 
@@ -57,6 +60,8 @@ function categoryLabel(value: string) {
 }
 
 export function CommunityScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [selectedTab, setSelectedTab] = useState<(typeof feedTabs)[number]['key']>('all');
   const [search, setSearch] = useState('');
   const [posts, setPosts] = useState<CommunityPost[]>([]);
@@ -225,7 +230,7 @@ export function CommunityScreen() {
     <ScrollView
       style={styles.page}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0f766e" />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
     >
       <View style={styles.header}>
         <View style={styles.headerTextBlock}>
@@ -245,9 +250,9 @@ export function CommunityScreen() {
 
       {stats ? (
         <View style={styles.statsGrid}>
-          <StatCard label="Total Posts" value={String(stats.totalPosts)} />
-          <StatCard label="Pinned" value={String(stats.pinnedPosts)} />
-          <StatCard label="Upcoming Meetings" value={String(stats.upcomingMeetings)} />
+          <StatCard label="Total Posts" value={String(stats.totalPosts)} styles={styles} />
+          <StatCard label="Pinned" value={String(stats.pinnedPosts)} styles={styles} />
+          <StatCard label="Upcoming Meetings" value={String(stats.upcomingMeetings)} styles={styles} />
         </View>
       ) : null}
 
@@ -257,7 +262,7 @@ export function CommunityScreen() {
           value={search}
           onChangeText={setSearch}
           style={styles.searchInput}
-          placeholderTextColor="#94a3b8"
+          placeholderTextColor={palette.muted}
         />
       </View>
 
@@ -280,23 +285,23 @@ export function CommunityScreen() {
       {error ? <InlineError message={error} /> : null}
       {actionError ? <InlineError message={actionError} /> : null}
 
-      <SectionHeader title="Pinned Announcements" subtitle="Important messages highlighted by the community" />
+      <SectionHeader title="Pinned Announcements" subtitle="Important messages highlighted by the community" styles={styles} />
       {pinnedPosts.length > 0 ? (
-        pinnedPosts.map((post) => <PostCard key={post.id} post={post} />)
+        pinnedPosts.map((post) => <PostCard key={post.id} post={post} styles={styles} />)
       ) : (
         <EmptyState title="No pinned announcements" subtitle="Pin important posts so members can see them first." />
       )}
 
-      <SectionHeader title="Upcoming Meetings" subtitle="Planned gatherings and community sessions" />
+      <SectionHeader title="Upcoming Meetings" subtitle="Planned gatherings and community sessions" styles={styles} />
       {featuredMeetings.length > 0 ? (
-        featuredMeetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} />)
+        featuredMeetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} styles={styles} />)
       ) : (
         <EmptyState title="No meetings found" subtitle="Create a meeting to show it here for the community." />
       )}
 
-      <SectionHeader title="Latest Posts" subtitle="Real posts visible to all users" />
+      <SectionHeader title="Latest Posts" subtitle="Real posts visible to all users" styles={styles} />
       {visiblePosts.length > 0 ? (
-        visiblePosts.map((post) => <PostCard key={post.id} post={post} />)
+        visiblePosts.map((post) => <PostCard key={post.id} post={post} styles={styles} />)
       ) : (
         <EmptyState title="No posts for this filter" subtitle="Try a different category or create a new post." />
       )}
@@ -358,11 +363,10 @@ export function CommunityScreen() {
               value={meetingForm.title}
               onChangeText={(value) => setMeetingForm((current) => ({ ...current, title: value }))}
             />
-            <LabeledInput
+            <DateInput
               label="Meeting Date"
-              placeholder="Meeting date (YYYY-MM-DD)"
               value={meetingForm.meetingDate}
-              onChangeText={(value) => setMeetingForm((current) => ({ ...current, meetingDate: value }))}
+              onChange={(value) => setMeetingForm((current) => ({ ...current, meetingDate: value }))}
             />
             <LabeledInput
               label="Location"
@@ -400,7 +404,9 @@ export function CommunityScreen() {
   );
 }
 
-function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+type CommunityStyles = ReturnType<typeof createStyles>;
+
+function SectionHeader({ title, subtitle, styles }: { title: string; subtitle: string; styles: CommunityStyles }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -409,7 +415,7 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, styles }: { label: string; value: string; styles: CommunityStyles }) {
   return (
     <View style={styles.statCard}>
       <Text style={styles.statValue}>{value}</Text>
@@ -418,7 +424,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PostCard({ post }: { post: CommunityPost }) {
+function PostCard({ post, styles }: { post: CommunityPost; styles: CommunityStyles }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTopRow}>
@@ -431,14 +437,14 @@ function PostCard({ post }: { post: CommunityPost }) {
       <Text style={styles.cardMeta}>{post.authorName} • {formatDateLabel(post.createdAt)}</Text>
       <Text style={styles.cardContent}>{post.content}</Text>
       <View style={styles.metricsRow}>
-        <Metric label="Likes" value={String(post.likes ?? 0)} />
-        <Metric label="Comments" value={String(post.comments ?? 0)} />
+        <Metric label="Likes" value={String(post.likes ?? 0)} styles={styles} />
+        <Metric label="Comments" value={String(post.comments ?? 0)} styles={styles} />
       </View>
     </View>
   );
 }
 
-function MeetingCard({ meeting }: { meeting: CommunityMeeting }) {
+function MeetingCard({ meeting, styles }: { meeting: CommunityMeeting; styles: CommunityStyles }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTopRow}>
@@ -454,7 +460,7 @@ function MeetingCard({ meeting }: { meeting: CommunityMeeting }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, styles }: { label: string; value: string; styles: CommunityStyles }) {
   return (
     <View style={styles.metric}>
       <Text style={styles.metricValue}>{value}</Text>
@@ -463,240 +469,242 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 28,
-    gap: 14,
-  },
-  header: {
-    flexDirection: 'column',
-    gap: 12,
-  },
-  headerTextBlock: {
-    gap: 4,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  subtitle: {
-    color: '#475569',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  primaryButton: {
-    backgroundColor: '#0f766e',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 999,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    backgroundColor: '#e2e8f0',
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 999,
-  },
-  secondaryButtonText: {
-    color: '#0f172a',
-    fontWeight: '700',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  statLabel: {
-    marginTop: 4,
-    color: '#64748b',
-    fontSize: 12,
-  },
-  searchCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    paddingHorizontal: 12,
-  },
-  searchInput: {
-    height: 48,
-    color: '#0f172a',
-  },
-  tabsRow: {
-    gap: 10,
-    paddingVertical: 4,
-  },
-  tab: {
-    backgroundColor: '#e2e8f0',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  tabActive: {
-    backgroundColor: '#0f766e',
-  },
-  tabLabel: {
-    color: '#0f172a',
-    fontWeight: '700',
-  },
-  tabLabelActive: {
-    color: '#fff',
-  },
-  sectionHeader: {
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  sectionSubtitle: {
-    marginTop: 3,
-    color: '#64748b',
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 8,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardBadge: {
-    backgroundColor: '#ecfeff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  cardBadgeText: {
-    color: '#0f766e',
-    fontWeight: '700',
-    fontSize: 12,
-  },
-  pinnedBadge: {
-    color: '#64748b',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  cardMeta: {
-    color: '#64748b',
-    fontSize: 12,
-  },
-  cardContent: {
-    color: '#334155',
-    lineHeight: 20,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 4,
-  },
-  metric: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  metricValue: {
-    fontWeight: '800',
-    color: '#0f172a',
-  },
-  metricLabel: {
-    color: '#64748b',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  success: {
-    color: '#0f766e',
-    fontWeight: '700',
-  },
-  error: {
-    color: '#b91c1c',
-    fontWeight: '700',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 16,
-    gap: 10,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#0f172a',
-    marginBottom: 4,
-  },
-  textArea: {
-    minHeight: 100,
-    textAlignVertical: 'top',
-  },
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#94a3b8',
-  },
-  checkboxChecked: {
-    backgroundColor: '#0f766e',
-    borderColor: '#0f766e',
-  },
-  checkboxLabel: {
-    color: '#334155',
-    fontWeight: '600',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 4,
-  },
-});
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
+    page: {
+      flex: 1,
+      backgroundColor: palette.bg,
+    },
+    content: {
+      padding: 16,
+      paddingBottom: 28,
+      gap: 14,
+    },
+    header: {
+      flexDirection: 'column',
+      gap: 12,
+    },
+    headerTextBlock: {
+      gap: 4,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: '800',
+      color: palette.text,
+    },
+    subtitle: {
+      color: palette.muted,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      gap: 10,
+      flexWrap: 'wrap',
+    },
+    primaryButton: {
+      backgroundColor: palette.primary,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderRadius: 999,
+    },
+    primaryButtonText: {
+      color: palette.surface,
+      fontWeight: '700',
+    },
+    secondaryButton: {
+      backgroundColor: palette.accentSoft,
+      paddingHorizontal: 14,
+      paddingVertical: 11,
+      borderRadius: 999,
+    },
+    secondaryButtonText: {
+      color: palette.text,
+      fontWeight: '700',
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: palette.surface,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    statValue: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: palette.text,
+    },
+    statLabel: {
+      marginTop: 4,
+      color: palette.muted,
+      fontSize: 12,
+    },
+    searchCard: {
+      backgroundColor: palette.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      paddingHorizontal: 12,
+    },
+    searchInput: {
+      height: 48,
+      color: palette.text,
+    },
+    tabsRow: {
+      gap: 10,
+      paddingVertical: 4,
+    },
+    tab: {
+      backgroundColor: palette.accentSoft,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 999,
+    },
+    tabActive: {
+      backgroundColor: palette.primary,
+    },
+    tabLabel: {
+      color: palette.text,
+      fontWeight: '700',
+    },
+    tabLabelActive: {
+      color: palette.surface,
+    },
+    sectionHeader: {
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '800',
+      color: palette.text,
+    },
+    sectionSubtitle: {
+      marginTop: 3,
+      color: palette.muted,
+    },
+    card: {
+      backgroundColor: palette.surface,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: palette.border,
+      gap: 8,
+    },
+    cardTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    cardBadge: {
+      backgroundColor: palette.primarySoft,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+    },
+    cardBadgeText: {
+      color: palette.primary,
+      fontWeight: '700',
+      fontSize: 12,
+    },
+    pinnedBadge: {
+      color: palette.muted,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    cardTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      color: palette.text,
+    },
+    cardMeta: {
+      color: palette.muted,
+      fontSize: 12,
+    },
+    cardContent: {
+      color: palette.accent,
+      lineHeight: 20,
+    },
+    metricsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 4,
+    },
+    metric: {
+      flex: 1,
+      backgroundColor: palette.bg,
+      borderRadius: 14,
+      padding: 10,
+      borderWidth: 1,
+      borderColor: palette.border,
+    },
+    metricValue: {
+      fontWeight: '800',
+      color: palette.text,
+    },
+    metricLabel: {
+      color: palette.muted,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    success: {
+      color: palette.primary,
+      fontWeight: '700',
+    },
+    error: {
+      color: palette.danger,
+      fontWeight: '700',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.55)',
+      justifyContent: 'center',
+      padding: 16,
+    },
+    modalCard: {
+      backgroundColor: palette.surface,
+      borderRadius: 20,
+      padding: 16,
+      gap: 10,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '800',
+      color: palette.text,
+      marginBottom: 4,
+    },
+    textArea: {
+      minHeight: 100,
+      textAlignVertical: 'top',
+    },
+    checkboxRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: palette.muted,
+    },
+    checkboxChecked: {
+      backgroundColor: palette.primary,
+      borderColor: palette.primary,
+    },
+    checkboxLabel: {
+      color: palette.accent,
+      fontWeight: '600',
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 10,
+      marginTop: 4,
+    },
+  });
+}

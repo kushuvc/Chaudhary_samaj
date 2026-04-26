@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { MatrimonyFilterOptions, MatrimonyProfile } from '../types';
 
@@ -63,10 +65,12 @@ function FilterChip({
   label,
   active,
   onPress,
+  styles,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <Pressable onPress={onPress} style={[styles.filterChip, active ? styles.filterChipActive : null]}>
@@ -81,24 +85,27 @@ function FilterSection({
   selectedValue,
   options,
   onSelect,
+  styles,
 }: {
   title: string;
   allLabel: string;
   selectedValue: string;
   options: string[];
   onSelect: (value: string) => void;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <View style={styles.filterSection}>
       <Text style={styles.filterSectionTitle}>{title}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipRow}>
-        <FilterChip label={allLabel} active={!selectedValue} onPress={() => onSelect('')} />
+        <FilterChip label={allLabel} active={!selectedValue} onPress={() => onSelect('')} styles={styles} />
         {options.map((option) => (
           <FilterChip
             key={option}
             label={option}
             active={selectedValue === option}
             onPress={() => onSelect(option)}
+            styles={styles}
           />
         ))}
       </ScrollView>
@@ -107,6 +114,8 @@ function FilterSection({
 }
 
 export function MatrimonyScreen() {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [tab, setTab] = useState<MatchTab>('all');
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -202,7 +211,7 @@ export function MatrimonyScreen() {
     <View style={styles.page}>
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Matrimony</Text>
@@ -337,6 +346,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.location}
               options={filterOptions.locations}
               onSelect={(value) => setFilters((prev) => ({ ...prev, location: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Community"
@@ -344,6 +354,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.community}
               options={filterOptions.communities}
               onSelect={(value) => setFilters((prev) => ({ ...prev, community: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Sub Community"
@@ -351,6 +362,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.subCommunity}
               options={filterOptions.subCommunities}
               onSelect={(value) => setFilters((prev) => ({ ...prev, subCommunity: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Gender"
@@ -358,6 +370,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.gender}
               options={filterOptions.genders}
               onSelect={(value) => setFilters((prev) => ({ ...prev, gender: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Education"
@@ -365,6 +378,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.education}
               options={filterOptions.educations}
               onSelect={(value) => setFilters((prev) => ({ ...prev, education: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Occupation"
@@ -372,6 +386,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.occupation}
               options={filterOptions.occupations}
               onSelect={(value) => setFilters((prev) => ({ ...prev, occupation: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Marital Status"
@@ -379,6 +394,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.maritalStatus}
               options={filterOptions.maritalStatuses}
               onSelect={(value) => setFilters((prev) => ({ ...prev, maritalStatus: value }))}
+              styles={styles}
             />
             <FilterSection
               title="Language"
@@ -386,6 +402,7 @@ export function MatrimonyScreen() {
               selectedValue={filters.language}
               options={filterOptions.languages}
               onSelect={(value) => setFilters((prev) => ({ ...prev, language: value }))}
+              styles={styles}
             />
           </ScrollView>
         </View>
@@ -394,10 +411,11 @@ export function MatrimonyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   page: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.bg,
   },
   content: {
     padding: 16,
@@ -410,20 +428,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#0f172a',
+    color: palette.text,
   },
   subtitle: {
-    color: '#475569',
+    color: palette.muted,
     marginTop: 4,
   },
   searchInput: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    color: '#0f172a',
+    color: palette.text,
   },
   tabRow: {
     gap: 8,
@@ -431,23 +449,23 @@ const styles = StyleSheet.create({
   },
   tab: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 999,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   tabActive: {
-    borderColor: '#115e59',
-    backgroundColor: '#ccfbf1',
+    borderColor: palette.primary,
+    backgroundColor: palette.primarySoft,
   },
   tabText: {
-    color: '#334155',
+    color: palette.accent,
     fontSize: 12,
     fontWeight: '600',
   },
   tabTextActive: {
-    color: '#134e4a',
+    color: palette.primary,
   },
   filterActionsRow: {
     flexDirection: 'row',
@@ -456,51 +474,51 @@ const styles = StyleSheet.create({
   filterButton: {
     flex: 1,
     borderRadius: 10,
-    backgroundColor: '#0f766e',
+    backgroundColor: palette.primary,
     paddingVertical: 10,
     alignItems: 'center',
   },
   filterButtonText: {
-    color: '#f0fdfa',
+    color: palette.surface,
     fontWeight: '700',
   },
   clearButton: {
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     paddingHorizontal: 14,
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
   },
   clearButtonText: {
-    color: '#334155',
+    color: palette.accent,
     fontWeight: '700',
   },
   error: {
-    color: '#b91c1c',
+    color: palette.danger,
     fontWeight: '600',
   },
   emptyCard: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: 14,
   },
   emptyTitle: {
-    color: '#0f172a',
+    color: palette.text,
     fontWeight: '700',
     fontSize: 16,
   },
   emptySubtitle: {
-    color: '#64748b',
+    color: palette.muted,
     marginTop: 6,
   },
   card: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
+    borderColor: palette.border,
+    backgroundColor: palette.surface,
     padding: 14,
     gap: 6,
   },
@@ -510,21 +528,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    color: '#0f172a',
+    color: palette.text,
     fontWeight: '700',
     fontSize: 16,
     flex: 1,
   },
   score: {
-    color: '#0f766e',
+    color: palette.primary,
     fontWeight: '800',
   },
   meta: {
-    color: '#475569',
+    color: palette.muted,
     fontSize: 13,
   },
   bio: {
-    color: '#334155',
+    color: palette.accent,
     marginTop: 2,
   },
   actionRow: {
@@ -536,61 +554,61 @@ const styles = StyleSheet.create({
   secondaryAction: {
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
   },
   secondaryActionText: {
-    color: '#334155',
+    color: palette.accent,
     fontWeight: '700',
     fontSize: 12,
   },
   primaryAction: {
     borderRadius: 8,
-    backgroundColor: '#115e59',
+    backgroundColor: palette.primary,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
   primaryActionText: {
-    color: '#ecfeff',
+    color: palette.surface,
     fontWeight: '700',
     fontSize: 12,
   },
   unlockedPill: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#0f766e',
+    borderColor: palette.primary,
     paddingVertical: 6,
     paddingHorizontal: 11,
-    backgroundColor: '#f0fdfa',
+    backgroundColor: palette.primarySoft,
   },
   unlockedText: {
-    color: '#0f766e',
+    color: palette.primary,
     fontWeight: '700',
     fontSize: 12,
   },
   modalPage: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: palette.bg,
   },
   modalHeader: {
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: palette.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
   },
   modalTitle: {
-    color: '#0f172a',
+    color: palette.text,
     fontWeight: '800',
     fontSize: 18,
   },
   modalClose: {
-    color: '#0f766e',
+    color: palette.primary,
     fontWeight: '700',
   },
   modalContent: {
@@ -606,15 +624,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ageLabel: {
-    color: '#334155',
+    color: palette.accent,
     fontWeight: '600',
     fontSize: 12,
   },
   ageInput: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 10,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
     paddingHorizontal: 12,
     paddingVertical: 9,
   },
@@ -622,7 +640,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterSectionTitle: {
-    color: '#0f172a',
+    color: palette.text,
     fontWeight: '700',
   },
   filterChipRow: {
@@ -631,22 +649,23 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     borderRadius: 999,
-    backgroundColor: '#fff',
+    backgroundColor: palette.surface,
     paddingVertical: 7,
     paddingHorizontal: 11,
   },
   filterChipActive: {
-    borderColor: '#115e59',
-    backgroundColor: '#ccfbf1',
+    borderColor: palette.primary,
+    backgroundColor: palette.primarySoft,
   },
   filterChipText: {
-    color: '#334155',
+    color: palette.accent,
     fontSize: 12,
     fontWeight: '600',
   },
   filterChipTextActive: {
-    color: '#134e4a',
+    color: palette.primary,
   },
-});
+  });
+}

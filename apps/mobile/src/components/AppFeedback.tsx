@@ -1,17 +1,23 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, spacing, type } from '../theme';
+import { radius, spacing, type } from '../theme';
+import type { ThemePalette } from '../context/ThemeContext';
+import { useAppTheme } from '../context/ThemeContext';
 
 export function ScreenLoader({ message = 'Loading...' }: { message?: string }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.centered}>
-      <ActivityIndicator size="large" color="#0f766e" />
+      <ActivityIndicator size="large" color={palette.primary} />
       <Text style={styles.helperText}>{message}</Text>
     </View>
   );
 }
 
 export function InlineError({ message }: { message: string }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return <Text style={styles.errorText}>{message}</Text>;
 }
 
@@ -26,6 +32,8 @@ export function EmptyState({
   actionLabel?: string;
   onAction?: () => void;
 }) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.emptyCard}>
       <Text style={styles.emptyTitle}>{title}</Text>
@@ -39,53 +47,57 @@ export function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bg,
-    padding: spacing.lg,
-  },
-  helperText: {
-    marginTop: spacing.sm,
-    ...type.caption,
-  },
-  errorText: {
-    color: colors.danger,
-    backgroundColor: colors.dangerSoft,
-    borderColor: '#fecaca',
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.sm,
-  },
-  emptyCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    ...type.h2,
-  },
-  emptySubtitle: {
-    ...type.body,
-    color: colors.muted,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-  },
-  actionButton: {
-    marginTop: spacing.sm,
-    backgroundColor: colors.text,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  actionText: {
-    color: colors.surface,
-    fontWeight: '600',
-  },
-});
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.bg,
+      padding: spacing.lg,
+    },
+    helperText: {
+      marginTop: spacing.sm,
+      ...type.caption,
+      color: palette.muted,
+    },
+    errorText: {
+      color: palette.danger,
+      backgroundColor: palette.dangerSoft,
+      borderColor: palette.danger,
+      borderWidth: 1,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.sm,
+    },
+    emptyCard: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.md,
+      backgroundColor: palette.surface,
+      padding: spacing.md,
+      alignItems: 'center',
+    },
+    emptyTitle: {
+      ...type.h2,
+      color: palette.text,
+    },
+    emptySubtitle: {
+      ...type.body,
+      color: palette.muted,
+      textAlign: 'center',
+      marginTop: spacing.xs,
+    },
+    actionButton: {
+      marginTop: spacing.sm,
+      backgroundColor: palette.text,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    actionText: {
+      color: palette.surface,
+      fontWeight: '600',
+    },
+  });
+}

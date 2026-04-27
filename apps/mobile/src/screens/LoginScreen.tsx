@@ -10,7 +10,7 @@ import { BrandArtwork } from '../components/BrandArtwork';
 const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
 const MARITAL_STATUS_OPTIONS = ['Never Married', 'Divorced', 'Widowed'];
 const COMMUNITY_OPTIONS = ['Chaudhary', 'Jat', 'Gurjar', 'Rajput', 'Other'];
-const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Punjabi', 'Haryanvi', 'Other'];
+const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Gujarati', 'Haryanvi', 'Other'];
 const EDUCATION_OPTIONS = ['High School', 'Diploma', 'Bachelor', 'Master', 'Doctorate', 'Other'];
 const OCCUPATION_OPTIONS = ['Business', 'Private Job', 'Government Job', 'Self Employed', 'Student', 'Other'];
 
@@ -232,7 +232,7 @@ export function LoginScreen() {
           <SelectField label="Occupation" value={occupation} options={OCCUPATION_OPTIONS} onSelect={setOccupation} styles={styles} />
           <SelectField
             label="Language"
-            value={profileLanguage || (language === 'hi-IN' ? 'Hindi' : language === 'pa-IN' ? 'Punjabi' : 'English')}
+            value={profileLanguage || (language === 'hi-IN' ? 'Hindi' : language === 'gu-IN' ? 'Gujarati' : 'English')}
             options={LANGUAGE_OPTIONS}
             onSelect={setProfileLanguage}
             styles={styles}

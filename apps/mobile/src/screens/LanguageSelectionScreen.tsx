@@ -9,7 +9,7 @@ import { radius, spacing, type } from '../theme';
 const options: Array<{ key: AppLanguage; label: string }> = [
   { key: 'en-IN', label: 'English' },
   { key: 'hi-IN', label: 'हिंदी' },
-  { key: 'pa-IN', label: 'ਪੰਜਾਬੀ' },
+  { key: 'gu-IN', label: 'ગુજરાતી' },
 ];
 
 export function LanguageSelectionScreen() {

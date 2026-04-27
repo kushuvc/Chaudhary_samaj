@@ -42,7 +42,7 @@ const emptyMatrimony: MatrimonyMemberSettings = {
 
 const MARITAL_STATUS_OPTIONS = ['Never Married', 'Divorced', 'Widowed', 'Separated'];
 const COMMUNITY_OPTIONS = ['Chaudhary', 'Jat', 'Other'];
-const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Punjabi', 'Rajasthani', 'Haryanvi'];
+const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Gujarati', 'Rajasthani', 'Haryanvi'];
 const EDUCATION_OPTIONS = ['High School', 'Diploma', 'Graduate', 'Postgraduate', 'Doctorate'];
 const OCCUPATION_OPTIONS = [
   'Business',

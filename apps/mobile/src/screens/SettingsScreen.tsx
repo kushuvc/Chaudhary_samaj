@@ -133,10 +133,10 @@ export function SettingsScreen() {
   };
 
   const cycleLanguage = () => {
-    const values = ['en-IN', 'hi-IN', 'pa-IN'];
+    const values = ['en-IN', 'hi-IN', 'gu-IN'];
     const index = values.indexOf(account.language);
     const next = values[(index + 1) % values.length];
-    void setLanguage(next as 'en-IN' | 'hi-IN' | 'pa-IN');
+    void setLanguage(next as 'en-IN' | 'hi-IN' | 'gu-IN');
     setAccount((prev) => ({ ...prev, language: next }));
   };
 

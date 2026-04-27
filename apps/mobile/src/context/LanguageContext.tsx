@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { loadJson, saveJson } from '../services/localData';
 
-export type AppLanguage = 'en-IN' | 'hi-IN' | 'pa-IN';
+export type AppLanguage = 'en-IN' | 'hi-IN' | 'gu-IN';
 
 type TranslationKey =
   | 'home'
@@ -55,19 +55,19 @@ const translations: Record<AppLanguage, Record<TranslationKey, string>> = {
     welcomeMember: 'स्वागत है, सदस्य',
     loading: 'लोड हो रहा है...',
   },
-  'pa-IN': {
-    home: 'ਘਰ',
-    matrimony: 'ਵਿਵਾਹ',
-    events: 'ਕਾਰਜ',
-    help: 'ਮਦਦ',
-    business: 'ਕਾਰੋਬਾਰ',
-    community: 'ਕਮਿਊਨਿਟੀ',
-    settings: 'ਸੈਟਿੰਗਾਂ',
-    profile: 'ਪ੍ਰੋਫ਼ਾਈਲ',
-    selectLanguage: 'ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ',
-    continue: 'ਜਾਰੀ ਰੱਖੋ',
-    welcomeMember: 'ਜੀ ਆਇਆਂ ਨੂੰ, ਮੈਂਬਰ',
-    loading: 'ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ...',
+  'gu-IN': {
+    home: 'હોમ',
+    matrimony: 'લગ્ન',
+    events: 'કાર્યક્રમો',
+    help: 'મદદ',
+    business: 'વ્યવસાય',
+    community: 'સમુદાય',
+    settings: 'સેટિંગ્સ',
+    profile: 'પ્રોફાઇલ',
+    selectLanguage: 'તમારી ભાષા પસંદ કરો',
+    continue: 'આગળ વધો',
+    welcomeMember: 'સ્વાગત છે, સભ્ય',
+    loading: 'લોડ થઈ રહ્યું છે...',
   },
 };
 
@@ -81,11 +81,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     const load = async () => {
-      const saved = await loadJson<AppLanguage | null>(STORAGE_KEY, null);
+      const saved = await loadJson<AppLanguage | 'pa-IN' | null>(STORAGE_KEY, null);
       if (!mounted) {
         return;
       }
-      setLanguageState(saved);
+      const normalized = saved === 'pa-IN' ? 'gu-IN' : saved;
+      setLanguageState(normalized);
+      if (saved === 'pa-IN') {
+        await saveJson<AppLanguage>(STORAGE_KEY, 'gu-IN');
+      }
       setReady(true);
     };
 

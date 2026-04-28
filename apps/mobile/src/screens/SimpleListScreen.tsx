@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 
@@ -19,6 +20,7 @@ export function SimpleListScreen<T>({
   keyExtractor
 }: SimpleListScreenProps<T>) {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +65,7 @@ export function SimpleListScreen<T>({
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       }
-      ListEmptyComponent={<Text style={styles.empty}>No records yet.</Text>}
+      ListEmptyComponent={<Text style={styles.empty}>{t('noRecordsYet')}</Text>}
       renderItem={({ item }) => <View style={styles.card}>{renderItem(item)}</View>}
     />
   );

@@ -11,6 +11,7 @@ import {
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { useAuth } from '../context/AuthContext';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -148,6 +149,7 @@ function LabeledInput({
 
 export function ProfileScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const { session, logout } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -210,7 +212,7 @@ export function ProfileScreen() {
         });
       } catch (err) {
         if (mounted) {
-          setError((err as Error).message || 'Unable to load profile');
+          setError((err as Error).message || t('unableLoadProfile'));
           setProfile((prev) => ({
             ...prev,
             fullName: session?.user?.name || prev.fullName,
@@ -228,7 +230,7 @@ export function ProfileScreen() {
     return () => {
       mounted = false;
     };
-  }, [session?.user?.email, session?.user?.name]);
+  }, [session?.user?.email, session?.user?.name, t]);
 
   const saveProfile = async () => {
     try {
@@ -250,22 +252,22 @@ export function ProfileScreen() {
       setMatrimony(updated.matrimony);
       setIsEditing(false);
     } catch (err) {
-      setError((err as Error).message || 'Unable to save profile');
+      setError((err as Error).message || t('unableSaveProfile'));
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading profile..." />;
+    return <ScreenLoader message={t('loadingProfile')} />;
   }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
-        <ScreenTitle title="Profile" subtitle="Manage account and matrimony profile details" />
+        <ScreenTitle title={t('profile')} subtitle={t('profileSubtitle')} />
         <PrimaryButton
-          label={saving ? 'Saving...' : isEditing ? 'Save' : 'Edit'}
+          label={saving ? t('saving') : isEditing ? t('save') : t('edit')}
           onPress={isEditing ? saveProfile : () => setIsEditing(true)}
           disabled={saving}
         />
@@ -274,51 +276,51 @@ export function ProfileScreen() {
       {error ? <InlineError message={error} /> : null}
 
       <SectionCard>
-        <Text style={styles.cardTitle}>Profile Completion {completionScore}%</Text>
+        <Text style={styles.cardTitle}>{t('profileCompletion')} {completionScore}%</Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${completionScore}%` }]} />
         </View>
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.sectionTitle}>Basic Information</Text>
+        <Text style={styles.sectionTitle}>{t('basicInformation')}</Text>
         <LabeledInput
-          label="Full Name"
+          label={t('fullNameLabel')}
           value={profile.fullName}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, fullName: value }))}
           editable={isEditing}
-          placeholder="Full Name"
+          placeholder={t('fullNamePlaceholder')}
           styles={styles}
         />
         <LabeledInput
-          label="Email"
+          label={t('emailLabel')}
           value={profile.email}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, email: value }))}
           editable={isEditing}
-          placeholder="Email"
+          placeholder={t('contactEmailPlaceholder')}
           keyboardType="email-address"
           autoCapitalize="none"
           styles={styles}
         />
         <LabeledInput
-          label="Phone"
+          label={t('phoneLabel')}
           value={profile.phone || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, phone: value }))}
           editable={isEditing}
-          placeholder="Phone"
+          placeholder={t('phonePlaceholder')}
           keyboardType="phone-pad"
           styles={styles}
         />
         <LabeledInput
-          label="Location"
+          label={t('locationLabel')}
           value={profile.location}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, location: value }))}
           editable={isEditing}
-          placeholder="Location"
+          placeholder={t('locationPlaceholder')}
           styles={styles}
         />
         <OptionSelect
-          label="Occupation"
+          label={t('occupationLabel')}
           value={profile.occupation}
           options={OCCUPATION_OPTIONS}
           editable={isEditing}
@@ -326,7 +328,7 @@ export function ProfileScreen() {
           styles={styles}
         />
         <OptionSelect
-          label="Education"
+          label={t('educationLabel')}
           value={profile.education}
           options={EDUCATION_OPTIONS}
           editable={isEditing}
@@ -334,11 +336,11 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Profile Bio"
+          label={t('profileBioLabel')}
           value={profile.bio}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, bio: value }))}
           editable={isEditing}
-          placeholder="Bio"
+          placeholder={t('bioPlaceholder')}
           multiline
           numberOfLines={4}
           styles={styles}
@@ -346,21 +348,21 @@ export function ProfileScreen() {
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.sectionTitle}>Matrimony Completion {matrimonyCompletion}%</Text>
+        <Text style={styles.sectionTitle}>{t('matrimonyCompletion')} {matrimonyCompletion}%</Text>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFillAlt, { width: `${matrimonyCompletion}%` }]} />
         </View>
         <LabeledInput
-          label="Age"
+          label={t('ageLabel')}
           value={matrimony.age}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, age: value }))}
           editable={isEditing}
-          placeholder="Age"
+          placeholder={t('agePlaceholder')}
           keyboardType="number-pad"
           styles={styles}
         />
         <OptionSelect
-          label="Marital Status"
+          label={t('maritalStatusLabel')}
           value={matrimony.maritalStatus}
           options={MARITAL_STATUS_OPTIONS}
           editable={isEditing}
@@ -368,23 +370,23 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Height"
+          label={t('heightLabel')}
           value={matrimony.height}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, height: value }))}
           editable={isEditing}
-          placeholder="Height"
+          placeholder={t('heightPlaceholder')}
           styles={styles}
         />
         <LabeledInput
-          label="Income"
+          label={t('incomeLabel')}
           value={matrimony.income}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, income: value }))}
           editable={isEditing}
-          placeholder="Income"
+          placeholder={t('incomePlaceholder')}
           styles={styles}
         />
         <OptionSelect
-          label="Community"
+          label={t('community')}
           value={matrimony.community}
           options={COMMUNITY_OPTIONS}
           editable={isEditing}
@@ -392,7 +394,7 @@ export function ProfileScreen() {
           styles={styles}
         />
         <OptionSelect
-          label="Language"
+          label={t('languageFieldLabel')}
           value={matrimony.language}
           options={LANGUAGE_OPTIONS}
           editable={isEditing}
@@ -400,25 +402,25 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Matrimony Bio"
+          label={t('matrimonyBioLabel')}
           value={matrimony.profileBio}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, profileBio: value }))}
           editable={isEditing}
-          placeholder="Matrimony Bio"
+          placeholder={t('matrimonyBioPlaceholder')}
           multiline
           numberOfLines={4}
           styles={styles}
         />
         <LabeledInput
-          label="Preferred Location"
+          label={t('preferredLocationLabel')}
           value={matrimony.preferredLocation}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, preferredLocation: value }))}
           editable={isEditing}
-          placeholder="Preferred Location"
+          placeholder={t('preferredLocationPlaceholder')}
           styles={styles}
         />
         <OptionSelect
-          label="Preferred Education"
+          label={t('preferredEducationLabel')}
           value={matrimony.preferredEducation}
           options={EDUCATION_OPTIONS}
           editable={isEditing}
@@ -426,7 +428,7 @@ export function ProfileScreen() {
           styles={styles}
         />
         <OptionSelect
-          label="Preferred Occupation"
+          label={t('preferredOccupationLabel')}
           value={matrimony.preferredOccupation}
           options={OCCUPATION_OPTIONS}
           editable={isEditing}
@@ -436,7 +438,7 @@ export function ProfileScreen() {
       </SectionCard>
 
       <Pressable style={styles.logoutButton} onPress={() => logout()}>
-        <Text style={styles.logoutButtonText}>Logout</Text>
+        <Text style={styles.logoutButtonText}>{t('logoutLabel')}</Text>
       </Pressable>
     </ScrollView>
   );

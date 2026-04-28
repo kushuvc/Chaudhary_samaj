@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { EmptyState } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SecondaryButton, SectionCard } from '../components/AppPrimitives';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { loadJson, saveJson } from '../services/localData';
@@ -45,6 +46,7 @@ const fallbackNotifications: NotificationItem[] = [
 
 export function NotificationsScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filterType, setFilterType] = useState<'all' | NotificationType>('all');
@@ -98,19 +100,27 @@ export function NotificationsScreen() {
   const formatTimeAgo = (isoDate: string) => {
     const diffMs = Date.now() - new Date(isoDate).getTime();
     const mins = Math.max(1, Math.floor(diffMs / 60000));
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 60) return `${mins}${t('minutesShort')} ${t('agoSuffix')}`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+    if (hrs < 24) return `${hrs}${t('hoursShort')} ${t('agoSuffix')}`;
+    return `${Math.floor(hrs / 24)}${t('daysShort')} ${t('agoSuffix')}`;
+  };
+
+  const typeLabel = (item: 'all' | NotificationType) => {
+    if (item === 'all') return t('allTab');
+    if (item === 'announcement') return t('announcementType');
+    if (item === 'message') return t('messageType');
+    if (item === 'security') return t('securityType');
+    return t('eventType');
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <SectionCard>
-        <ScreenTitle title="Notifications" subtitle={`${unreadCount} unread notifications`} />
+        <ScreenTitle title={t('notificationsTitle')} subtitle={`${unreadCount} ${t('unreadNotifications')}`} />
         <View style={styles.headerActions}>
-          <PrimaryButton label="Mark All Read" onPress={markAllRead} />
-          <SecondaryButton label="Clear Read" onPress={clearRead} />
+          <PrimaryButton label={t('markAllRead')} onPress={markAllRead} />
+          <SecondaryButton label={t('clearRead')} onPress={clearRead} />
         </View>
       </SectionCard>
 
@@ -122,7 +132,7 @@ export function NotificationsScreen() {
               onPress={() => setFilterType(item)}
               style={[styles.chip, filterType === item ? styles.chipActive : null]}
             >
-              <Text style={[styles.chipText, filterType === item ? styles.chipTextActive : null]}>{item}</Text>
+              <Text style={[styles.chipText, filterType === item ? styles.chipTextActive : null]}>{typeLabel(item)}</Text>
             </Pressable>
           ))}
         </View>
@@ -131,14 +141,14 @@ export function NotificationsScreen() {
           style={[styles.toggleRow, showUnreadOnly ? styles.toggleRowActive : null]}
           onPress={() => setShowUnreadOnly((prev) => !prev)}
         >
-          <Text style={styles.toggleText}>Unread only</Text>
+          <Text style={styles.toggleText}>{t('unreadOnly')}</Text>
         </Pressable>
       </SectionCard>
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="No notifications found"
-          subtitle="Try changing your filters."
+          title={t('noNotificationsFound')}
+          subtitle={t('changeFiltersHint')}
         />
       ) : null}
 
@@ -148,10 +158,10 @@ export function NotificationsScreen() {
             <Text style={styles.itemTitle}>{notification.title}</Text>
             <Text style={styles.timeText}>{formatTimeAgo(notification.createdAt)}</Text>
           </View>
-          <Text style={styles.typeTag}>{notification.type}</Text>
+          <Text style={styles.typeTag}>{typeLabel(notification.type)}</Text>
           <Text style={styles.itemMessage}>{notification.message}</Text>
           {!notification.read ? (
-            <PrimaryButton label="Mark Read" onPress={() => markAsRead(notification.id)} />
+            <PrimaryButton label={t('markRead')} onPress={() => markAsRead(notification.id)} />
           ) : null}
         </View>
       ))}

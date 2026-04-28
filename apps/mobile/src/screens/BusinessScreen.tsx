@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -20,6 +21,7 @@ const CATEGORY_OPTIONS = ['Retail', 'Services', 'Education', 'Health', 'Food', '
 
 export function BusinessScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [listings, setListings] = useState<BusinessListing[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +51,12 @@ export function BusinessScreen() {
       const response = await api.getBusinessListings();
       setListings(response.listings || []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Unable to load business listings');
+      setError(loadError instanceof Error ? loadError.message : t('unableLoadBusinessListings'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   React.useEffect(() => {
     loadListings();
@@ -120,7 +122,7 @@ export function BusinessScreen() {
       !form.contactPhone.trim() ||
       !form.location.trim()
     ) {
-      setError('Please fill required fields: name, category, owner, description, phone, location.');
+      setError(t('businessRequiredFields'));
       return;
     }
 
@@ -145,14 +147,14 @@ export function BusinessScreen() {
       setModalOpen(false);
       resetForm();
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Unable to create listing');
+      setError(submitError instanceof Error ? submitError.message : t('unableCreateListing'));
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading business listings..." />;
+    return <ScreenLoader message={t('loadingBusinessListings')} />;
   }
 
   return (
@@ -161,22 +163,22 @@ export function BusinessScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
-        <Text style={styles.title}>Business and Marketing</Text>
-        <Text style={styles.subtitle}>Global listings visible to all community members</Text>
+        <Text style={styles.title}>{t('businessMarketing')}</Text>
+        <Text style={styles.subtitle}>{t('globalListingsSubtitle')}</Text>
 
         <Pressable style={styles.primaryButton} onPress={() => setModalOpen(true)}>
-          <Text style={styles.primaryButtonText}>+ Add Business Listing</Text>
+          <Text style={styles.primaryButtonText}>+ {t('addBusinessListing')}</Text>
         </Pressable>
 
         <TextInput
           value={searchText}
           onChangeText={setSearchText}
           style={styles.input}
-          placeholder="Search listings"
+          placeholder={t('searchListings')}
           placeholderTextColor={palette.muted}
         />
 
-        <Text style={styles.filterLabel}>Category</Text>
+        <Text style={styles.filterLabel}>{t('category')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           {categories.map((item) => (
             <Pressable
@@ -185,13 +187,13 @@ export function BusinessScreen() {
               style={[styles.chip, categoryFilter === item && styles.chipActive]}
             >
               <Text style={[styles.chipText, categoryFilter === item && styles.chipTextActive]}>
-                {item === 'all' ? 'All' : item}
+                {item === 'all' ? t('allTab') : item}
               </Text>
             </Pressable>
           ))}
         </ScrollView>
 
-        <Text style={styles.filterLabel}>Location</Text>
+        <Text style={styles.filterLabel}>{t('locationLabel')}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           {locations.map((item) => (
             <Pressable
@@ -200,7 +202,7 @@ export function BusinessScreen() {
               style={[styles.chip, locationFilter === item && styles.chipActive]}
             >
               <Text style={[styles.chipText, locationFilter === item && styles.chipTextActive]}>
-                {item === 'all' ? 'All' : item}
+                {item === 'all' ? t('allTab') : item}
               </Text>
             </Pressable>
           ))}
@@ -210,9 +212,9 @@ export function BusinessScreen() {
 
         {filteredListings.length === 0 ? (
           <EmptyState
-            title="No listings found"
-            subtitle="Create a listing or adjust your filters."
-            actionLabel="Add Listing"
+            title={t('noListingsFound')}
+            subtitle={t('noListingsSubtitle')}
+            actionLabel={t('addListing')}
             onAction={() => setModalOpen(true)}
           />
         ) : (
@@ -222,13 +224,13 @@ export function BusinessScreen() {
                 <Text style={styles.cardTitle}>{item.name}</Text>
                 <Text style={styles.badge}>{item.category}</Text>
               </View>
-              <Text style={styles.cardSub}>Owner: {item.ownerName}</Text>
-              <Text style={styles.cardSub}>Location: {item.location}</Text>
-              <Text style={styles.cardSub}>Contact: {item.contactPhone}</Text>
-              {item.contactEmail ? <Text style={styles.cardSub}>Email: {item.contactEmail}</Text> : null}
+              <Text style={styles.cardSub}>{t('ownerLabel')}: {item.ownerName}</Text>
+              <Text style={styles.cardSub}>{t('locationLabel')}: {item.location}</Text>
+              <Text style={styles.cardSub}>{t('contactLabel')}: {item.contactPhone}</Text>
+              {item.contactEmail ? <Text style={styles.cardSub}>{t('emailLabel')}: {item.contactEmail}</Text> : null}
               <Text style={styles.description}>{item.description}</Text>
               {(item.serviceTags || []).length > 0 ? (
-                <Text style={styles.tags}>Tags: {(item.serviceTags || []).join(', ')}</Text>
+                <Text style={styles.tags}>{t('tagsLabel')}: {(item.serviceTags || []).join(', ')}</Text>
               ) : null}
             </View>
           ))
@@ -237,55 +239,55 @@ export function BusinessScreen() {
 
       <Modal visible={modalOpen} animationType="slide" onRequestClose={() => setModalOpen(false)}>
         <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Create Business Listing</Text>
+          <Text style={styles.modalTitle}>{t('createBusinessListing')}</Text>
 
           <ScrollView>
             <LabeledInput
-              label="Business Name"
+              label={t('businessNameLabel')}
               value={form.name}
               onChangeText={(v) => updateForm('name', v)}
-              placeholder="Business name*"
+              placeholder={t('businessNamePlaceholder')}
             />
             <OptionSelector
-              label="Category"
+              label={t('category')}
               value={form.category}
               options={CATEGORY_OPTIONS}
               onChange={(v) => updateForm('category', v)}
             />
             <LabeledInput
-              label="Owner Name"
+              label={t('ownerNameLabel')}
               value={form.ownerName}
               onChangeText={(v) => updateForm('ownerName', v)}
-              placeholder="Owner name*"
+              placeholder={t('ownerNamePlaceholder')}
             />
-            <LabeledInput label="Location" value={form.location} onChangeText={(v) => updateForm('location', v)} placeholder="Location*" />
+            <LabeledInput label={t('locationLabel')} value={form.location} onChangeText={(v) => updateForm('location', v)} placeholder={t('locationRequiredPlaceholder')} />
             <LabeledInput
-              label="Contact Phone"
+              label={t('contactPhoneLabel')}
               value={form.contactPhone}
               onChangeText={(v) => updateForm('contactPhone', v)}
-              placeholder="Contact phone*"
+              placeholder={t('contactPhonePlaceholder')}
               keyboardType="phone-pad"
             />
             <LabeledInput
-              label="Contact Email"
+              label={t('contactEmailLabel')}
               value={form.contactEmail}
               onChangeText={(v) => updateForm('contactEmail', v)}
-              placeholder="Contact email"
+              placeholder={t('contactEmailPlaceholder')}
               keyboardType="email-address"
               autoCapitalize="none"
             />
             <LabeledInput
-              label="Service Tags"
+              label={t('serviceTagsLabel')}
               value={form.serviceTags}
               onChangeText={(v) => updateForm('serviceTags', v)}
-              placeholder="Service tags (comma separated)"
+              placeholder={t('serviceTagsPlaceholder')}
             />
             <LabeledInput
-              label="Description"
+              label={t('descriptionLabel')}
               value={form.description}
               onChangeText={(v) => updateForm('description', v)}
               style={styles.textArea}
-              placeholder="Description*"
+              placeholder={t('descriptionRequiredPlaceholder')}
               multiline
               numberOfLines={4}
             />
@@ -293,10 +295,10 @@ export function BusinessScreen() {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <Pressable style={styles.primaryButton} onPress={submitListing} disabled={submitting}>
-              <Text style={styles.primaryButtonText}>{submitting ? 'Creating...' : 'Create Listing'}</Text>
+              <Text style={styles.primaryButtonText}>{submitting ? t('creating') : t('createListing')}</Text>
             </Pressable>
             <Pressable style={styles.secondaryButton} onPress={() => setModalOpen(false)}>
-              <Text style={styles.secondaryButtonText}>Cancel</Text>
+              <Text style={styles.secondaryButtonText}>{t('cancel')}</Text>
             </Pressable>
           </ScrollView>
         </View>

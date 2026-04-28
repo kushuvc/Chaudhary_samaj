@@ -12,21 +12,13 @@ import {
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
 import { DateInput } from '../components/DateInput';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { CommunityFeedStats, CommunityMeeting, CommunityPost } from '../types';
 
-const feedTabs = [
-  { key: 'all', label: 'All' },
-  { key: 'meeting', label: 'Meetings' },
-  { key: 'news', label: 'News' },
-  { key: 'celebration', label: 'Celebrations' },
-  { key: 'update', label: 'Updates' },
-  { key: 'achievement', label: 'Achievements' },
-  { key: 'lost_found', label: 'Lost & Found' },
-  { key: 'pinned', label: 'Pinned' },
-] as const;
+const feedTabs = ['all', 'meeting', 'news', 'celebration', 'update', 'achievement', 'lost_found', 'pinned'] as const;
 
 const postCategories = [
   { key: 'meeting', label: 'Meeting Announcement' },
@@ -51,9 +43,16 @@ function formatDateLabel(value: string) {
   });
 }
 
-function categoryLabel(value: string) {
+function categoryLabel(value: string, t: (key: string) => string) {
   const found = postCategories.find((item) => item.key === value);
   if (found) {
+    if (value === 'meeting') return t('communityCategoryMeeting');
+    if (value === 'news') return t('communityCategoryNews');
+    if (value === 'celebration') return t('communityCategoryCelebration');
+    if (value === 'update') return t('communityCategoryUpdate');
+    if (value === 'achievement') return t('communityCategoryAchievement');
+    if (value === 'lost_found') return t('communityCategoryLostFound');
+    if (value === 'announcement') return t('communityCategoryAnnouncement');
     return found.label;
   }
   return value.replace(/_/g, ' ');
@@ -61,8 +60,9 @@ function categoryLabel(value: string) {
 
 export function CommunityScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const [selectedTab, setSelectedTab] = useState<(typeof feedTabs)[number]['key']>('all');
+  const [selectedTab, setSelectedTab] = useState<(typeof feedTabs)[number]>('all');
   const [search, setSearch] = useState('');
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [meetings, setMeetings] = useState<CommunityMeeting[]>([]);
@@ -164,7 +164,7 @@ export function CommunityScreen() {
       const author = postForm.author.trim();
       const content = postForm.content.trim();
       if (!title || !author || !content) {
-        setActionError('Title, author, and content are required.');
+        setActionError(t('communityPostRequired'));
         return;
       }
 
@@ -178,7 +178,7 @@ export function CommunityScreen() {
 
       setCreatePostVisible(false);
       resetPostForm();
-      setActionMessage('Post created successfully.');
+      setActionMessage(t('communityPostCreated'));
       setLoading(true);
       await loadData();
     } catch (err) {
@@ -195,7 +195,7 @@ export function CommunityScreen() {
       const agenda = meetingForm.agenda.trim();
       const meetingDate = meetingForm.meetingDate.trim();
       if (!title || !host || !location || !agenda || !meetingDate) {
-        setActionError('All meeting fields are required.');
+        setActionError(t('communityMeetingRequired'));
         return;
       }
 
@@ -209,7 +209,7 @@ export function CommunityScreen() {
 
       setCreateMeetingVisible(false);
       resetMeetingForm();
-      setActionMessage('Meeting created successfully.');
+      setActionMessage(t('communityMeetingCreated'));
       setLoading(true);
       await loadData();
     } catch (err) {
@@ -223,8 +223,19 @@ export function CommunityScreen() {
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading community feed..." />;
+    return <ScreenLoader message={t('loadingCommunityFeed')} />;
   }
+
+  const tabLabel = (key: (typeof feedTabs)[number]) => {
+    if (key === 'all') return t('allTab');
+    if (key === 'meeting') return t('meetingsTab');
+    if (key === 'news') return t('newsTab');
+    if (key === 'celebration') return t('celebrationsTab');
+    if (key === 'update') return t('updatesTab');
+    if (key === 'achievement') return t('achievementsTab');
+    if (key === 'lost_found') return t('lostFoundTab');
+    return t('pinnedTab');
+  };
 
   return (
     <ScrollView
@@ -234,31 +245,31 @@ export function CommunityScreen() {
     >
       <View style={styles.header}>
         <View style={styles.headerTextBlock}>
-          <Text style={styles.title}>Community Feed</Text>
-          <Text style={styles.subtitle}>Announcements, celebrations, meetings, and updates</Text>
+          <Text style={styles.title}>{t('communityFeedTitle')}</Text>
+          <Text style={styles.subtitle}>{t('communityFeedSubtitle')}</Text>
         </View>
 
         <View style={styles.headerActions}>
           <Pressable style={styles.primaryButton} onPress={() => setCreatePostVisible(true)}>
-            <Text style={styles.primaryButtonText}>Create Post</Text>
+            <Text style={styles.primaryButtonText}>{t('createPost')}</Text>
           </Pressable>
           <Pressable style={styles.secondaryButton} onPress={() => setCreateMeetingVisible(true)}>
-            <Text style={styles.secondaryButtonText}>Add Meeting</Text>
+            <Text style={styles.secondaryButtonText}>{t('addMeeting')}</Text>
           </Pressable>
         </View>
       </View>
 
       {stats ? (
         <View style={styles.statsGrid}>
-          <StatCard label="Total Posts" value={String(stats.totalPosts)} styles={styles} />
-          <StatCard label="Pinned" value={String(stats.pinnedPosts)} styles={styles} />
-          <StatCard label="Upcoming Meetings" value={String(stats.upcomingMeetings)} styles={styles} />
+          <StatCard label={t('totalPosts')} value={String(stats.totalPosts)} styles={styles} />
+          <StatCard label={t('pinnedTab')} value={String(stats.pinnedPosts)} styles={styles} />
+          <StatCard label={t('upcomingMeetings')} value={String(stats.upcomingMeetings)} styles={styles} />
         </View>
       ) : null}
 
       <View style={styles.searchCard}>
         <TextInput
-          placeholder="Search title, content, or author"
+          placeholder={t('searchTitleContentAuthor')}
           value={search}
           onChangeText={setSearch}
           style={styles.searchInput}
@@ -268,14 +279,14 @@ export function CommunityScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
         {feedTabs.map((tab) => {
-          const active = selectedTab === tab.key;
+          const active = selectedTab === tab;
           return (
             <Pressable
-              key={tab.key}
-              onPress={() => setSelectedTab(tab.key)}
+              key={tab}
+              onPress={() => setSelectedTab(tab)}
               style={[styles.tab, active ? styles.tabActive : null]}
             >
-              <Text style={[styles.tabLabel, active ? styles.tabLabelActive : null]}>{tab.label}</Text>
+              <Text style={[styles.tabLabel, active ? styles.tabLabelActive : null]}>{tabLabel(tab)}</Text>
             </Pressable>
           );
         })}
@@ -285,68 +296,68 @@ export function CommunityScreen() {
       {error ? <InlineError message={error} /> : null}
       {actionError ? <InlineError message={actionError} /> : null}
 
-      <SectionHeader title="Pinned Announcements" subtitle="Important messages highlighted by the community" styles={styles} />
+      <SectionHeader title={t('pinnedAnnouncements')} subtitle={t('importantMessagesSubtitle')} styles={styles} />
       {pinnedPosts.length > 0 ? (
-        pinnedPosts.map((post) => <PostCard key={post.id} post={post} styles={styles} />)
+        pinnedPosts.map((post) => <PostCard key={post.id} post={post} styles={styles} t={t} />)
       ) : (
-        <EmptyState title="No pinned announcements" subtitle="Pin important posts so members can see them first." />
+        <EmptyState title={t('noPinnedAnnouncements')} subtitle={t('noPinnedAnnouncementsSubtitle')} />
       )}
 
-      <SectionHeader title="Upcoming Meetings" subtitle="Planned gatherings and community sessions" styles={styles} />
+      <SectionHeader title={t('upcomingMeetings')} subtitle={t('plannedGatheringsSubtitle')} styles={styles} />
       {featuredMeetings.length > 0 ? (
-        featuredMeetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} styles={styles} />)
+        featuredMeetings.map((meeting) => <MeetingCard key={meeting.id} meeting={meeting} styles={styles} t={t} />)
       ) : (
-        <EmptyState title="No meetings found" subtitle="Create a meeting to show it here for the community." />
+        <EmptyState title={t('noMeetingsFound')} subtitle={t('noMeetingsFoundSubtitle')} />
       )}
 
-      <SectionHeader title="Latest Posts" subtitle="Real posts visible to all users" styles={styles} />
+      <SectionHeader title={t('latestPosts')} subtitle={t('realPostsVisibleSubtitle')} styles={styles} />
       {visiblePosts.length > 0 ? (
-        visiblePosts.map((post) => <PostCard key={post.id} post={post} styles={styles} />)
+        visiblePosts.map((post) => <PostCard key={post.id} post={post} styles={styles} t={t} />)
       ) : (
-        <EmptyState title="No posts for this filter" subtitle="Try a different category or create a new post." />
+        <EmptyState title={t('noPostsForFilter')} subtitle={t('noPostsForFilterSubtitle')} />
       )}
 
       <Modal visible={createPostVisible} animationType="slide" transparent onRequestClose={() => setCreatePostVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Create Post</Text>
+            <Text style={styles.modalTitle}>{t('createPost')}</Text>
             <LabeledInput
-              label="Title"
-              placeholder="Title"
+              label={t('titleLabel')}
+              placeholder={t('titlePlaceholder')}
               value={postForm.title}
               onChangeText={(value) => setPostForm((current) => ({ ...current, title: value }))}
             />
             <LabeledInput
-              label="Author"
-              placeholder="Author"
+              label={t('authorLabel')}
+              placeholder={t('authorPlaceholder')}
               value={postForm.author}
               onChangeText={(value) => setPostForm((current) => ({ ...current, author: value }))}
             />
             <LabeledInput
-              label="Content"
+              label={t('contentLabel')}
               style={styles.textArea}
-              placeholder="Content"
+              placeholder={t('contentPlaceholder')}
               value={postForm.content}
               onChangeText={(value) => setPostForm((current) => ({ ...current, content: value }))}
               multiline
               numberOfLines={4}
             />
             <OptionSelector
-              label="Category"
+              label={t('category')}
               value={postForm.category}
               options={postCategories.map((category) => category.key)}
               onChange={(value) => setPostForm((current) => ({ ...current, category: value }))}
             />
             <Pressable onPress={() => setPostForm((current) => ({ ...current, pinned: !current.pinned }))} style={styles.checkboxRow}>
               <View style={[styles.checkbox, postForm.pinned ? styles.checkboxChecked : null]} />
-              <Text style={styles.checkboxLabel}>Pin this post</Text>
+              <Text style={styles.checkboxLabel}>{t('pinThisPost')}</Text>
             </Pressable>
             <View style={styles.modalActions}>
               <Pressable style={styles.secondaryButton} onPress={() => setCreatePostVisible(false)}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+                <Text style={styles.secondaryButtonText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable style={styles.primaryButton} onPress={submitPost}>
-                <Text style={styles.primaryButtonText}>Post</Text>
+                <Text style={styles.primaryButtonText}>{t('post')}</Text>
               </Pressable>
             </View>
           </View>
@@ -356,34 +367,34 @@ export function CommunityScreen() {
       <Modal visible={createMeetingVisible} animationType="slide" transparent onRequestClose={() => setCreateMeetingVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add Meeting</Text>
+            <Text style={styles.modalTitle}>{t('addMeeting')}</Text>
             <LabeledInput
-              label="Meeting Title"
-              placeholder="Meeting title"
+              label={t('meetingTitleLabel')}
+              placeholder={t('meetingTitlePlaceholder')}
               value={meetingForm.title}
               onChangeText={(value) => setMeetingForm((current) => ({ ...current, title: value }))}
             />
             <DateInput
-              label="Meeting Date"
+              label={t('meetingDateLabel')}
               value={meetingForm.meetingDate}
               onChange={(value) => setMeetingForm((current) => ({ ...current, meetingDate: value }))}
             />
             <LabeledInput
-              label="Location"
-              placeholder="Location"
+              label={t('locationLabel')}
+              placeholder={t('locationPlaceholder')}
               value={meetingForm.location}
               onChangeText={(value) => setMeetingForm((current) => ({ ...current, location: value }))}
             />
             <LabeledInput
-              label="Host"
-              placeholder="Host"
+              label={t('hostLabel')}
+              placeholder={t('hostPlaceholder')}
               value={meetingForm.host}
               onChangeText={(value) => setMeetingForm((current) => ({ ...current, host: value }))}
             />
             <LabeledInput
-              label="Agenda"
+              label={t('agendaLabel')}
               style={styles.textArea}
-              placeholder="Agenda"
+              placeholder={t('agendaPlaceholder')}
               value={meetingForm.agenda}
               onChangeText={(value) => setMeetingForm((current) => ({ ...current, agenda: value }))}
               multiline
@@ -391,10 +402,10 @@ export function CommunityScreen() {
             />
             <View style={styles.modalActions}>
               <Pressable style={styles.secondaryButton} onPress={() => setCreateMeetingVisible(false)}>
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+                <Text style={styles.secondaryButtonText}>{t('cancel')}</Text>
               </Pressable>
               <Pressable style={styles.primaryButton} onPress={submitMeeting}>
-                <Text style={styles.primaryButtonText}>Save Meeting</Text>
+                <Text style={styles.primaryButtonText}>{t('saveMeeting')}</Text>
               </Pressable>
             </View>
           </View>
@@ -424,32 +435,32 @@ function StatCard({ label, value, styles }: { label: string; value: string; styl
   );
 }
 
-function PostCard({ post, styles }: { post: CommunityPost; styles: CommunityStyles }) {
+function PostCard({ post, styles, t }: { post: CommunityPost; styles: CommunityStyles; t: (key: string) => string }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTopRow}>
         <View style={styles.cardBadge}>
-          <Text style={styles.cardBadgeText}>{categoryLabel(post.category)}</Text>
+          <Text style={styles.cardBadgeText}>{categoryLabel(post.category, t)}</Text>
         </View>
-        {post.pinned ? <Text style={styles.pinnedBadge}>Pinned</Text> : null}
+        {post.pinned ? <Text style={styles.pinnedBadge}>{t('pinnedTab')}</Text> : null}
       </View>
       <Text style={styles.cardTitle}>{post.title}</Text>
       <Text style={styles.cardMeta}>{post.authorName} • {formatDateLabel(post.createdAt)}</Text>
       <Text style={styles.cardContent}>{post.content}</Text>
       <View style={styles.metricsRow}>
-        <Metric label="Likes" value={String(post.likes ?? 0)} styles={styles} />
-        <Metric label="Comments" value={String(post.comments ?? 0)} styles={styles} />
+        <Metric label={t('likesLabel')} value={String(post.likes ?? 0)} styles={styles} />
+        <Metric label={t('commentsLabel')} value={String(post.comments ?? 0)} styles={styles} />
       </View>
     </View>
   );
 }
 
-function MeetingCard({ meeting, styles }: { meeting: CommunityMeeting; styles: CommunityStyles }) {
+function MeetingCard({ meeting, styles, t }: { meeting: CommunityMeeting; styles: CommunityStyles; t: (key: string) => string }) {
   return (
     <View style={styles.card}>
       <View style={styles.cardTopRow}>
         <View style={styles.cardBadge}>
-          <Text style={styles.cardBadgeText}>Meeting</Text>
+          <Text style={styles.cardBadgeText}>{t('meetingBadge')}</Text>
         </View>
         <Text style={styles.pinnedBadge}>{formatDateLabel(meeting.meetingDate)}</Text>
       </View>

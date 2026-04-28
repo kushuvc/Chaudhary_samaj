@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -115,6 +116,7 @@ function FilterSection({
 
 export function MatrimonyScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [tab, setTab] = useState<MatchTab>('all');
   const [search, setSearch] = useState('');
@@ -204,8 +206,15 @@ export function MatrimonyScreen() {
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading matches..." />;
+    return <ScreenLoader message={t('loadingMatches')} />;
   }
+
+  const tabLabel = (key: MatchTab) => {
+    if (key === 'all') return t('allMatchesTab');
+    if (key === 'shortlisted') return t('shortlistedTab');
+    if (key === 'viewed') return t('viewedTab');
+    return t('lockedTab');
+  };
 
   return (
     <View style={styles.page}>
@@ -214,14 +223,14 @@ export function MatrimonyScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Matrimony</Text>
-          <Text style={styles.subtitle}>Compatibility list with backend filters and actions.</Text>
+          <Text style={styles.title}>{t('matrimony')}</Text>
+          <Text style={styles.subtitle}>{t('matrimonySubtitle')}</Text>
         </View>
 
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Search by name, location, bio"
+          placeholder={t('searchMatrimonyPlaceholder')}
           style={styles.searchInput}
           returnKeyType="search"
         />
@@ -233,17 +242,17 @@ export function MatrimonyScreen() {
               style={[styles.tab, tab === item.key ? styles.tabActive : null]}
               onPress={() => setTab(item.key)}
             >
-              <Text style={[styles.tabText, tab === item.key ? styles.tabTextActive : null]}>{item.label}</Text>
+              <Text style={[styles.tabText, tab === item.key ? styles.tabTextActive : null]}>{tabLabel(item.key)}</Text>
             </Pressable>
           ))}
         </ScrollView>
 
         <View style={styles.filterActionsRow}>
           <Pressable style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
-            <Text style={styles.filterButtonText}>Filters {appliedFilterCount ? `(${appliedFilterCount})` : ''}</Text>
+            <Text style={styles.filterButtonText}>{t('filtersLabel')} {appliedFilterCount ? `(${appliedFilterCount})` : ''}</Text>
           </Pressable>
           <Pressable style={styles.clearButton} onPress={clearFilters}>
-            <Text style={styles.clearButtonText}>Clear</Text>
+            <Text style={styles.clearButtonText}>{t('clear')}</Text>
           </Pressable>
         </View>
 
@@ -251,9 +260,9 @@ export function MatrimonyScreen() {
 
         {profiles.length === 0 ? (
           <EmptyState
-            title="No matches found"
-            subtitle="Adjust filters or create more user profiles to see matches."
-            actionLabel="Reset Filters"
+            title={t('noMatchesFound')}
+            subtitle={t('noMatchesSubtitle')}
+            actionLabel={t('resetFilters')}
             onAction={clearFilters}
           />
         ) : null}
@@ -265,14 +274,14 @@ export function MatrimonyScreen() {
               <Text style={styles.score}>{profile.compatibilityScore}%</Text>
             </View>
             <Text style={styles.meta}>
-              {profile.age} • {profile.gender || 'N/A'} • {profile.location}
+              {profile.age} • {profile.gender || t('notAvailable')} • {profile.location}
             </Text>
             <Text style={styles.meta}>
               {profile.community}
               {profile.subCommunity ? ` • ${profile.subCommunity}` : ''}
             </Text>
-            <Text style={styles.meta}>{profile.education || 'Education not added'} • {profile.occupation || 'Occupation not added'}</Text>
-            <Text style={styles.bio}>{profile.bio || 'No bio added yet.'}</Text>
+            <Text style={styles.meta}>{profile.education || t('educationNotAdded')} • {profile.occupation || t('occupationNotAdded')}</Text>
+            <Text style={styles.bio}>{profile.bio || t('noBioAddedYet')}</Text>
 
             <View style={styles.actionRow}>
               <Pressable
@@ -280,14 +289,14 @@ export function MatrimonyScreen() {
                 onPress={() => runAction(profile.id, 'view')}
                 disabled={actionProfileId === profile.id}
               >
-                <Text style={styles.secondaryActionText}>View</Text>
+                <Text style={styles.secondaryActionText}>{t('view')}</Text>
               </Pressable>
               <Pressable
                 style={styles.secondaryAction}
                 onPress={() => runAction(profile.id, 'shortlist')}
                 disabled={actionProfileId === profile.id}
               >
-                <Text style={styles.secondaryActionText}>{profile.isShortlisted ? 'Unshortlist' : 'Shortlist'}</Text>
+                <Text style={styles.secondaryActionText}>{profile.isShortlisted ? t('unshortlist') : t('shortlist')}</Text>
               </Pressable>
               {!profile.isUnlocked ? (
                 <Pressable
@@ -295,11 +304,11 @@ export function MatrimonyScreen() {
                   onPress={() => runAction(profile.id, 'unlock')}
                   disabled={actionProfileId === profile.id}
                 >
-                  <Text style={styles.primaryActionText}>Unlock</Text>
+                  <Text style={styles.primaryActionText}>{t('unlock')}</Text>
                 </Pressable>
               ) : (
                 <View style={styles.unlockedPill}>
-                  <Text style={styles.unlockedText}>Unlocked</Text>
+                  <Text style={styles.unlockedText}>{t('unlocked')}</Text>
                 </View>
               )}
             </View>
@@ -310,16 +319,16 @@ export function MatrimonyScreen() {
       <Modal visible={filterModalVisible} animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <View style={styles.modalPage}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Matrimony Filters</Text>
+              <Text style={styles.modalTitle}>{t('matrimonyFilters')}</Text>
             <Pressable onPress={() => setFilterModalVisible(false)}>
-              <Text style={styles.modalClose}>Done</Text>
+                <Text style={styles.modalClose}>{t('done')}</Text>
             </Pressable>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalContent}>
             <View style={styles.ageRow}>
               <View style={styles.ageFieldWrap}>
-                <Text style={styles.ageLabel}>Min Age</Text>
+                <Text style={styles.ageLabel}>{t('minAge')}</Text>
                 <TextInput
                   value={filters.minAge}
                   onChangeText={(value) => setFilters((prev) => ({ ...prev, minAge: value.replace(/[^0-9]/g, '') }))}
@@ -329,7 +338,7 @@ export function MatrimonyScreen() {
                 />
               </View>
               <View style={styles.ageFieldWrap}>
-                <Text style={styles.ageLabel}>Max Age</Text>
+                <Text style={styles.ageLabel}>{t('maxAge')}</Text>
                 <TextInput
                   value={filters.maxAge}
                   onChangeText={(value) => setFilters((prev) => ({ ...prev, maxAge: value.replace(/[^0-9]/g, '') }))}
@@ -341,64 +350,64 @@ export function MatrimonyScreen() {
             </View>
 
             <FilterSection
-              title="Location"
-              allLabel="All Locations"
+              title={t('locationLabel')}
+              allLabel={t('allLocations')}
               selectedValue={filters.location}
               options={filterOptions.locations}
               onSelect={(value) => setFilters((prev) => ({ ...prev, location: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Community"
-              allLabel="All Communities"
+              title={t('community')}
+              allLabel={t('allCommunities')}
               selectedValue={filters.community}
               options={filterOptions.communities}
               onSelect={(value) => setFilters((prev) => ({ ...prev, community: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Sub Community"
-              allLabel="All Sub Communities"
+              title={t('subCommunityLabel')}
+              allLabel={t('allSubCommunities')}
               selectedValue={filters.subCommunity}
               options={filterOptions.subCommunities}
               onSelect={(value) => setFilters((prev) => ({ ...prev, subCommunity: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Gender"
-              allLabel="All Genders"
+              title={t('genderLabel')}
+              allLabel={t('allGenders')}
               selectedValue={filters.gender}
               options={filterOptions.genders}
               onSelect={(value) => setFilters((prev) => ({ ...prev, gender: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Education"
-              allLabel="All Education"
+              title={t('educationLabel')}
+              allLabel={t('allEducation')}
               selectedValue={filters.education}
               options={filterOptions.educations}
               onSelect={(value) => setFilters((prev) => ({ ...prev, education: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Occupation"
-              allLabel="All Occupations"
+              title={t('occupationLabel')}
+              allLabel={t('allOccupations')}
               selectedValue={filters.occupation}
               options={filterOptions.occupations}
               onSelect={(value) => setFilters((prev) => ({ ...prev, occupation: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Marital Status"
-              allLabel="All Status"
+              title={t('maritalStatusLabel')}
+              allLabel={t('allStatus')}
               selectedValue={filters.maritalStatus}
               options={filterOptions.maritalStatuses}
               onSelect={(value) => setFilters((prev) => ({ ...prev, maritalStatus: value }))}
               styles={styles}
             />
             <FilterSection
-              title="Language"
-              allLabel="All Languages"
+              title={t('languageFieldLabel')}
+              allLabel={t('allLanguages')}
               selectedValue={filters.language}
               options={filterOptions.languages}
               onSelect={(value) => setFilters((prev) => ({ ...prev, language: value }))}

@@ -178,7 +178,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
   const { email, purpose } = request.body || {}
   const normalizedEmail = String(email || '').trim().toLowerCase()
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
-
+  const routeStart = Date.now()
   if (!normalizedEmail || !normalizedPurpose) {
     response.status(400).json({ success: false, error: 'Email and purpose are required' })
     return
@@ -213,6 +213,9 @@ app.post('/api/auth/otp/request', async (request, response) => {
   }
 
   const otpRequest = requestEmailOtp(normalizedEmail, normalizedPurpose)
+  const otpCreatedAt = Date.now()
+  console.log(`[OTP] created in ${otpCreatedAt - routeStart}ms for=${normalizedEmail} purpose=${normalizedPurpose}`)
+
   if (!otpRequest.ok || !otpRequest.data) {
     response
       .status(otpRequest.statusCode || 400)
@@ -221,12 +224,18 @@ app.post('/api/auth/otp/request', async (request, response) => {
   }
 
   try {
+    const sendStart = Date.now()
     const sendResult = await sendEmailOtp({
       to: normalizedEmail,
       otpCode: otpRequest.data.otpCode,
       purpose: normalizedPurpose,
       expiresInMinutes: 5,
     })
+    const sendEnd = Date.now()
+
+    console.log(
+      `[OTP] send completed to=${normalizedEmail} purpose=${normalizedPurpose} sendMs=${sendEnd - sendStart} totalMs=${sendEnd - routeStart} fallback=${Boolean(sendResult.fallback)}`,
+    )
 
     response.json({
       success: true,
@@ -239,6 +248,8 @@ app.post('/api/auth/otp/request', async (request, response) => {
       },
     })
   } catch (error) {
+    const errAt = Date.now()
+    console.error(`[OTP] send error to=${normalizedEmail} purpose=${normalizedPurpose} afterMs=${errAt - routeStart}`, error)
     invalidateActiveEmailOtps(normalizedEmail, normalizedPurpose)
 
     if (error?.code === 'RECIPIENT_NOT_FOUND') {

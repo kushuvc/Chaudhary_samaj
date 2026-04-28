@@ -89,19 +89,29 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
     void load();
 
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setResolvedTheme(resolveTheme(themeMode));
+  }, [themeMode]);
+
+  useEffect(() => {
     const subscription = Appearance.addChangeListener(() => {
-      setResolvedTheme(resolveTheme(themeMode));
+      if (themeMode === 'system') {
+        setResolvedTheme(resolveTheme('system'));
+      }
     });
 
     return () => {
-      mounted = false;
       subscription.remove();
     };
   }, [themeMode]);
 
   const setThemeMode = async (mode: ThemeMode) => {
     setThemeModeState(mode);
-    setResolvedTheme(resolveTheme(mode));
     await saveJson<ThemeMode>(THEME_STORAGE_KEY, mode);
   };
 

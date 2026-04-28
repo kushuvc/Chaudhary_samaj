@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -24,6 +25,7 @@ const CONTACT_MODE_OPTIONS = ['phone', 'email', 'chat'];
 
 export function HelpNeedScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [requests, setRequests] = useState<HelpNeedRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,7 @@ export function HelpNeedScreen() {
 
   const onCreateRequest = async () => {
     if (!createForm.title.trim() || !createForm.location.trim() || !createForm.contact.trim() || !createForm.description.trim()) {
-      setError('Title, location, contact, and details are required.');
+      setError(t('helpRequiredFields'));
       return;
     }
 
@@ -162,7 +164,7 @@ export function HelpNeedScreen() {
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading help requests..." />;
+    return <ScreenLoader message={t('loadingHelpRequests')} />;
   }
 
   return (
@@ -177,16 +179,17 @@ export function HelpNeedScreen() {
             <View style={styles.headerRow}>
               <View>
                 <Text style={styles.title}>Help and Need</Text>
-                <Text style={styles.subtitle}>Sensitive requests with moderation</Text>
+                <Text style={styles.title}>{t('helpNeedTitle')}</Text>
+                <Text style={styles.subtitle}>{t('helpNeedSubtitle')}</Text>
               </View>
               <Pressable style={styles.primaryBtn} onPress={() => setShowCreateModal(true)}>
-                <Text style={styles.primaryBtnText}>Create</Text>
+                <Text style={styles.primaryBtnText}>{t('create')}</Text>
               </Pressable>
             </View>
 
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by title or location"
+              placeholder={t('searchByTitleOrLocation')}
               value={search}
               onChangeText={setSearch}
             />
@@ -203,8 +206,8 @@ export function HelpNeedScreen() {
               ))}
             </ScrollView>
 
-            <OptionSelector label="Urgency" value={urgency} options={['all', ...URGENCY_OPTIONS]} onChange={setUrgency} />
-            <OptionSelector label="Status" value={status} options={STATUS_OPTIONS} onChange={setStatus} />
+            <OptionSelector label={t('urgencyLabel')} value={urgency} options={['all', ...URGENCY_OPTIONS]} onChange={setUrgency} />
+            <OptionSelector label={t('statusLabel')} value={status} options={STATUS_OPTIONS} onChange={setStatus} />
 
             {error ? <InlineError message={error} /> : null}
           </View>
@@ -219,8 +222,8 @@ export function HelpNeedScreen() {
               </View>
               <Text style={styles.meta}>{item.category} • {item.urgency}</Text>
               <Text style={styles.meta}>{item.location}</Text>
-              <Text style={styles.meta}>Needed: Rs {item.amountNeeded.toLocaleString()}</Text>
-              <Text style={styles.meta}>Collected: Rs {item.amountCollected.toLocaleString()} ({progress}%)</Text>
+              <Text style={styles.meta}>{t('neededLabel')}: Rs {item.amountNeeded.toLocaleString()}</Text>
+              <Text style={styles.meta}>{t('collectedLabel')}: Rs {item.amountCollected.toLocaleString()} ({progress}%)</Text>
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${progress}%` }]} />
               </View>
@@ -233,7 +236,7 @@ export function HelpNeedScreen() {
                     setShowSupportModal(true);
                   }}
                 >
-                  <Text style={styles.secondaryBtnText}>Support</Text>
+                  <Text style={styles.secondaryBtnText}>{t('supportButton')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -241,43 +244,43 @@ export function HelpNeedScreen() {
         }}
         ListEmptyComponent={
           <EmptyState
-            title="No help requests found"
-            subtitle="Try changing filters or create a new request."
+            title={t('noHelpRequestsFound')}
+            subtitle={t('noHelpRequestsSubtitle')}
           />
         }
       />
 
       <Modal visible={showCreateModal} animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
         <ScrollView style={styles.modalWrap} contentContainerStyle={styles.modalContent}>
-          <Text style={styles.modalTitle}>Create Help Request</Text>
-          <LabeledInput label="Title" placeholder="Title" value={createForm.title} onChangeText={(text) => setCreateForm((prev) => ({ ...prev, title: text }))} />
-          <OptionSelector label="Category" value={createForm.category} options={CATEGORY_OPTIONS} onChange={(text) => setCreateForm((prev) => ({ ...prev, category: text }))} />
+          <Text style={styles.modalTitle}>{t('createHelpRequest')}</Text>
+          <LabeledInput label={t('titleLabel')} placeholder={t('titlePlaceholder')} value={createForm.title} onChangeText={(text) => setCreateForm((prev) => ({ ...prev, title: text }))} />
+          <OptionSelector label={t('category')} value={createForm.category} options={CATEGORY_OPTIONS} onChange={(text) => setCreateForm((prev) => ({ ...prev, category: text }))} />
           <LabeledInput
-            label="Amount Needed"
-            placeholder="Amount needed"
+            label={t('amountNeededLabel')}
+            placeholder={t('amountNeededPlaceholder')}
             keyboardType="decimal-pad"
             value={String(createForm.amount || '')}
             onChangeText={(text) => setCreateForm((prev) => ({ ...prev, amount: text ? Number(text) : undefined }))}
           />
-          <OptionSelector label="Urgency" value={createForm.urgency} options={URGENCY_OPTIONS} onChange={(text) => setCreateForm((prev) => ({ ...prev, urgency: text }))} />
-          <LabeledInput label="Location" placeholder="Location" value={createForm.location} onChangeText={(text) => setCreateForm((prev) => ({ ...prev, location: text }))} />
-          <LabeledInput label="Contact Preference" placeholder="Contact preference" value={createForm.contact} onChangeText={(text) => setCreateForm((prev) => ({ ...prev, contact: text }))} />
+          <OptionSelector label={t('urgencyLabel')} value={createForm.urgency} options={URGENCY_OPTIONS} onChange={(text) => setCreateForm((prev) => ({ ...prev, urgency: text }))} />
+          <LabeledInput label={t('locationLabel')} placeholder={t('locationPlaceholder')} value={createForm.location} onChangeText={(text) => setCreateForm((prev) => ({ ...prev, location: text }))} />
+          <LabeledInput label={t('contactPreferenceLabel')} placeholder={t('contactPreferencePlaceholder')} value={createForm.contact} onChangeText={(text) => setCreateForm((prev) => ({ ...prev, contact: text }))} />
           <LabeledInput
-            label="Description"
+            label={t('descriptionLabel')}
             multiline
             numberOfLines={4}
             style={styles.textArea}
-            placeholder="Description"
+            placeholder={t('descriptionPlaceholder')}
             value={createForm.description}
             onChangeText={(text) => setCreateForm((prev) => ({ ...prev, description: text }))}
           />
 
           <View style={styles.modalActions}>
             <Pressable style={styles.secondaryBtn} onPress={() => setShowCreateModal(false)}>
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
+              <Text style={styles.secondaryBtnText}>{t('cancel')}</Text>
             </Pressable>
             <Pressable style={styles.primaryBtn} onPress={onCreateRequest} disabled={submitting}>
-              <Text style={styles.primaryBtnText}>{submitting ? 'Saving...' : 'Create'}</Text>
+              <Text style={styles.primaryBtnText}>{submitting ? t('saving') : t('create')}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -285,26 +288,26 @@ export function HelpNeedScreen() {
 
       <Modal visible={showSupportModal} animationType="slide" onRequestClose={() => setShowSupportModal(false)}>
         <ScrollView style={styles.modalWrap} contentContainerStyle={styles.modalContent}>
-          <Text style={styles.modalTitle}>Offer Help</Text>
+          <Text style={styles.modalTitle}>{t('offerHelp')}</Text>
           <Text style={styles.modalSubtitle}>{selectedRequest?.title || ''}</Text>
-          <LabeledInput label="Amount" placeholder="Amount" keyboardType="decimal-pad" value={supportAmount} onChangeText={setSupportAmount} />
-          <OptionSelector label="Contact Mode" value={supportContactMode} options={CONTACT_MODE_OPTIONS} onChange={setSupportContactMode} />
+          <LabeledInput label={t('amountLabel')} placeholder={t('amountPlaceholder')} keyboardType="decimal-pad" value={supportAmount} onChangeText={setSupportAmount} />
+          <OptionSelector label={t('contactModeLabel')} value={supportContactMode} options={CONTACT_MODE_OPTIONS} onChange={setSupportContactMode} />
           <LabeledInput
-            label="Support Message"
+            label={t('supportMessageLabel')}
             multiline
             numberOfLines={4}
             style={styles.textArea}
-            placeholder="Support message"
+            placeholder={t('supportMessagePlaceholder')}
             value={supportMessage}
             onChangeText={setSupportMessage}
           />
 
           <View style={styles.modalActions}>
             <Pressable style={styles.secondaryBtn} onPress={() => setShowSupportModal(false)}>
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
+              <Text style={styles.secondaryBtnText}>{t('cancel')}</Text>
             </Pressable>
             <Pressable style={styles.primaryBtn} onPress={onSupport} disabled={submitting}>
-              <Text style={styles.primaryBtnText}>{submitting ? 'Sending...' : 'Send Support'}</Text>
+              <Text style={styles.primaryBtnText}>{submitting ? t('sending') : t('sendSupport')}</Text>
             </Pressable>
           </View>
         </ScrollView>

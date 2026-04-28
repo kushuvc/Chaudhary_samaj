@@ -42,6 +42,8 @@ function isRecipientNotFoundError(error) {
 
 export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 }) {
   const transporter = buildTransporter()
+  const sendStart = Date.now()
+  console.log(`[OTP SEND] start to=${to} purpose=${purpose} transport=${transporter ? 'smtp' : 'dev'}`)
   const subject = purpose === 'login' ? 'Your login OTP code' : 'Your signup OTP code'
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
@@ -57,6 +59,7 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
 
   if (!transporter) {
     console.log(`[OTP DEV] ${to} (${purpose}) => ${otpCode}`)
+    console.log(`[OTP SEND] dev-fallback to=${to} duration=${Date.now() - sendStart}ms`)
     return { ok: true, fallback: true }
   }
 
@@ -71,12 +74,15 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
     if (isRecipientNotFoundError(error)) {
       const recipientError = new Error('Recipient email could not be validated')
       recipientError.code = 'RECIPIENT_NOT_FOUND'
+      console.error(`[OTP SEND] recipient error to=${to} afterMs=${Date.now() - sendStart}ms`, error)
       throw recipientError
     }
 
     console.log(`[OTP FALLBACK] ${to} (${purpose}) => ${otpCode}`)
+    console.log(`[OTP SEND] fallback to=${to} duration=${Date.now() - sendStart}ms`)
     return { ok: true, fallback: true }
   }
 
+  console.log(`[OTP SEND] success to=${to} duration=${Date.now() - sendStart}ms`)
   return { ok: true, fallback: false }
 }

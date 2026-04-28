@@ -13,6 +13,7 @@ import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback
 import { LabeledInput, OptionSelector } from '../components/AppPrimitives';
 import { DateInput } from '../components/DateInput';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { EventSummary, EventSummaryStats } from '../types';
@@ -21,6 +22,7 @@ const PAYMENT_MODE_OPTIONS = ['cash', 'upi', 'bank_transfer', 'manual'];
 
 export function EventsScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [summary, setSummary] = useState<EventSummaryStats | null>(null);
@@ -74,18 +76,18 @@ export function EventsScreen() {
 
   const tabItems = useMemo(
     () => [
-      { key: 'all', label: 'All' },
-      { key: 'upcoming', label: 'Upcoming' },
-      { key: 'past', label: 'Past' },
-      { key: 'pending', label: 'Pending' },
-      { key: 'fully_collected', label: 'Collected' },
+      { key: 'all', label: t('allTab') },
+      { key: 'upcoming', label: t('upcoming') },
+      { key: 'past', label: t('past') },
+      { key: 'pending', label: t('pendingTab') },
+      { key: 'fully_collected', label: t('collectedTab') },
     ] as const,
-    []
+    [t]
   );
 
   const onCreateEvent = async () => {
     if (!createEventForm.title.trim() || !createEventForm.date.trim() || !createEventForm.location.trim()) {
-      setError('Event title, date, and location are required.');
+      setError(t('eventRequiredFields'));
       return;
     }
 
@@ -95,7 +97,7 @@ export function EventsScreen() {
         title: createEventForm.title.trim(),
         date: createEventForm.date.trim(),
         location: createEventForm.location.trim(),
-        organizerName: createEventForm.organizerName.trim() || 'Organizer',
+        organizerName: createEventForm.organizerName.trim() || t('organizer'),
         guestCount: Number(createEventForm.guestCount || '0'),
         moneyExpected: Number(createEventForm.moneyExpected || '0'),
       });
@@ -121,12 +123,12 @@ export function EventsScreen() {
       return;
     }
     if (!contributionForm.guestName.trim() || !contributionForm.date.trim() || !contributionForm.paymentMode.trim()) {
-      setError('Guest, date, and payment mode are required.');
+      setError(t('guestDatePaymentRequired'));
       return;
     }
     const amount = Number(contributionForm.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError('Please enter a valid positive amount.');
+      setError(t('validPositiveAmount'));
       return;
     }
 
@@ -155,7 +157,7 @@ export function EventsScreen() {
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading events..." />;
+    return <ScreenLoader message={t('loadingEvents')} />;
   }
 
   return (
@@ -170,10 +172,11 @@ export function EventsScreen() {
             <View style={styles.headerRow}>
               <View>
                 <Text style={styles.title}>Events</Text>
-                <Text style={styles.subtitle}>Your private event space</Text>
+                <Text style={styles.title}>{t('eventsTitle')}</Text>
+                <Text style={styles.subtitle}>{t('eventsSubtitle')}</Text>
               </View>
               <Pressable style={styles.primaryBtn} onPress={() => setCreateModalVisible(true)}>
-                <Text style={styles.primaryBtnText}>Create Event</Text>
+                <Text style={styles.primaryBtnText}>{t('createEvent')}</Text>
               </Pressable>
             </View>
 
@@ -181,15 +184,15 @@ export function EventsScreen() {
               <View style={styles.summaryRow}>
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryValue}>{summary.totalCreated}</Text>
-                  <Text style={styles.summaryLabel}>Created</Text>
+                  <Text style={styles.summaryLabel}>{t('created')}</Text>
                 </View>
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryValue}>{summary.upcomingCount}</Text>
-                  <Text style={styles.summaryLabel}>Upcoming</Text>
+                  <Text style={styles.summaryLabel}>{t('upcoming')}</Text>
                 </View>
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryValue}>{summary.pastCount}</Text>
-                  <Text style={styles.summaryLabel}>Past</Text>
+                  <Text style={styles.summaryLabel}>{t('past')}</Text>
                 </View>
               </View>
             ) : null}
@@ -222,10 +225,10 @@ export function EventsScreen() {
               <Text style={styles.meta}>
                 {new Date(item.eventDate).toLocaleDateString()} | {item.location}
               </Text>
-              <Text style={styles.meta}>Organizer: {item.organizerName || 'N/A'}</Text>
-              <Text style={styles.meta}>Guests: {item.guestCount}</Text>
-              <Text style={styles.meta}>Collected: Rs {item.collectedAmount.toLocaleString()}</Text>
-              <Text style={styles.meta}>Remaining: Rs {remaining.toLocaleString()}</Text>
+              <Text style={styles.meta}>{t('organizerLabel')}: {item.organizerName || t('notAvailable')}</Text>
+              <Text style={styles.meta}>{t('guestsLabel')}: {item.guestCount}</Text>
+              <Text style={styles.meta}>{t('collectedLabel')}: Rs {item.collectedAmount.toLocaleString()}</Text>
+              <Text style={styles.meta}>{t('remainingLabel')}: Rs {remaining.toLocaleString()}</Text>
 
               <View style={styles.actionRow}>
                 <Pressable
@@ -236,7 +239,7 @@ export function EventsScreen() {
                     setContributionModalVisible(true);
                   }}
                 >
-                  <Text style={styles.secondaryBtnText}>Record Contribution</Text>
+                  <Text style={styles.secondaryBtnText}>{t('recordContribution')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -244,48 +247,48 @@ export function EventsScreen() {
         }}
         ListEmptyComponent={
           <EmptyState
-            title="No events in this tab"
-            subtitle="Create an event or switch tabs to view your history."
+            title={t('noEventsInTab')}
+            subtitle={t('noEventsTabSubtitle')}
           />
         }
       />
 
       <Modal visible={createModalVisible} animationType="slide" onRequestClose={() => setCreateModalVisible(false)}>
         <ScrollView style={styles.modalWrap} contentContainerStyle={styles.modalContent}>
-          <Text style={styles.modalTitle}>Create Event</Text>
+          <Text style={styles.modalTitle}>{t('createEventTitle')}</Text>
           <LabeledInput
-            label="Event Title"
-            placeholder="Event title"
+            label={t('eventTitleLabel')}
+            placeholder={t('eventTitlePlaceholder')}
             value={createEventForm.title}
             onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, title: text }))}
           />
           <DateInput
-            label="Event Date"
+            label={t('eventDateLabel')}
             value={createEventForm.date}
             onChange={(value) => setCreateEventForm((prev) => ({ ...prev, date: value }))}
           />
           <LabeledInput
-            label="Location"
-            placeholder="Location"
+            label={t('locationLabel')}
+            placeholder={t('locationPlaceholder')}
             value={createEventForm.location}
             onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, location: text }))}
           />
           <LabeledInput
-            label="Organizer Name"
-            placeholder="Organizer name"
+            label={t('organizerNameLabel')}
+            placeholder={t('organizerNamePlaceholder')}
             value={createEventForm.organizerName}
             onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, organizerName: text }))}
           />
           <LabeledInput
-            label="Expected Guests"
-            placeholder="Expected guests"
+            label={t('expectedGuestsLabel')}
+            placeholder={t('expectedGuestsPlaceholder')}
             keyboardType="number-pad"
             value={createEventForm.guestCount}
             onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, guestCount: text }))}
           />
           <LabeledInput
-            label="Expected Collection"
-            placeholder="Money expected"
+            label={t('expectedCollectionLabel')}
+            placeholder={t('expectedCollectionPlaceholder')}
             keyboardType="decimal-pad"
             value={createEventForm.moneyExpected}
             onChangeText={(text) => setCreateEventForm((prev) => ({ ...prev, moneyExpected: text }))}
@@ -293,10 +296,10 @@ export function EventsScreen() {
 
           <View style={styles.modalActions}>
             <Pressable style={styles.secondaryBtn} onPress={() => setCreateModalVisible(false)}>
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
+              <Text style={styles.secondaryBtnText}>{t('cancel')}</Text>
             </Pressable>
             <Pressable style={styles.primaryBtn} onPress={onCreateEvent} disabled={createSubmitting}>
-              <Text style={styles.primaryBtnText}>{createSubmitting ? 'Creating...' : 'Create'}</Text>
+              <Text style={styles.primaryBtnText}>{createSubmitting ? t('creating') : t('create')}</Text>
             </Pressable>
           </View>
         </ScrollView>
@@ -304,36 +307,36 @@ export function EventsScreen() {
 
       <Modal visible={contributionModalVisible} animationType="slide" onRequestClose={() => setContributionModalVisible(false)}>
         <ScrollView style={styles.modalWrap} contentContainerStyle={styles.modalContent}>
-          <Text style={styles.modalTitle}>Record Contribution</Text>
+          <Text style={styles.modalTitle}>{t('recordContributionTitle')}</Text>
           <Text style={styles.modalSubtitle}>{selectedEvent?.title || ''}</Text>
 
           <LabeledInput
-            label="Guest Name"
-            placeholder="Guest name"
+            label={t('guestNameLabel')}
+            placeholder={t('guestNamePlaceholder')}
             value={contributionForm.guestName}
             onChangeText={(text) => setContributionForm((prev) => ({ ...prev, guestName: text }))}
           />
           <LabeledInput
-            label="Amount"
-            placeholder="Amount"
+            label={t('amountLabel')}
+            placeholder={t('amountPlaceholder')}
             keyboardType="decimal-pad"
             value={contributionForm.amount}
             onChangeText={(text) => setContributionForm((prev) => ({ ...prev, amount: text }))}
           />
           <DateInput
-            label="Payment Date"
+            label={t('paymentDateLabel')}
             value={contributionForm.date}
             onChange={(value) => setContributionForm((prev) => ({ ...prev, date: value }))}
           />
           <OptionSelector
-            label="Payment Mode"
+            label={t('paymentModeLabel')}
             value={contributionForm.paymentMode}
             options={PAYMENT_MODE_OPTIONS}
             onChange={(next) => setContributionForm((prev) => ({ ...prev, paymentMode: next }))}
           />
           <LabeledInput
-            label="Notes"
-            placeholder="Notes"
+            label={t('notesLabel')}
+            placeholder={t('notesPlaceholder')}
             multiline
             numberOfLines={4}
             style={styles.textArea}
@@ -343,10 +346,10 @@ export function EventsScreen() {
 
           <View style={styles.modalActions}>
             <Pressable style={styles.secondaryBtn} onPress={() => setContributionModalVisible(false)}>
-              <Text style={styles.secondaryBtnText}>Cancel</Text>
+              <Text style={styles.secondaryBtnText}>{t('cancel')}</Text>
             </Pressable>
             <Pressable style={styles.primaryBtn} onPress={onRecordContribution} disabled={contributionSubmitting}>
-              <Text style={styles.primaryBtnText}>{contributionSubmitting ? 'Saving...' : 'Save'}</Text>
+              <Text style={styles.primaryBtnText}>{contributionSubmitting ? t('saving') : t('save')}</Text>
             </Pressable>
           </View>
         </ScrollView>

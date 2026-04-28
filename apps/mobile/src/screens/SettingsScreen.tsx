@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { InlineError } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { loadJson, saveJson } from '../services/localData';
 import { radius, spacing, type } from '../theme';
@@ -47,7 +48,7 @@ const defaultPrivacy: MobilePrivacySettings = {
 
 export function SettingsScreen() {
   const { palette, themeMode, setThemeMode } = useAppTheme();
-  const { language, setLanguage } = useAppLanguage();
+  const { language, setLanguage, t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [account, setAccount] = useState<MobileAccountSettings>(defaultAccount);
   const [notifications, setNotifications] = useState<MobileNotificationSettings>(defaultNotifications);
@@ -55,6 +56,16 @@ export function SettingsScreen() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string>('');
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const persistSettings = async (state: MobileSettingsState) => {
+    await Promise.race([
+      saveJson<MobileSettingsState>(STORAGE_KEY, state),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Saving settings timed out. Please try again.')), 8000);
+      }),
+    ]);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -76,7 +87,6 @@ export function SettingsScreen() {
       if (language && state.account.language !== language) {
         setAccount((prev) => ({ ...prev, language }));
       }
-      await setThemeMode(state.theme);
       setLoaded(true);
     };
 
@@ -88,27 +98,23 @@ export function SettingsScreen() {
 
   const saveSettings = async (nextTheme: ThemeMode = themeMode) => {
     setSaving(true);
-    const state: MobileSettingsState = {
-      account,
-      notifications,
-      privacy,
-      theme: nextTheme,
-    };
+    setSaveError(null);
+    try {
+      const state: MobileSettingsState = {
+        account,
+        notifications,
+        privacy,
+        theme: nextTheme,
+      };
 
-    await saveJson<MobileSettingsState>(STORAGE_KEY, state);
-    setSavedAt(new Date().toLocaleTimeString());
-    setSaving(false);
-  };
-
-  useEffect(() => {
-    if (!loaded) {
-      return;
+      await persistSettings(state);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Unable to save settings.');
+    } finally {
+      setSaving(false);
     }
-    const timer = setTimeout(() => {
-      void saveSettings();
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [account, notifications, privacy, themeMode, loaded]);
+  };
 
   const toggleNotification = (key: keyof MobileNotificationSettings) => {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -119,17 +125,25 @@ export function SettingsScreen() {
   };
 
   const resetSettings = async () => {
-    setAccount(defaultAccount);
-    setNotifications(defaultNotifications);
-    setPrivacy(defaultPrivacy);
-    await setThemeMode('light');
-    await saveJson<MobileSettingsState>(STORAGE_KEY, {
-      account: defaultAccount,
-      notifications: defaultNotifications,
-      privacy: defaultPrivacy,
-      theme: 'light',
-    });
-    setSavedAt(new Date().toLocaleTimeString());
+    setSaving(true);
+    setSaveError(null);
+    try {
+      setAccount(defaultAccount);
+      setNotifications(defaultNotifications);
+      setPrivacy(defaultPrivacy);
+      await setThemeMode('light');
+      await persistSettings({
+        account: defaultAccount,
+        notifications: defaultNotifications,
+        privacy: defaultPrivacy,
+        theme: 'light',
+      });
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Unable to reset settings.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const cycleLanguage = () => {
@@ -147,37 +161,46 @@ export function SettingsScreen() {
     setAccount((prev) => ({ ...prev, timezone: next }));
   };
 
+  if (!loaded) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: palette.bg }]}>
+        <ActivityIndicator size="small" color={palette.primary} />
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: palette.bg }]} contentContainerStyle={styles.content}>
       <SectionCard>
-        <ScreenTitle title="Settings" subtitle="Manage preferences and privacy controls" />
+        <ScreenTitle title={t('settings')} subtitle={t('settingsSubtitle')} />
         <View style={styles.actionRow}>
-          <PrimaryButton label="Save Changes" onPress={() => void saveSettings()} disabled={saving} />
+          <PrimaryButton label={t('saveChanges')} onPress={() => void saveSettings()} disabled={saving} />
           <Pressable style={styles.resetButton} onPress={() => void resetSettings()}>
-            <Text style={styles.resetButtonText}>Reset</Text>
+            <Text style={styles.resetButtonText}>{t('reset')}</Text>
           </Pressable>
         </View>
         <View style={styles.savedRow}>
           {saving ? <ActivityIndicator size="small" color={palette.primary} /> : null}
-          {savedAt ? <Text style={[styles.savedText, { color: palette.primary }]}>Saved at {savedAt}</Text> : null}
+          {savedAt ? <Text style={[styles.savedText, { color: palette.primary }]}>{t('savedAt')} {savedAt}</Text> : null}
         </View>
+        {saveError ? <InlineError message={saveError} /> : null}
       </SectionCard>
 
       <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>Account Preferences</Text>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('accountPreferences')}</Text>
 
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={cycleLanguage}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Language</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('languageFieldLabel')}</Text>
           <Text style={[styles.rowValue, { color: palette.text }]}>{account.language}</Text>
         </Pressable>
 
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={cycleTimezone}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Timezone</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('timezoneLabel')}</Text>
           <Text style={[styles.rowValue, { color: palette.text }]}>{account.timezone}</Text>
         </Pressable>
 
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => setAccount((prev) => ({ ...prev, publicProfile: !prev.publicProfile }))}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Public profile visibility</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('publicProfileVisibility')}</Text>
           <Switch
             value={account.publicProfile}
             onValueChange={() => setAccount((prev) => ({ ...prev, publicProfile: !prev.publicProfile }))}
@@ -187,9 +210,9 @@ export function SettingsScreen() {
       </SectionCard>
 
       <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>Notification Preferences</Text>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('notificationPreferences')}</Text>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('communityAnnouncements')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Community announcements</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('communityAnnouncements')}</Text>
           <Switch
             value={notifications.communityAnnouncements}
             onValueChange={() => toggleNotification('communityAnnouncements')}
@@ -197,7 +220,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('matrimonyMatches')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Matrimony match alerts</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('matrimonyMatchAlerts')}</Text>
           <Switch
             value={notifications.matrimonyMatches}
             onValueChange={() => toggleNotification('matrimonyMatches')}
@@ -205,7 +228,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('eventReminders')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Event reminders</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('eventReminders')}</Text>
           <Switch
             value={notifications.eventReminders}
             onValueChange={() => toggleNotification('eventReminders')}
@@ -213,7 +236,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('securityAlerts')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Security alerts</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('securityAlerts')}</Text>
           <Switch
             value={notifications.securityAlerts}
             onValueChange={() => toggleNotification('securityAlerts')}
@@ -221,7 +244,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('marketingUpdates')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Marketing updates</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('marketingUpdates')}</Text>
           <Switch
             value={notifications.marketingUpdates}
             onValueChange={() => toggleNotification('marketingUpdates')}
@@ -231,9 +254,9 @@ export function SettingsScreen() {
       </SectionCard>
 
       <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>Privacy and Security</Text>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('privacyAndSecurity')}</Text>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => togglePrivacy('showPhoneToConnections')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Show phone to accepted connections</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('showPhoneToConnections')}</Text>
           <Switch
             value={privacy.showPhoneToConnections}
             onValueChange={() => togglePrivacy('showPhoneToConnections')}
@@ -241,7 +264,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => togglePrivacy('showLocationPublicly')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Show location publicly</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('showLocationPublicly')}</Text>
           <Switch
             value={privacy.showLocationPublicly}
             onValueChange={() => togglePrivacy('showLocationPublicly')}
@@ -249,7 +272,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => togglePrivacy('profileSearchable')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Allow profile in search</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('allowProfileInSearch')}</Text>
           <Switch
             value={privacy.profileSearchable}
             onValueChange={() => togglePrivacy('profileSearchable')}
@@ -257,7 +280,7 @@ export function SettingsScreen() {
           />
         </Pressable>
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => togglePrivacy('twoFactorEnabled')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>Two-factor auth</Text>
+          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('twoFactorAuth')}</Text>
           <Switch
             value={privacy.twoFactorEnabled}
             onValueChange={() => togglePrivacy('twoFactorEnabled')}
@@ -267,7 +290,7 @@ export function SettingsScreen() {
       </SectionCard>
 
       <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>Appearance</Text>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('appearanceLabel')}</Text>
         <View style={styles.themeRow}>
           {(['light', 'dark', 'system'] as const).map((item) => (
             <Pressable
@@ -283,7 +306,7 @@ export function SettingsScreen() {
             </Pressable>
           ))}
         </View>
-        <Text style={[styles.noteText, { color: palette.muted }]}>Theme is applied app-wide and stored automatically.</Text>
+        <Text style={[styles.noteText, { color: palette.muted }]}>{t('themeAppliedNote')}</Text>
       </SectionCard>
     </ScrollView>
   );
@@ -298,6 +321,10 @@ function createStyles(palette: ThemePalette) {
     content: {
       padding: spacing.md,
       gap: spacing.sm,
+    },
+    centered: {
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     actionRow: {
       marginTop: spacing.xs,

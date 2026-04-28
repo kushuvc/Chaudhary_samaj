@@ -1,15 +1,17 @@
 import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 
 export function LoadingScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={palette.primary} />
-      <Text style={styles.text}>Loading Chaudhary Samaj...</Text>
+      <Text style={styles.text}>{t('loadingChaudharySamaj')}</Text>
     </View>
   );
 }

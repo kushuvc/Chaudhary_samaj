@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { api } from '../services/api';
@@ -33,6 +34,7 @@ const defaultCommunityStats: CommunityFeedStats = {
 
 export function DashboardScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -82,7 +84,7 @@ export function DashboardScreen() {
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading dashboard..." />;
+    return <ScreenLoader message={t('loadingDashboard')} />;
   }
 
   return (
@@ -94,58 +96,58 @@ export function DashboardScreen() {
       <View style={styles.heroWrap}>
         <BrandArtwork compact />
         <View style={styles.heroOverlay}>
-          <Text style={styles.heroBadge}>Premium Community Lane</Text>
-          <Text style={styles.heroTitle}>Community Snapshot</Text>
+          <Text style={styles.heroBadge}>{t('premiumCommunityLane')}</Text>
+          <Text style={styles.heroTitle}>{t('communitySnapshot')}</Text>
         </View>
       </View>
 
       <SectionCard>
-        <ScreenTitle title={`Welcome, ${session?.user?.name || 'Member'}`} subtitle="Swiggy-style discovery shell is now active for mobile." />
+        <ScreenTitle title={`${t('welcome')}, ${session?.user?.name || 'Member'}`} subtitle={t('discoveryShellActive')} />
       </SectionCard>
 
       {error ? <InlineError message={error} /> : null}
 
       <View style={styles.gridRow}>
         <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Matrimony Matches</Text>
+          <Text style={styles.metricLabel}>{t('matrimonyMatches')}</Text>
           <Text style={styles.metricValue}>{matrimonyCount}</Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Business Listings</Text>
+          <Text style={styles.metricLabel}>{t('businessListings')}</Text>
           <Text style={styles.metricValue}>{businessCount}</Text>
         </View>
       </View>
 
       <View style={styles.gridRow}>
         <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Open Help Requests</Text>
+          <Text style={styles.metricLabel}>{t('openHelpRequests')}</Text>
           <Text style={styles.metricValue}>{helpOpenCount}</Text>
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>Community Posts</Text>
+          <Text style={styles.metricLabel}>{t('communityPosts')}</Text>
           <Text style={styles.metricValue}>{communityStats.totalPosts}</Text>
         </View>
       </View>
 
       <SectionCard>
-        <Text style={styles.cardTitle}>Events Summary</Text>
-        <Text style={styles.cardText}>Created: {eventStats.totalCreated}</Text>
-        <Text style={styles.cardText}>Upcoming: {eventStats.upcomingCount}</Text>
-        <Text style={styles.cardText}>Past: {eventStats.pastCount}</Text>
-        <Text style={styles.cardText}>Pending Collection: {eventStats.pendingCount}</Text>
+        <Text style={styles.cardTitle}>{t('eventsSummary')}</Text>
+        <Text style={styles.cardText}>{t('created')}: {eventStats.totalCreated}</Text>
+        <Text style={styles.cardText}>{t('upcoming')}: {eventStats.upcomingCount}</Text>
+        <Text style={styles.cardText}>{t('past')}: {eventStats.pastCount}</Text>
+        <Text style={styles.cardText}>{t('pendingCollection')}: {eventStats.pendingCount}</Text>
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.cardTitle}>Community Summary</Text>
-        <Text style={styles.cardText}>Pinned announcements: {communityStats.pinnedPosts}</Text>
-        <Text style={styles.cardText}>Upcoming meetings: {communityStats.upcomingMeetings}</Text>
+        <Text style={styles.cardTitle}>{t('communitySummary')}</Text>
+        <Text style={styles.cardText}>{t('pinnedAnnouncements')}: {communityStats.pinnedPosts}</Text>
+        <Text style={styles.cardText}>{t('upcomingMeetings')}: {communityStats.upcomingMeetings}</Text>
       </SectionCard>
 
-      <PrimaryButton label="Refresh Dashboard" onPress={onRefresh} />
+      <PrimaryButton label={t('refreshDashboard')} onPress={onRefresh} />
 
       <SectionCard>
-        <Text style={styles.noteTitle}>Mobile Migration Progress</Text>
-        <Text style={styles.noteText}>Auth, Matrimony, Events, Help and Need, Business, and Community are backend-connected.</Text>
+        <Text style={styles.noteTitle}>{t('mobileMigrationProgress')}</Text>
+        <Text style={styles.noteText}>{t('migrationNote')}</Text>
       </SectionCard>
     </ScrollView>
   );

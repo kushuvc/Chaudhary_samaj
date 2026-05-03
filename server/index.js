@@ -200,7 +200,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
   } catch {
     accountExists = null
   }
-  const doesAccountExist = accountExists === null ? authAccountExistsByEmail(normalizedEmail) : accountExists
+  const doesAccountExist = accountExists === null ? await authAccountExistsByEmail(normalizedEmail) : accountExists
 
   if (normalizedPurpose === 'login' && !doesAccountExist) {
     response.status(404).json({ success: false, error: 'Account not found for this email' })

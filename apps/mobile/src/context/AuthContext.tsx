@@ -6,10 +6,12 @@ import type { AuthSession, OtpPurpose, SignupPayload } from '../types';
 interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
+  isNewSignup: boolean;
   requestOtp: (email: string, purpose: OtpPurpose) => Promise<{ message?: string; debugOtp?: string }>;
   login: (payload: { email: string; password: string; otpCode: string }) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
   logout: () => Promise<void>;
+  completeProfileSetup: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -17,12 +19,14 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isNewSignup, setIsNewSignup] = useState(false);
 
   useEffect(() => {
     loadSession()
       .then((stored) => {
         setSession(stored);
         setApiSession(stored);
+        setIsNewSignup(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -31,6 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       session,
       loading,
+      isNewSignup,
       requestOtp: async (email, purpose) => {
         return api.requestOtp(email, purpose);
       },
@@ -38,21 +43,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const next = await api.login(payload);
         setSession(next);
         setApiSession(next);
+        setIsNewSignup(false);
         await saveSession(next);
       },
       signup: async (payload) => {
         const next = await api.signup(payload);
         setSession(next);
         setApiSession(next);
+        setIsNewSignup(true);
         await saveSession(next);
       },
       logout: async () => {
         setSession(null);
         setApiSession(null);
+        setIsNewSignup(false);
         await clearSession();
+      },
+      completeProfileSetup: async () => {
+        setIsNewSignup(false);
       }
     }),
-    [session, loading]
+    [session, loading, isNewSignup]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

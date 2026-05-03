@@ -8,13 +8,10 @@ import { DashboardScreen } from '../screens/DashboardScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { LoadingScreen } from '../screens/LoadingScreen';
 import { MatrimonyScreen } from '../screens/MatrimonyScreen';
-import { EventsScreen } from '../screens/EventsScreen';
-import { HelpNeedScreen } from '../screens/HelpNeedScreen';
-import { BusinessScreen } from '../screens/BusinessScreen';
-import { CommunityScreen } from '../screens/CommunityScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { LanguageSelectionScreen } from '../screens/LanguageSelectionScreen';
+import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
 
@@ -58,18 +55,14 @@ function MainTabs() {
     >
       <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarIcon: tabIcon('home-outline'), tabBarLabel: t('home') }} />
       <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarIcon: tabIcon('heart-outline'), tabBarLabel: t('matrimony') }} />
-      <Tabs.Screen name="Events" component={EventsScreen} options={{ tabBarIcon: tabIcon('calendar-outline'), tabBarLabel: t('events') }} />
-      <Tabs.Screen name="Help" component={HelpNeedScreen} options={{ tabBarIcon: tabIcon('medkit-outline'), tabBarLabel: t('help') }} />
-      <Tabs.Screen name="Business" component={BusinessScreen} options={{ tabBarIcon: tabIcon('briefcase-outline'), tabBarLabel: t('business') }} />
-      <Tabs.Screen name="Community" component={CommunityScreen} options={{ tabBarIcon: tabIcon('people-outline'), tabBarLabel: t('community') }} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline'), tabBarLabel: t('settings') }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('person-outline'), tabBarLabel: t('profile') }} />
+      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline'), tabBarLabel: t('settings') }} />
     </Tabs.Navigator>
   );
 }
 
 export function AppNavigator() {
-  const { session, loading } = useAuth();
+  const { session, loading, isNewSignup } = useAuth();
   const { ready, language } = useAppLanguage();
 
   if (loading || !ready) {
@@ -83,7 +76,8 @@ export function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!session ? <Stack.Screen name="Auth" component={LoginScreen} /> : null}
-      {session ? <Stack.Screen name="Main" component={MainTabs} /> : null}
+      {session && isNewSignup ? <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} /> : null}
+      {session && !isNewSignup ? <Stack.Screen name="Main" component={MainTabs} /> : null}
     </Stack.Navigator>
   );
 }

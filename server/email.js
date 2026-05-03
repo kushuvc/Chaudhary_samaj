@@ -64,12 +64,19 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
   }
 
   try {
-    await transporter.sendMail({
+    // Add timeout to sendMail to prevent indefinite hanging
+    const sendMailPromise = transporter.sendMail({
       from: smtpFrom,
       to,
       subject,
       html,
     })
+    
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('SMTP timeout after 8 seconds')), 8000)
+    )
+    
+    await Promise.race([sendMailPromise, timeoutPromise])
   } catch (error) {
     if (isRecipientNotFoundError(error)) {
       const recipientError = new Error('Recipient email could not be validated')

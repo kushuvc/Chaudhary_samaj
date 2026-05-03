@@ -391,7 +391,7 @@ export async function requestEmailOtpFast(email, purpose) {
         FROM auth_email_otps
         WHERE lower(email) = lower($1)
           AND purpose = $2
-          AND created_at >= NOW() - INTERVAL '1 hour'
+          AND created_at::timestamptz >= NOW() - INTERVAL '1 hour'
       `,
       [normalizedEmail, normalizedPurpose]
     )

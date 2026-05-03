@@ -55,6 +55,8 @@ import {
   getOwnedEventSummaryFast,
   getPublicProfilesFast,
   getSavedFiltersByUserIdFast,
+  invalidateActiveEmailOtpsFast,
+  requestEmailOtpFast,
 } from './fast-queries.js'
 
 const app = express()
@@ -212,7 +214,9 @@ app.post('/api/auth/otp/request', async (request, response) => {
     return
   }
 
-  const otpRequest = requestEmailOtp(normalizedEmail, normalizedPurpose)
+  const otpRequest = databaseEngine === 'postgres'
+    ? await requestEmailOtpFast(normalizedEmail, normalizedPurpose)
+    : requestEmailOtp(normalizedEmail, normalizedPurpose)
   const otpCreatedAt = Date.now()
   console.log(`[OTP] created in ${otpCreatedAt - routeStart}ms for=${normalizedEmail} purpose=${normalizedPurpose}`)
 
@@ -258,7 +262,11 @@ app.post('/api/auth/otp/request', async (request, response) => {
   } catch (error) {
     const errAt = Date.now()
     console.error(`[OTP] send error to=${normalizedEmail} purpose=${normalizedPurpose} afterMs=${errAt - routeStart}`, error)
-    invalidateActiveEmailOtps(normalizedEmail, normalizedPurpose)
+    if (databaseEngine === 'postgres') {
+      await invalidateActiveEmailOtpsFast(normalizedEmail, normalizedPurpose)
+    } else {
+      invalidateActiveEmailOtps(normalizedEmail, normalizedPurpose)
+    }
 
     if (error?.code === 'RECIPIENT_NOT_FOUND') {
       response.status(400).json({

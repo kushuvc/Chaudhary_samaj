@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import pkg from 'pg'
 
 const { Pool } = pkg
@@ -182,6 +183,18 @@ function mapEventGuestRow(row) {
   }
 }
 
+function generateOtpCode() {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+function normalizeOtpPurpose(purpose) {
+  return String(purpose || '').trim().toLowerCase()
+}
+
+function normalizeOtpEmail(email) {
+  return String(email || '').trim().toLowerCase()
+}
+
 async function query(text, values) {
   if (!pool) return null
   const result = await pool.query(text, values)
@@ -328,6 +341,140 @@ export async function authAccountExistsByEmailFast(email) {
   const exists = Boolean(rows?.[0])
   setCached('authAccountExistsByEmail', { email: normalized }, exists)
   return exists
+}
+
+export async function requestEmailOtpFast(email, purpose) {
+  if (!pool) return null
+
+  const normalizedEmail = normalizeOtpEmail(email)
+  const normalizedPurpose = normalizeOtpPurpose(purpose)
+
+  if (!normalizedEmail || !['signup', 'login'].includes(normalizedPurpose)) {
+    return { ok: false, statusCode: 400, error: 'Invalid email OTP request' }
+  }
+
+  const client = await pool.connect()
+
+  try {
+    await client.query('BEGIN')
+
+    const latestResult = await client.query(
+      `
+        SELECT created_at
+        FROM auth_email_otps
+        WHERE lower(email) = lower($1)
+          AND purpose = $2
+          AND consumed_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      [normalizedEmail, normalizedPurpose]
+    )
+
+    const latest = latestResult.rows?.[0]
+    if (latest) {
+      const elapsedMs = Date.now() - new Date(latest.created_at).getTime()
+      if (Number.isFinite(elapsedMs) && elapsedMs < 60_000) {
+        const retryAfterSeconds = Math.max(1, Math.ceil((60_000 - elapsedMs) / 1000))
+        await client.query('ROLLBACK')
+        return {
+          ok: false,
+          statusCode: 429,
+          error: `Please wait ${retryAfterSeconds}s before requesting a new OTP`,
+        }
+      }
+    }
+
+    const recentCountResult = await client.query(
+      `
+        SELECT COUNT(*)::int AS total
+        FROM auth_email_otps
+        WHERE lower(email) = lower($1)
+          AND purpose = $2
+          AND created_at >= NOW() - INTERVAL '1 hour'
+      `,
+      [normalizedEmail, normalizedPurpose]
+    )
+
+    const otpCount = Number(recentCountResult.rows?.[0]?.total || 0)
+    if (otpCount >= 10) {
+      await client.query('ROLLBACK')
+      return {
+        ok: false,
+        statusCode: 429,
+        error: 'Too many OTP requests. Please try again after some time.',
+      }
+    }
+
+    const otpCode = generateOtpCode()
+    const createdAt = new Date().toISOString()
+    const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString()
+
+    await client.query(
+      `
+        INSERT INTO auth_email_otps (
+          id, email, purpose, otp_code, expires_at, attempts, max_attempts, consumed_at, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `,
+      [
+        `otp-${randomUUID()}`,
+        normalizedEmail,
+        normalizedPurpose,
+        otpCode,
+        expiresAt,
+        0,
+        5,
+        null,
+        createdAt,
+      ]
+    )
+
+    await client.query('COMMIT')
+
+    return {
+      ok: true,
+      data: {
+        otpCode,
+        expiresAt,
+      },
+    }
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK')
+    } catch {}
+
+    return {
+      ok: false,
+      statusCode: 500,
+      error: error instanceof Error ? error.message : 'Unable to create OTP',
+    }
+  } finally {
+    client.release()
+  }
+}
+
+export async function invalidateActiveEmailOtpsFast(email, purpose) {
+  if (!pool) return null
+
+  const normalizedEmail = normalizeOtpEmail(email)
+  const normalizedPurpose = normalizeOtpPurpose(purpose)
+
+  if (!normalizedEmail || !['signup', 'login'].includes(normalizedPurpose)) {
+    return null
+  }
+
+  await pool.query(
+    `
+      UPDATE auth_email_otps
+      SET consumed_at = NOW()
+      WHERE lower(email) = lower($1)
+        AND purpose = $2
+        AND consumed_at IS NULL
+    `,
+    [normalizedEmail, normalizedPurpose]
+  )
+
+  return true
 }
 
 export async function getPublicProfilesFast(currentUserId) {

@@ -7,81 +7,26 @@ import { useAppLanguage } from '../context/LanguageContext';
 import type { OtpPurpose } from '../types';
 import { BrandArtwork } from '../components/BrandArtwork';
 
-const GENDER_OPTIONS = ['Male', 'Female', 'Other'];
-const MARITAL_STATUS_OPTIONS = ['Never Married', 'Divorced', 'Widowed'];
-const COMMUNITY_OPTIONS = ['Chaudhary', 'Jat', 'Gurjar', 'Rajput', 'Other'];
-const LANGUAGE_OPTIONS = ['Hindi', 'English', 'Gujarati', 'Haryanvi', 'Other'];
-const EDUCATION_OPTIONS = ['High School', 'Diploma', 'Bachelor', 'Master', 'Doctorate', 'Other'];
-const OCCUPATION_OPTIONS = ['Business', 'Private Job', 'Government Job', 'Self Employed', 'Student', 'Other'];
-
-function SelectField({
-  label,
-  value,
-  options,
-  onSelect,
-  styles,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onSelect: (next: string) => void;
-  styles: ReturnType<typeof createStyles>;
-}) {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <View style={styles.fieldGroup}>
-      <Text style={styles.label}>{label}</Text>
-      <Pressable style={styles.selectTrigger} onPress={() => setExpanded((prev) => !prev)}>
-        <Text style={[styles.selectTriggerText, !value && styles.placeholderText]}>{value || `Select ${label}`}</Text>
-        <Text style={styles.chevron}>{expanded ? '▲' : '▼'}</Text>
-      </Pressable>
-      {expanded ? (
-        <View style={styles.optionsBox}>
-          {options.map((option) => (
-            <Pressable
-              key={`${label}-${option}`}
-              style={[styles.optionItem, value === option && styles.optionItemActive]}
-              onPress={() => {
-                onSelect(option);
-                setExpanded(false);
-              }}
-            >
-              <Text style={[styles.optionText, value === option && styles.optionTextActive]}>{option}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
 export function LoginScreen() {
   const { requestOtp, login, signup } = useAuth();
   const { palette } = useAppTheme();
-  const { language } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [name, setName] = useState('');
+  
+  // Common fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [otpCode, setOtpCode] = useState('');
-  const [phone, setPhone] = useState('');
-  const [age, setAge] = useState('');
-  const [location, setLocation] = useState('');
-  const [subCommunity, setSubCommunity] = useState('');
-  const [gender, setGender] = useState('');
-  const [maritalStatus, setMaritalStatus] = useState('Never Married');
-  const [community, setCommunity] = useState('Chaudhary');
-  const [profileLanguage, setProfileLanguage] = useState('Hindi');
-  const [education, setEducation] = useState('');
-  const [occupation, setOccupation] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Signup only fields
+  const [phone, setPhone] = useState('');
 
   const purpose: OtpPurpose = useMemo(() => (mode === 'login' ? 'login' : 'signup'), [mode]);
 
   const validateEmail = (value: string) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(value.trim());
+  const validatePhone = (value: string) => /^[0-9]{10}$/.test(value.trim());
 
   const handleSendOtp = async () => {
     try {
@@ -118,29 +63,16 @@ export function LoginScreen() {
       if (mode === 'login') {
         await login({ email: email.trim(), password, otpCode: otpCode.trim() });
       } else {
-        if (!name.trim()) {
-          Alert.alert('Missing Name', 'Name is required for signup.');
-          return;
-        }
-        if (!gender) {
-          Alert.alert('Missing Gender', 'Please select gender.');
+        if (!validatePhone(phone)) {
+          Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
           return;
         }
         await signup({
-          name: name.trim(),
+          name: email.trim().split('@')[0],
           email: email.trim(),
           password,
           otpCode: otpCode.trim(),
-          phone: phone.trim() || undefined,
-          age: age.trim() ? Number(age.trim()) : undefined,
-          location: location.trim() || undefined,
-          community: community || undefined,
-          subCommunity: subCommunity.trim() || undefined,
-          education: education || undefined,
-          occupation: occupation || undefined,
-          maritalStatus: maritalStatus || undefined,
-          language: profileLanguage || undefined,
-          gender: gender || undefined,
+          phone: phone.trim(),
         });
       }
     } catch (error) {
@@ -164,284 +96,224 @@ export function LoginScreen() {
       <Text style={styles.title}>Chaudhary Samaj</Text>
       <Text style={styles.subtitle}>Mobile Access</Text>
 
-      <View style={styles.switchRow}>
-        <Pressable style={[styles.switchButton, mode === 'login' && styles.switchButtonActive]} onPress={() => setMode('login')}>
-          <Text style={[styles.switchText, mode === 'login' && styles.switchTextActive]}>Login</Text>
-        </Pressable>
-        <Pressable style={[styles.switchButton, mode === 'signup' && styles.switchButtonActive]} onPress={() => setMode('signup')}>
-          <Text style={[styles.switchText, mode === 'signup' && styles.switchTextActive]}>Signup</Text>
-        </Pressable>
-      </View>
-
-      {mode === 'signup' ? (
+      {mode === 'login' ? (
         <>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput placeholder="Enter your full name" value={name} onChangeText={setName} style={styles.input} />
+            <Text style={styles.label}>Gmail Address</Text>
+            <TextInput
+              placeholder="name@gmail.com"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>OTP Code</Text>
+            <TextInput
+              placeholder="Enter OTP"
+              value={otpCode}
+              onChangeText={setOtpCode}
+              keyboardType="number-pad"
+              style={styles.input}
+            />
+          </View>
+
+          <Pressable style={styles.secondaryButton} onPress={handleSendOtp} disabled={submitting}>
+            <Text style={styles.secondaryButtonText}>{otpSent ? 'Resend OTP' : 'Send OTP'}</Text>
+          </Pressable>
+
+          <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
+            <Text style={styles.primaryButtonText}>Login</Text>
+          </Pressable>
+
+          <View style={styles.signupLink}>
+            <Text style={styles.signupLinkText}>Don't have an account? </Text>
+            <Pressable onPress={() => { setMode('signup'); setOtpSent(false); setEmail(''); setPassword(''); setOtpCode(''); setPhone(''); }}>
+              <Text style={styles.signupLinkButton}>Sign up</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={styles.signupTitle}>Create Your Account</Text>
+          
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Gmail Address</Text>
+            <TextInput
+              placeholder="name@gmail.com"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={styles.input}
+            />
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
-              placeholder="Enter phone number"
+              placeholder="10-digit phone number"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
+              maxLength={10}
               style={styles.input}
             />
           </View>
-
-          <View style={styles.fieldRow}>
-            <View style={styles.halfField}>
-              <Text style={styles.label}>Age</Text>
-              <TextInput
-                placeholder="Age"
-                value={age}
-                onChangeText={setAge}
-                keyboardType="number-pad"
-                style={styles.input}
-              />
-            </View>
-            <View style={styles.halfField}>
-              <Text style={styles.label}>Location</Text>
-              <TextInput placeholder="City" value={location} onChangeText={setLocation} style={styles.input} />
-            </View>
-          </View>
-
-          <SelectField label="Gender" value={gender} options={GENDER_OPTIONS} onSelect={setGender} styles={styles} />
-          <SelectField
-            label="Marital Status"
-            value={maritalStatus}
-            options={MARITAL_STATUS_OPTIONS}
-            onSelect={setMaritalStatus}
-            styles={styles}
-          />
-          <SelectField label="Community" value={community} options={COMMUNITY_OPTIONS} onSelect={setCommunity} styles={styles} />
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Sub Community</Text>
+            <Text style={styles.label}>Password</Text>
+            <TextInput placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>OTP Code</Text>
             <TextInput
-              placeholder="Enter sub community"
-              value={subCommunity}
-              onChangeText={setSubCommunity}
+              placeholder="Enter OTP"
+              value={otpCode}
+              onChangeText={setOtpCode}
+              keyboardType="number-pad"
               style={styles.input}
             />
           </View>
 
-          <SelectField label="Education" value={education} options={EDUCATION_OPTIONS} onSelect={setEducation} styles={styles} />
-          <SelectField label="Occupation" value={occupation} options={OCCUPATION_OPTIONS} onSelect={setOccupation} styles={styles} />
-          <SelectField
-            label="Language"
-            value={profileLanguage || (language === 'hi-IN' ? 'Hindi' : language === 'gu-IN' ? 'Gujarati' : 'English')}
-            options={LANGUAGE_OPTIONS}
-            onSelect={setProfileLanguage}
-            styles={styles}
-          />
+          <Pressable style={styles.secondaryButton} onPress={handleSendOtp} disabled={submitting}>
+            <Text style={styles.secondaryButtonText}>{otpSent ? 'Resend OTP' : 'Send OTP'}</Text>
+          </Pressable>
+
+          <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
+            <Text style={styles.primaryButtonText}>Create Account</Text>
+          </Pressable>
+
+          <View style={styles.signupLink}>
+            <Text style={styles.signupLinkText}>Already have an account? </Text>
+            <Pressable onPress={() => { setMode('login'); setOtpSent(false); setEmail(''); setPassword(''); setOtpCode(''); setPhone(''); }}>
+              <Text style={styles.signupLinkButton}>Login</Text>
+            </Pressable>
+          </View>
         </>
-      ) : null}
-
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Gmail Address</Text>
-        <TextInput
-          placeholder="name@gmail.com"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          style={styles.input}
-        />
-      </View>
-
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Password</Text>
-        <TextInput placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
-      </View>
-
-      <View style={styles.fieldGroup}>
-        <Text style={styles.label}>OTP Code</Text>
-        <TextInput
-          placeholder="Enter OTP"
-          value={otpCode}
-          onChangeText={setOtpCode}
-          keyboardType="number-pad"
-          style={styles.input}
-        />
-      </View>
-
-      <Pressable style={styles.secondaryButton} onPress={handleSendOtp} disabled={submitting}>
-        <Text style={styles.secondaryButtonText}>{otpSent ? 'Resend OTP' : 'Send OTP'}</Text>
-      </Pressable>
-
-      <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
-        <Text style={styles.primaryButtonText}>{mode === 'login' ? 'Login' : 'Create Account'}</Text>
-      </Pressable>
+      )}
     </ScrollView>
   );
 }
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.bg,
-  },
-  content: {
-    padding: 24,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: palette.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: palette.muted,
-    marginBottom: 16,
-    marginTop: 2,
-  },
-  heroArtWrap: {
-    marginBottom: 18,
-    position: 'relative',
-  },
-  heroTextLayer: {
-    position: 'absolute',
-    left: 16,
-    top: 14,
-    right: 16,
-  },
-  heroTag: {
-    color: palette.primarySoft,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-    fontSize: 12,
-  },
-  heroTitle: {
-    marginTop: 6,
-    color: palette.surface,
-    fontSize: 27,
-    fontWeight: '800',
-  },
-  heroSub: {
-    marginTop: 5,
-    color: palette.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    maxWidth: 280,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    backgroundColor: palette.accentSoft,
-    borderRadius: 10,
-    padding: 4
-  },
-  switchButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 8,
-    alignItems: 'center'
-  },
-  switchButtonActive: {
-    backgroundColor: palette.surface,
-  },
-  switchText: {
-    color: palette.accent,
-    fontWeight: '600'
-  },
-  switchTextActive: {
-    color: palette.primary,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    backgroundColor: palette.surface,
-    color: palette.text,
-    padding: 12,
-    marginBottom: 2
-  },
-  fieldGroup: {
-    marginBottom: 10,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  halfField: {
-    flex: 1,
-  },
-  label: {
-    color: palette.accent,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  selectTrigger: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    backgroundColor: palette.surface,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  selectTriggerText: {
-    color: palette.text,
-  },
-  placeholderText: {
-    color: palette.muted,
-  },
-  chevron: {
-    color: palette.muted,
-    fontSize: 12,
-  },
-  optionsBox: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 10,
-    backgroundColor: palette.surface,
-    marginTop: 6,
-    overflow: 'hidden',
-  },
-  optionItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderTopWidth: 1,
-    borderTopColor: palette.border,
-  },
-  optionItemActive: {
-    backgroundColor: palette.primarySoft,
-  },
-  optionText: {
-    color: palette.text,
-  },
-  optionTextActive: {
-    color: palette.primary,
-    fontWeight: '700',
-  },
-  primaryButton: {
-    backgroundColor: palette.primary,
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 8,
-    alignItems: 'center'
-  },
-  primaryButtonText: {
-    color: palette.surface,
-    fontWeight: '700'
-  },
-  secondaryButton: {
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: palette.primary,
-    alignItems: 'center'
-  },
-  secondaryButtonText: {
-    color: palette.primary,
-    fontWeight: '700'
-  }
+    container: {
+      flex: 1,
+      backgroundColor: palette.bg,
+    },
+    content: {
+      padding: 24,
+      paddingBottom: 40,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: palette.text,
+    },
+    signupTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: palette.text,
+      marginBottom: 20,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: palette.muted,
+      marginBottom: 16,
+      marginTop: 2,
+    },
+    heroArtWrap: {
+      marginBottom: 18,
+      position: 'relative',
+    },
+    heroTextLayer: {
+      position: 'absolute',
+      left: 16,
+      top: 14,
+      right: 16,
+    },
+    heroTag: {
+      color: palette.primarySoft,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+      fontSize: 12,
+    },
+    heroTitle: {
+      marginTop: 6,
+      color: palette.surface,
+      fontSize: 27,
+      fontWeight: '800',
+    },
+    heroSub: {
+      marginTop: 5,
+      color: palette.muted,
+      fontSize: 13,
+      lineHeight: 18,
+      maxWidth: 280,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 10,
+      backgroundColor: palette.surface,
+      color: palette.text,
+      padding: 12,
+      marginBottom: 2
+    },
+    fieldGroup: {
+      marginBottom: 10,
+    },
+    label: {
+      color: palette.accent,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    primaryButton: {
+      backgroundColor: palette.primary,
+      borderRadius: 10,
+      padding: 12,
+      marginTop: 8,
+      alignItems: 'center'
+    },
+    primaryButtonText: {
+      color: palette.surface,
+      fontWeight: '700'
+    },
+    secondaryButton: {
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: palette.primary,
+      alignItems: 'center'
+    },
+    secondaryButtonText: {
+      color: palette.primary,
+      fontWeight: '700'
+    },
+    signupLink: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 16,
+    },
+    signupLinkText: {
+      color: palette.muted,
+      fontSize: 14,
+    },
+    signupLinkButton: {
+      color: palette.primary,
+      fontWeight: '700',
+      fontSize: 14,
+    }
   });
 }

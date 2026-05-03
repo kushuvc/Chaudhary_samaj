@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 
+const smtpService = process.env.SMTP_SERVICE || ''
 const smtpHost = process.env.SMTP_HOST || ''
 const smtpPort = Number(process.env.SMTP_PORT || 587)
 const smtpSecure = String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true'
@@ -8,7 +9,21 @@ const smtpPass = process.env.SMTP_PASS || ''
 const smtpFrom = process.env.SMTP_FROM || smtpUser || 'no-reply@chaudhary-samaj.local'
 
 function buildTransporter() {
-  if (!smtpHost || !smtpUser || !smtpPass) {
+  if (!smtpUser || !smtpPass) {
+    return null
+  }
+
+  if (smtpService) {
+    return nodemailer.createTransport({
+      service: smtpService,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    })
+  }
+
+  if (!smtpHost) {
     return null
   }
 

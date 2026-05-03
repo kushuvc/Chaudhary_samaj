@@ -8,6 +8,8 @@ Set `DATABASE_URL` in Render using this format for Supabase:
 
 `postgresql://postgres:<password>@db.<project-ref>.supabase.co:5432/postgres?uselibpqcompat=true&sslmode=require`
 
+For OTP delivery, set either `SMTP_SERVICE` plus `SMTP_USER` and `SMTP_PASS`, or the host-based SMTP vars `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`.
+
 ### Render settings
 
 - Build Command: `npm install`

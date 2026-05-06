@@ -31,6 +31,28 @@ function buildTransporter() {
     host: smtpHost,
     port: smtpPort,
     secure: smtpSecure,
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 15000,
+    auth: {
+      user: smtpUser,
+      pass: smtpPass,
+    },
+  })
+}
+
+function buildGmailSslTransporter() {
+  if (!smtpUser || !smtpPass) {
+    return null
+  }
+
+  return nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 15000,
     auth: {
       user: smtpUser,
       pass: smtpPass,
@@ -73,6 +95,7 @@ function buildSmtpErrorDetails(error) {
 
 export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 }) {
   const transporter = buildTransporter()
+  const gmailSslTransporter = buildGmailSslTransporter()
   const sendStart = Date.now()
   console.log(`[OTP SEND] start to=${to} purpose=${purpose} transport=${transporter ? 'smtp' : 'dev'}`)
   const subject = purpose === 'login' ? 'Your login OTP code' : 'Your signup OTP code'
@@ -94,20 +117,21 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
     return { ok: true, fallback: true }
   }
 
-  try {
-    // Add timeout to sendMail to prevent indefinite hanging
-    const sendMailPromise = transporter.sendMail({
+  const sendWithTransporter = async (activeTransporter, label) => {
+    const sendMailPromise = activeTransporter.sendMail({
       from: smtpFrom,
       to,
       subject,
       html,
     })
-    
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('SMTP timeout after 8 seconds')), 8000)
+      setTimeout(() => reject(new Error(`SMTP timeout after 12 seconds (${label})`)), 12000)
     )
-    
     await Promise.race([sendMailPromise, timeoutPromise])
+  }
+
+  try {
+    await sendWithTransporter(transporter, 'primary')
   } catch (error) {
     const smtpError = buildSmtpErrorDetails(error)
 
@@ -118,6 +142,26 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
         `[OTP SEND] recipient error to=${to} afterMs=${Date.now() - sendStart}ms details=${JSON.stringify(smtpError)}`
       )
       throw recipientError
+    }
+
+    const shouldTryGmailSslRetry =
+      Boolean(gmailSslTransporter) &&
+      !smtpService &&
+      String(smtpHost || '').toLowerCase() === 'smtp.gmail.com' &&
+      Number(smtpPort) === 587 &&
+      smtpSecure === false
+
+    if (shouldTryGmailSslRetry) {
+      try {
+        await sendWithTransporter(gmailSslTransporter, 'gmail-ssl')
+        console.log(`[OTP SEND] success via gmail-ssl retry to=${to} duration=${Date.now() - sendStart}ms`)
+        return { ok: true, fallback: false }
+      } catch (retryError) {
+        const retryDetails = buildSmtpErrorDetails(retryError)
+        console.error(
+          `[OTP SEND] smtp retry error to=${to} afterMs=${Date.now() - sendStart}ms details=${JSON.stringify(retryDetails)}`
+        )
+      }
     }
 
     console.error(

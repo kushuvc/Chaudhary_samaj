@@ -55,6 +55,22 @@ function isRecipientNotFoundError(error) {
   )
 }
 
+function buildSmtpErrorDetails(error) {
+  if (!error) {
+    return { reason: 'unknown_error' }
+  }
+
+  return {
+    name: error.name || null,
+    code: error.code || null,
+    errno: error.errno || null,
+    command: error.command || null,
+    responseCode: Number(error.responseCode || 0) || null,
+    message: error.message || null,
+    response: error.response || null,
+  }
+}
+
 export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 }) {
   const transporter = buildTransporter()
   const sendStart = Date.now()
@@ -93,13 +109,20 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
     
     await Promise.race([sendMailPromise, timeoutPromise])
   } catch (error) {
+    const smtpError = buildSmtpErrorDetails(error)
+
     if (isRecipientNotFoundError(error)) {
       const recipientError = new Error('Recipient email could not be validated')
       recipientError.code = 'RECIPIENT_NOT_FOUND'
-      console.error(`[OTP SEND] recipient error to=${to} afterMs=${Date.now() - sendStart}ms`, error)
+      console.error(
+        `[OTP SEND] recipient error to=${to} afterMs=${Date.now() - sendStart}ms details=${JSON.stringify(smtpError)}`
+      )
       throw recipientError
     }
 
+    console.error(
+      `[OTP SEND] smtp error to=${to} afterMs=${Date.now() - sendStart}ms details=${JSON.stringify(smtpError)}`
+    )
     console.log(`[OTP FALLBACK] ${to} (${purpose}) => ${otpCode}`)
     console.log(`[OTP SEND] fallback to=${to} duration=${Date.now() - sendStart}ms`)
     return { ok: true, fallback: true }

@@ -61,14 +61,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   requestOtp: async (email: string, purpose: OtpPurpose) => {
-    const response = await request<{ message?: string }>('/auth/otp/request', {
+    const response = await request<{
+      message?: string;
+      data?: {
+        email?: string;
+        purpose?: OtpPurpose;
+        expiresAt?: string;
+        sentViaFallback?: boolean;
+        debugOtp?: string;
+      };
+    }>('/auth/otp/request', {
       method: 'POST',
       body: JSON.stringify({ email, purpose })
     });
 
     return {
       message: response.message || 'OTP sent successfully',
-      debugOtp: (response as { debugOtp?: string }).debugOtp,
+      debugOtp: response.data?.debugOtp,
     };
   },
   signup: async (payload: SignupPayload) => {

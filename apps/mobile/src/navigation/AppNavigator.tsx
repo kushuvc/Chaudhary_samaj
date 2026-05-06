@@ -73,7 +73,7 @@ function MainTabs() {
 }
 
 function AuthFlow() {
-  const { signup } = useAuth();
+  const { signup, completeProfileSetup } = useAuth();
   const [authMode, setAuthMode] = useState<
     | 'welcome'
     | 'login'
@@ -172,6 +172,8 @@ function AuthFlow() {
       community: signupData.religiousDetails?.caste || undefined,
       subCommunity: signupData.religiousDetails?.subcaste || undefined,
     });
+    // Skip ProfileSetupScreen - all data collected in multi-step signup
+    await completeProfileSetup();
   };
 
   switch (authMode) {
@@ -276,7 +278,7 @@ export function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {!session ? <Stack.Screen name="Auth" component={AuthFlow} /> : null}
       {session && isNewSignup ? <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} /> : null}
-      {session && !isNewSignup ? <Stack.Screen name="Main" component={MainTabs} /> : null}
+      {session ? <Stack.Screen name="Main" component={MainTabs} /> : null}
     </Stack.Navigator>
   );
 }

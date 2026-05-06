@@ -81,9 +81,7 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
     city: 'Calangute',
     village: '',
   });
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
-  const [showStatePicker, setShowStatePicker] = useState(false);
-  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [activePicker, setActivePicker] = useState<'country' | 'state' | 'city' | null>(null);
 
   const isValid = data.country && data.state && data.city;
 
@@ -113,90 +111,36 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
         <View style={styles.section}>
           <Pressable 
             style={styles.selector}
-            onPress={() => setShowCountryPicker(!showCountryPicker)}
+            onPress={() => setActivePicker('country')}
           >
             <Text style={styles.floatingLabel}>Your residing country</Text>
             <Text style={styles.selectorText}>{data.country}</Text>
             <Ionicons name="chevron-down" size={20} color={palette.muted} />
           </Pressable>
-          {showCountryPicker && (
-            <View style={styles.dropdown}>
-              {countries.map((country) => (
-                <Pressable
-                  key={country}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setData({ ...data, country, state: '', city: '' });
-                    setShowCountryPicker(false);
-                  }}
-                >
-                  <Text style={[styles.dropdownText, data.country === country && styles.dropdownTextActive]}>
-                    {country}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* State */}
         <View style={styles.section}>
           <Pressable 
             style={styles.selector}
-            onPress={() => setShowStatePicker(!showStatePicker)}
+            onPress={() => setActivePicker('state')}
           >
             <Text style={styles.floatingLabel}>Your residing state</Text>
             <Text style={styles.selectorText}>{data.state || 'Select state'}</Text>
             <Ionicons name="chevron-down" size={20} color={palette.muted} />
           </Pressable>
-          {showStatePicker && (
-            <View style={styles.dropdown}>
-              {availableStates.map((state) => (
-                <Pressable
-                  key={state}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setData({ ...data, state, city: '' });
-                    setShowStatePicker(false);
-                  }}
-                >
-                  <Text style={[styles.dropdownText, data.state === state && styles.dropdownTextActive]}>
-                    {state}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* City */}
         <View style={styles.section}>
           <Pressable 
             style={styles.selector}
-            onPress={() => setShowCityPicker(!showCityPicker)}
+            onPress={() => setActivePicker('city')}
           >
             <Text style={styles.floatingLabel}>Your residing city</Text>
             <Text style={styles.selectorText}>{data.city || 'Select city'}</Text>
             <Ionicons name="chevron-down" size={20} color={palette.muted} />
           </Pressable>
-          {showCityPicker && (
-            <View style={styles.dropdown}>
-              {availableCities.map((city) => (
-                <Pressable
-                  key={city}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setData({ ...data, city });
-                    setShowCityPicker(false);
-                  }}
-                >
-                  <Text style={[styles.dropdownText, data.city === city && styles.dropdownTextActive]}>
-                    {city}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* Village (Optional) */}
@@ -211,6 +155,72 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
           />
         </View>
       </ScrollView>
+
+      {/* Modal Picker Overlay */}
+      {activePicker && (
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.backdrop} onPress={() => setActivePicker(null)} />
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>
+                {activePicker === 'country' && 'Select Country'}
+                {activePicker === 'state' && 'Select State'}
+                {activePicker === 'city' && 'Select City'}
+              </Text>
+              <Pressable onPress={() => setActivePicker(null)}>
+                <Ionicons name="close" size={24} color={palette.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={true}>
+              {activePicker === 'country' && countries.map((item) => (
+                <Pressable
+                  key={item}
+                  style={[styles.pickerItem, data.country === item && styles.pickerItemActive]}
+                  onPress={() => {
+                    setData({ ...data, country: item, state: '', city: '' });
+                    setActivePicker(null);
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, data.country === item && styles.pickerItemTextActive]}>
+                    {item}
+                  </Text>
+                  {data.country === item && <Ionicons name="checkmark" size={20} color="#E53935" />}
+                </Pressable>
+              ))}
+              {activePicker === 'state' && availableStates.map((item) => (
+                <Pressable
+                  key={item}
+                  style={[styles.pickerItem, data.state === item && styles.pickerItemActive]}
+                  onPress={() => {
+                    setData({ ...data, state: item, city: '' });
+                    setActivePicker(null);
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, data.state === item && styles.pickerItemTextActive]}>
+                    {item}
+                  </Text>
+                  {data.state === item && <Ionicons name="checkmark" size={20} color="#E53935" />}
+                </Pressable>
+              ))}
+              {activePicker === 'city' && availableCities.map((item) => (
+                <Pressable
+                  key={item}
+                  style={[styles.pickerItem, data.city === item && styles.pickerItemActive]}
+                  onPress={() => {
+                    setData({ ...data, city: item });
+                    setActivePicker(null);
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, data.city === item && styles.pickerItemTextActive]}>
+                    {item}
+                  </Text>
+                  {data.city === item && <Ionicons name="checkmark" size={20} color="#E53935" />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
 
       {/* Footer */}
       <View style={styles.footer}>
@@ -329,25 +339,66 @@ function createStyles(palette: ThemePalette) {
       color: palette.text,
       backgroundColor: palette.cardBg,
     },
-    dropdown: {
-      marginTop: 4,
-      borderWidth: 1,
-      borderColor: palette.border,
-      borderRadius: 8,
-      backgroundColor: palette.cardBg,
-      maxHeight: 250,
+    modalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1000,
     },
-    dropdownItem: {
-      paddingVertical: 12,
-      paddingHorizontal: 16,
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    pickerContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: palette.cardBg,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      maxHeight: '70%',
+    },
+    pickerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
       borderBottomWidth: 1,
       borderBottomColor: palette.border,
     },
-    dropdownText: {
-      fontSize: 14,
+    pickerTitle: {
+      fontSize: 18,
+      fontWeight: '600',
       color: palette.text,
     },
-    dropdownTextActive: {
+    pickerList: {
+      maxHeight: 400,
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.border,
+    },
+    pickerItemActive: {
+      backgroundColor: '#FFEBEE',
+    },
+    pickerItemText: {
+      fontSize: 16,
+      color: palette.text,
+    },
+    pickerItemTextActive: {
       color: '#E53935',
       fontWeight: '600',
     },

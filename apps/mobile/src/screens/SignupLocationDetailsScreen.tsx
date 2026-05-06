@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ export interface LocationDetailsData {
   country: string;
   state: string;
   city: string;
+  village?: string;
 }
 
 interface SignupLocationDetailsScreenProps {
@@ -78,6 +79,7 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
     country: 'India',
     state: 'Goa',
     city: 'Calangute',
+    village: '',
   });
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
@@ -196,6 +198,18 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
             </View>
           )}
         </View>
+
+        {/* Village (Optional) */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Village <Text style={styles.optional}>(Optional)</Text></Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter your village name"
+            placeholderTextColor={palette.muted}
+            value={data.village}
+            onChangeText={(text) => setData({ ...data, village: text })}
+          />
+        </View>
       </ScrollView>
 
       {/* Footer */}
@@ -293,6 +307,27 @@ function createStyles(palette: ThemePalette) {
     selectorText: {
       fontSize: 16,
       color: palette.text,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: palette.text,
+      marginBottom: 8,
+    },
+    optional: {
+      fontSize: 14,
+      color: palette.muted,
+      fontWeight: '400',
+    },
+    textInput: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: palette.text,
+      backgroundColor: palette.cardBg,
     },
     dropdown: {
       marginTop: 4,

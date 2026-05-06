@@ -26,6 +26,22 @@ const emptyProfile: MatrimonyMemberProfile = {
   occupation: '',
   education: '',
   bio: '',
+  // Extended fields
+  gender: '',
+  dateOfBirth: '',
+  physicalStatus: '',
+  religion: '',
+  caste: '',
+  subCaste: '',
+  dosh: '',
+  country: '',
+  state: '',
+  city: '',
+  village: '',
+  eatingHabit: '',
+  horoscopeTime: '',
+  horoscopePlace: '',
+  photos: [],
 };
 
 const emptyMatrimony: MatrimonyMemberSettings = {
@@ -39,6 +55,12 @@ const emptyMatrimony: MatrimonyMemberSettings = {
   preferredLocation: '',
   preferredEducation: '',
   preferredOccupation: '',
+  // Extended fields
+  familyStatus: '',
+  familyWealth: '',
+  hobbies: [],
+  music: [],
+  sports: [],
 };
 
 const MARITAL_STATUS_OPTIONS = ['Never Married', 'Divorced', 'Widowed', 'Separated'];
@@ -197,6 +219,22 @@ export function ProfileScreen() {
           occupation: normalizeValue(data.profile.occupation),
           education: normalizeValue(data.profile.education),
           bio: normalizeValue(data.profile.bio),
+          // Extended fields
+          gender: normalizeValue(data.profile.gender),
+          dateOfBirth: normalizeValue(data.profile.dateOfBirth),
+          physicalStatus: normalizeValue(data.profile.physicalStatus),
+          religion: normalizeValue(data.profile.religion),
+          caste: normalizeValue(data.profile.caste),
+          subCaste: normalizeValue(data.profile.subCaste),
+          dosh: normalizeValue(data.profile.dosh),
+          country: normalizeValue(data.profile.country),
+          state: normalizeValue(data.profile.state),
+          city: normalizeValue(data.profile.city),
+          village: normalizeValue(data.profile.village),
+          eatingHabit: normalizeValue(data.profile.eatingHabit),
+          horoscopeTime: normalizeValue(data.profile.horoscopeTime),
+          horoscopePlace: normalizeValue(data.profile.horoscopePlace),
+          photos: data.profile.photos || [],
         });
         setMatrimony({
           age: normalizeValue(data.matrimony.age),
@@ -209,6 +247,12 @@ export function ProfileScreen() {
           preferredLocation: normalizeValue(data.matrimony.preferredLocation),
           preferredEducation: normalizeValue(data.matrimony.preferredEducation),
           preferredOccupation: normalizeValue(data.matrimony.preferredOccupation),
+          // Extended fields
+          familyStatus: normalizeValue(data.matrimony.familyStatus),
+          familyWealth: normalizeValue(data.matrimony.familyWealth),
+          hobbies: data.matrimony.hobbies || [],
+          music: data.matrimony.music || [],
+          sports: data.matrimony.sports || [],
         });
       } catch (err) {
         if (mounted) {
@@ -243,8 +287,34 @@ export function ProfileScreen() {
           email: profile.email,
           phone: profile.phone,
         },
-        profile,
-        matrimony,
+        profile: {
+          ...profile,
+          // Ensure all extended fields are included
+          gender: profile.gender,
+          dateOfBirth: profile.dateOfBirth,
+          physicalStatus: profile.physicalStatus,
+          religion: profile.religion,
+          caste: profile.caste,
+          subCaste: profile.subCaste,
+          dosh: profile.dosh,
+          country: profile.country,
+          state: profile.state,
+          city: profile.city,
+          village: profile.village,
+          eatingHabit: profile.eatingHabit,
+          horoscopeTime: profile.horoscopeTime,
+          horoscopePlace: profile.horoscopePlace,
+          photos: profile.photos,
+        },
+        matrimony: {
+          ...matrimony,
+          // Ensure all extended fields are included
+          familyStatus: matrimony.familyStatus,
+          familyWealth: matrimony.familyWealth,
+          hobbies: matrimony.hobbies,
+          music: matrimony.music,
+          sports: matrimony.sports,
+        },
       };
 
       const updated = await api.updateMyMatrimonyProfile(payload);
@@ -437,6 +507,201 @@ export function ProfileScreen() {
         />
       </SectionCard>
 
+      {/* Personal Details from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Personal Details</Text>
+        <LabeledInput
+          label="Gender"
+          value={profile.gender || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, gender: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Date of Birth"
+          value={profile.dateOfBirth || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, dateOfBirth: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Physical Status"
+          value={profile.physicalStatus || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, physicalStatus: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Religious Details from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Religious Details</Text>
+        <LabeledInput
+          label="Religion"
+          value={profile.religion || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, religion: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Caste"
+          value={profile.caste || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, caste: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Gol (Subcaste)"
+          value={profile.subCaste || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, subCaste: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Dosh"
+          value={profile.dosh || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, dosh: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Location Details from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Location Details</Text>
+        <LabeledInput
+          label="Country"
+          value={profile.country || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, country: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="State"
+          value={profile.state || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, state: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="City"
+          value={profile.city || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, city: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Village"
+          value={profile.village || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, village: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Interests from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Interests</Text>
+        <LabeledInput
+          label="Hobbies"
+          value={matrimony.hobbies?.join(', ') || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, hobbies: value.split(', ').filter(Boolean) }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Music"
+          value={matrimony.music?.join(', ') || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, music: value.split(', ').filter(Boolean) }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Sports"
+          value={matrimony.sports?.join(', ') || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, sports: value.split(', ').filter(Boolean) }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Additional Details from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Additional Details</Text>
+        <LabeledInput
+          label="Family Status"
+          value={matrimony.familyStatus || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, familyStatus: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Family Wealth"
+          value={matrimony.familyWealth || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, familyWealth: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Eating Habits from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Eating Habits</Text>
+        <LabeledInput
+          label="Eating Habit"
+          value={profile.eatingHabit || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, eatingHabit: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Horoscope Details from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Horoscope Details</Text>
+        <LabeledInput
+          label="Time of Birth"
+          value={profile.horoscopeTime || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, horoscopeTime: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Place of Birth"
+          value={profile.horoscopePlace || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, horoscopePlace: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Photos from Signup */}
+      {profile.photos && profile.photos.length > 0 && (
+        <SectionCard>
+          <Text style={styles.sectionTitle}>Photos</Text>
+          <Text style={styles.photosCount}>{profile.photos.length} photo(s) uploaded</Text>
+        </SectionCard>
+      )}
+
       <Pressable style={styles.logoutButton} onPress={() => logout()}>
         <Text style={styles.logoutButtonText}>{t('logoutLabel')}</Text>
       </Pressable>
@@ -549,6 +814,11 @@ function createStyles(palette: ThemePalette) {
   logoutButtonText: {
     color: palette.surface,
     fontWeight: '700',
+  },
+  photosCount: {
+    ...type.body,
+    color: palette.muted,
+    marginTop: spacing.xs,
   },
   });
 }

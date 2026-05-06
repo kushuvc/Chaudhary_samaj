@@ -249,6 +249,22 @@ export interface MatrimonyMemberProfile {
   occupation: string;
   education: string;
   bio: string;
+  // Extended fields from signup flow
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  physicalStatus?: string | null;
+  religion?: string | null;
+  caste?: string | null;
+  subCaste?: string | null; // Gol
+  dosh?: string | null;
+  country?: string | null;
+  state?: string | null;
+  city?: string | null;
+  village?: string | null;
+  eatingHabit?: string | null;
+  horoscopeTime?: string | null;
+  horoscopePlace?: string | null;
+  photos?: string[] | null;
 }
 
 export interface MatrimonyMemberSettings {
@@ -262,6 +278,12 @@ export interface MatrimonyMemberSettings {
   preferredLocation: string;
   preferredEducation: string;
   preferredOccupation: string;
+  // Extended fields from signup flow
+  familyStatus?: string | null;
+  familyWealth?: string | null;
+  hobbies?: string[] | null;
+  music?: string[] | null;
+  sports?: string[] | null;
 }
 
 export interface MatrimonyMemberPreferences {

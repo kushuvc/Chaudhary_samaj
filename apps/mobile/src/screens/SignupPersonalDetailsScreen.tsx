@@ -75,6 +75,7 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
     maritalStatus: null,
   });
   const [showHeightPicker, setShowHeightPicker] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const isValid = 
     data.gender &&
@@ -138,10 +139,10 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
               keyboardType="number-pad"
               maxLength={2}
             />
-            <View style={styles.monthPicker}>
+            <Pressable style={styles.monthPicker} onPress={() => setShowMonthPicker(true)}>
               <Text style={styles.monthText}>{data.dateOfBirth.month}</Text>
               <Ionicons name="chevron-down" size={16} color={palette.text} />
-            </View>
+            </Pressable>
             <TextInput
               style={[styles.dobInput, styles.yearInput]}
               placeholder="YYYY"
@@ -158,29 +159,13 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
           <Text style={styles.label}>Height</Text>
           <Pressable 
             style={styles.heightSelector}
-            onPress={() => setShowHeightPicker(!showHeightPicker)}
+            onPress={() => setShowHeightPicker(true)}
           >
             <Text style={data.height ? styles.heightText : styles.heightPlaceholder}>
               {data.height || 'Your height'}
             </Text>
             <Ionicons name="chevron-down" size={20} color={palette.muted} />
           </Pressable>
-          {showHeightPicker && (
-            <View style={styles.heightList}>
-              {heights.map((height) => (
-                <Pressable
-                  key={height}
-                  style={styles.heightOption}
-                  onPress={() => {
-                    setData({ ...data, height });
-                    setShowHeightPicker(false);
-                  }}
-                >
-                  <Text style={styles.heightOptionText}>{height}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
         </View>
 
         {/* Physical Status */}
@@ -232,6 +217,70 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
           </View>
         </View>
       </ScrollView>
+
+      {/* Height Picker Modal */}
+      {showHeightPicker && (
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.backdrop} onPress={() => setShowHeightPicker(false)} />
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Height</Text>
+              <Pressable onPress={() => setShowHeightPicker(false)}>
+                <Ionicons name="close" size={24} color={palette.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={true}>
+              {heights.map((height) => (
+                <Pressable
+                  key={height}
+                  style={[styles.pickerItem, data.height === height && styles.pickerItemActive]}
+                  onPress={() => {
+                    setData({ ...data, height });
+                    setShowHeightPicker(false);
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, data.height === height && styles.pickerItemTextActive]}>
+                    {height}
+                  </Text>
+                  {data.height === height && <Ionicons name="checkmark" size={20} color="#E53935" />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {/* Month Picker Modal */}
+      {showMonthPicker && (
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.backdrop} onPress={() => setShowMonthPicker(false)} />
+          <View style={styles.pickerContainer}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Select Month</Text>
+              <Pressable onPress={() => setShowMonthPicker(false)}>
+                <Ionicons name="close" size={24} color={palette.text} />
+              </Pressable>
+            </View>
+            <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={true}>
+              {months.map((month) => (
+                <Pressable
+                  key={month}
+                  style={[styles.pickerItem, data.dateOfBirth.month === month && styles.pickerItemActive]}
+                  onPress={() => {
+                    setData({ ...data, dateOfBirth: { ...data.dateOfBirth, month } });
+                    setShowMonthPicker(false);
+                  }}
+                >
+                  <Text style={[styles.pickerItemText, data.dateOfBirth.month === month && styles.pickerItemTextActive]}>
+                    {month}
+                  </Text>
+                  {data.dateOfBirth.month === month && <Ionicons name="checkmark" size={20} color="#E53935" />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
 
       {/* Footer */}
       <View style={styles.footer}>
@@ -407,6 +456,69 @@ function createStyles(palette: ThemePalette) {
     heightOptionText: {
       fontSize: 14,
       color: palette.text,
+    },
+    modalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1000,
+    },
+    backdrop: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    pickerContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: palette.cardBg,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      maxHeight: '70%',
+    },
+    pickerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.border,
+    },
+    pickerTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: palette.text,
+    },
+    pickerList: {
+      maxHeight: 400,
+    },
+    pickerItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 16,
+      paddingHorizontal: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.border,
+    },
+    pickerItemActive: {
+      backgroundColor: '#FFEBEE',
+    },
+    pickerItemText: {
+      fontSize: 16,
+      color: palette.text,
+    },
+    pickerItemTextActive: {
+      color: '#E53935',
+      fontWeight: '600',
     },
     footer: {
       padding: 24,

@@ -70,8 +70,8 @@ class AuthService {
     }
   }
 
-  async login(email: string, password: string, otpCode: string): Promise<{ success: boolean; error?: string }> {
-    const response = await apiService.post<AuthPayload>('/auth/login', { email, password, otpCode })
+  async login(email: string, password: string): Promise<{ success: boolean; error?: string }> {
+    const response = await apiService.post<AuthPayload>('/auth/login', { email, password })
     if (!response.success || !response.data) {
       return { success: false, error: response.error || 'Unable to login' }
     }
@@ -84,7 +84,6 @@ class AuthService {
     fullName: string
     email: string
     password: string
-    otpCode: string
     confirmPassword: string
     gender?: string
     dateOfBirth?: string

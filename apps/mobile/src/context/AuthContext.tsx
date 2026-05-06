@@ -8,7 +8,7 @@ interface AuthContextValue {
   loading: boolean;
   isNewSignup: boolean;
   requestOtp: (email: string, purpose: OtpPurpose) => Promise<{ message?: string; debugOtp?: string }>;
-  login: (payload: { email: string; password: string; otpCode: string }) => Promise<void>;
+  login: (payload: { email: string; password: string }) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
   logout: () => Promise<void>;
   completeProfileSetup: () => Promise<void>;

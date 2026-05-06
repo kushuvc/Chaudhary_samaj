@@ -10,46 +10,16 @@ export default function Login() {
   const navigate = useNavigate()
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [error, setError] = useState('')
-  const [otpNotice, setOtpNotice] = useState('')
-  const [otpSentForMode, setOtpSentForMode] = useState<'login' | 'signup' | null>(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [otpCode, setOtpCode] = useState('')
 
   const [fullName, setFullName] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [gender, setGender] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [phone, setPhone] = useState('')
-
-  const handleSendOtp = async () => {
-    setError('')
-    setOtpNotice('')
-
-    if (!isGmailAddress(email)) {
-      setError('Enter a valid Gmail address first')
-      return
-    }
-
-    setIsSendingOtp(true)
-    const result = await authService.requestEmailOtp(email.trim(), mode)
-    setIsSendingOtp(false)
-
-    if (!result.success) {
-      setError(result.error || 'Unable to send OTP')
-      return
-    }
-
-    setOtpSentForMode(mode)
-    const fallbackMessage = result.sentViaFallback
-      ? ' SMTP is not configured, using local fallback.'
-      : ''
-    const debugMessage = result.debugOtp ? ` Debug OTP: ${result.debugOtp}` : ''
-    setOtpNotice(`OTP sent to ${email.trim()}.${fallbackMessage}${debugMessage}`)
-  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -62,18 +32,8 @@ export default function Login() {
         return
       }
 
-      if (!otpCode.trim()) {
-        setError('OTP is required')
-        return
-      }
-
-      if (otpSentForMode !== mode) {
-        setError('Please request OTP for this mode before submitting')
-        return
-      }
-
       if (mode === 'login') {
-        const result = await authService.login(email.trim(), password, otpCode.trim())
+        const result = await authService.login(email.trim(), password)
         if (!result.success) {
           setError(result.error || 'Login failed')
           return
@@ -92,7 +52,6 @@ export default function Login() {
         fullName: fullName.trim(),
         email: email.trim(),
         password,
-        otpCode: otpCode.trim(),
         confirmPassword,
         gender,
         dateOfBirth,
@@ -127,9 +86,6 @@ export default function Login() {
               onClick={() => {
                 setMode('login')
                 setError('')
-                setOtpNotice('')
-                setOtpSentForMode(null)
-                setOtpCode('')
               }}
               className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 mode === 'login' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600'
@@ -142,9 +98,6 @@ export default function Login() {
               onClick={() => {
                 setMode('signup')
                 setError('')
-                setOtpNotice('')
-                setOtpSentForMode(null)
-                setOtpCode('')
               }}
               className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                 mode === 'signup' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-600'
@@ -178,46 +131,13 @@ export default function Login() {
                 type="email"
                 required
                 value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value)
-                    setOtpSentForMode(null)
-                    setOtpCode('')
-                    setOtpNotice('')
-                  }}
+                  onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="you@gmail.com"
               />
               <p className="mt-1 text-xs text-gray-500">Only Gmail addresses are allowed.</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">OTP</label>
-                <input
-                  type="text"
-                  required
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  placeholder="6-digit OTP"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                disabled={isSendingOtp}
-                className="h-fit self-end px-4 py-2 rounded-lg border border-primary-600 text-primary-700 hover:bg-primary-50 transition-colors disabled:opacity-60"
-              >
-                {isSendingOtp ? 'Sending...' : 'Send OTP'}
-              </button>
-            </div>
-
-            {otpNotice && (
-              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
-                {otpNotice}
-              </div>
-            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -294,7 +214,7 @@ export default function Login() {
 
             <button
               type="submit"
-              disabled={isSubmitting || !otpSentForMode}
+              disabled={isSubmitting}
               className="w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 rounded-lg transition-colors"
             >
               {isSubmitting

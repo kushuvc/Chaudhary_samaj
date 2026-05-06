@@ -15,7 +15,6 @@ export interface SignupPayload {
   name: string;
   email: string;
   password: string;
-  otpCode: string;
   phone?: string;
   gender?: string;
   age?: number;

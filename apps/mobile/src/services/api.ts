@@ -87,7 +87,6 @@ export const api = {
         fullName: payload.name,
         email: payload.email,
         password: payload.password,
-        otpCode: payload.otpCode,
         phone: payload.phone,
         gender: payload.gender,
         age: payload.age,
@@ -115,7 +114,7 @@ export const api = {
       }
     } as AuthSession;
   },
-  login: async (payload: { email: string; password: string; otpCode: string }) => {
+  login: async (payload: { email: string; password: string }) => {
     const response = await request<{ data?: { user?: any; authToken?: string } }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(payload)

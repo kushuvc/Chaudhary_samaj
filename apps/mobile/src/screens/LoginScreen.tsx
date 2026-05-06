@@ -4,11 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
-import type { OtpPurpose } from '../types';
 import { BrandArtwork } from '../components/BrandArtwork';
 
 export function LoginScreen() {
-  const { requestOtp, login, signup } = useAuth();
+  const { login, signup } = useAuth();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -16,38 +15,13 @@ export function LoginScreen() {
   // Common fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Signup only fields
   const [phone, setPhone] = useState('');
 
-  const purpose: OtpPurpose = useMemo(() => (mode === 'login' ? 'login' : 'signup'), [mode]);
-
   const validateEmail = (value: string) => /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(value.trim());
   const validatePhone = (value: string) => /^[0-9]{10}$/.test(value.trim());
-
-  const handleSendOtp = async () => {
-    try {
-      if (!validateEmail(email)) {
-        Alert.alert('Invalid Email', 'Please enter a valid Gmail address.');
-        return;
-      }
-      setSubmitting(true);
-      const response = await requestOtp(email.trim(), purpose) as unknown as { message?: string; debugOtp?: string };
-      setOtpSent(true);
-      if (response?.debugOtp) {
-        Alert.alert('OTP Ready', `Use this code for testing: ${response.debugOtp}`);
-      } else {
-        Alert.alert('OTP Sent', response?.message || 'Check your inbox for verification code.');
-      }
-    } catch (error) {
-      Alert.alert('OTP Error', (error as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleSubmit = async () => {
     try {
@@ -55,13 +29,13 @@ export function LoginScreen() {
         Alert.alert('Invalid Email', 'Please enter a valid Gmail address.');
         return;
       }
-      if (!password || !otpCode) {
-        Alert.alert('Missing Fields', 'Password and OTP are required.');
+      if (!password) {
+        Alert.alert('Missing Fields', 'Password is required.');
         return;
       }
       setSubmitting(true);
       if (mode === 'login') {
-        await login({ email: email.trim(), password, otpCode: otpCode.trim() });
+        await login({ email: email.trim(), password });
       } else {
         if (!validatePhone(phone)) {
           Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
@@ -71,7 +45,6 @@ export function LoginScreen() {
           name: email.trim().split('@')[0],
           email: email.trim(),
           password,
-          otpCode: otpCode.trim(),
           phone: phone.trim(),
         });
       }
@@ -115,28 +88,13 @@ export function LoginScreen() {
             <TextInput placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>OTP Code</Text>
-            <TextInput
-              placeholder="Enter OTP"
-              value={otpCode}
-              onChangeText={setOtpCode}
-              keyboardType="number-pad"
-              style={styles.input}
-            />
-          </View>
-
-          <Pressable style={styles.secondaryButton} onPress={handleSendOtp} disabled={submitting}>
-            <Text style={styles.secondaryButtonText}>{otpSent ? 'Resend OTP' : 'Send OTP'}</Text>
-          </Pressable>
-
           <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
             <Text style={styles.primaryButtonText}>Login</Text>
           </Pressable>
 
           <View style={styles.signupLink}>
             <Text style={styles.signupLinkText}>Don't have an account? </Text>
-            <Pressable onPress={() => { setMode('signup'); setOtpSent(false); setEmail(''); setPassword(''); setOtpCode(''); setPhone(''); }}>
+            <Pressable onPress={() => { setMode('signup'); setEmail(''); setPassword(''); setPhone(''); }}>
               <Text style={styles.signupLinkButton}>Sign up</Text>
             </Pressable>
           </View>
@@ -174,28 +132,13 @@ export function LoginScreen() {
             <TextInput placeholder="Enter password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} />
           </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>OTP Code</Text>
-            <TextInput
-              placeholder="Enter OTP"
-              value={otpCode}
-              onChangeText={setOtpCode}
-              keyboardType="number-pad"
-              style={styles.input}
-            />
-          </View>
-
-          <Pressable style={styles.secondaryButton} onPress={handleSendOtp} disabled={submitting}>
-            <Text style={styles.secondaryButtonText}>{otpSent ? 'Resend OTP' : 'Send OTP'}</Text>
-          </Pressable>
-
           <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
             <Text style={styles.primaryButtonText}>Create Account</Text>
           </Pressable>
 
           <View style={styles.signupLink}>
             <Text style={styles.signupLinkText}>Already have an account? </Text>
-            <Pressable onPress={() => { setMode('login'); setOtpSent(false); setEmail(''); setPassword(''); setOtpCode(''); setPhone(''); }}>
+            <Pressable onPress={() => { setMode('login'); setEmail(''); setPassword(''); setPhone(''); }}>
               <Text style={styles.signupLinkButton}>Login</Text>
             </Pressable>
           </View>

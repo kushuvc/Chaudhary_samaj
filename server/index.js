@@ -79,21 +79,15 @@ function resolveUserId(request) {
 }
 
 app.post('/api/auth/login', (request, response) => {
-  const { email, password, otpCode } = request.body || {}
+  const { email, password } = request.body || {}
 
-  if (!email || !password || !otpCode) {
-    response.status(400).json({ success: false, error: 'Email, password and OTP are required' })
+  if (!email || !password) {
+    response.status(400).json({ success: false, error: 'Email and password are required' })
     return
   }
 
   if (!isGmailAddress(email)) {
     response.status(400).json({ success: false, error: 'Only Gmail addresses are allowed' })
-    return
-  }
-
-  const otpResult = verifyEmailOtp(String(email), 'login', String(otpCode))
-  if (!otpResult.ok) {
-    response.status(otpResult.statusCode || 400).json({ success: false, error: otpResult.error || 'Invalid OTP' })
     return
   }
 
@@ -115,7 +109,6 @@ app.post('/api/auth/signup', (request, response) => {
     gender,
     dateOfBirth,
     phone,
-    otpCode,
     age,
     location,
     community,
@@ -126,8 +119,8 @@ app.post('/api/auth/signup', (request, response) => {
     language,
   } = request.body || {}
 
-  if (!fullName || !email || !password || !otpCode) {
-    response.status(400).json({ success: false, error: 'Name, email, password and OTP are required' })
+  if (!fullName || !email || !password) {
+    response.status(400).json({ success: false, error: 'Name, email and password are required' })
     return
   }
 
@@ -143,12 +136,6 @@ app.post('/api/auth/signup', (request, response) => {
 
   if (confirmPassword && password !== confirmPassword) {
     response.status(400).json({ success: false, error: 'Passwords do not match' })
-    return
-  }
-
-  const otpResult = verifyEmailOtp(String(email), 'signup', String(otpCode))
-  if (!otpResult.ok) {
-    response.status(otpResult.statusCode || 400).json({ success: false, error: otpResult.error || 'Invalid OTP' })
     return
   }
 

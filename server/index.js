@@ -61,6 +61,7 @@ import {
 
 const app = express()
 const port = process.env.PORT || 3000
+const OTP_SEND_TIMEOUT_MS = Number(process.env.OTP_SEND_TIMEOUT_MS || 25000)
 
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
@@ -230,7 +231,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
   try {
     const sendStart = Date.now()
     
-    // Wrap email sending with 10s timeout to prevent hanging
+    // Guard OTP send from hanging forever while still allowing SMTP retry attempts.
     const sendResultPromise = sendEmailOtp({
       to: normalizedEmail,
       otpCode: otpRequest.data.otpCode,
@@ -239,7 +240,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
     })
 
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Email send timeout')), 10000)
+      setTimeout(() => reject(new Error(`Email send timeout after ${OTP_SEND_TIMEOUT_MS}ms`)), OTP_SEND_TIMEOUT_MS)
     )
 
     const sendResult = await Promise.race([sendResultPromise, timeoutPromise])

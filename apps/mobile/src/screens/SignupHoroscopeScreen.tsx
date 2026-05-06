@@ -54,8 +54,26 @@ export function SignupHoroscopeScreen({ onBack, onNext, onSkip }: SignupHoroscop
     timeOfBirth: '',
     placeOfBirth: '',
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+
+  // Sample dates for picker
+  const sampleDates = [
+    '01-Jan-1990', '15-Jan-1990', '01-Feb-1990', '15-Feb-1990',
+    '01-Mar-1990', '15-Mar-1990', '01-Apr-1990', '15-Apr-1990',
+    '01-May-1990', '15-May-1990', '01-Jun-1990', '15-Jun-1990',
+    '01-Jul-1990', '15-Jul-1990', '01-Aug-1990', '15-Aug-1990',
+    '01-Sep-1990', '15-Sep-1990', '01-Oct-1990', '15-Oct-1990',
+    '01-Nov-1990', '15-Nov-1990', '01-Dec-1990', '15-Dec-1990',
+    '05-Apr-1998', '10-Apr-1998', '15-Apr-1998', '20-Apr-1998',
+    '01-Jan-1995', '15-Jan-1995', '01-Feb-1995', '15-Feb-1995',
+    '01-Mar-1995', '15-Mar-1995', '01-Apr-1995', '15-Apr-1995',
+    '01-May-1995', '15-May-1995', '01-Jun-1995', '15-Jun-1995',
+    '01-Jul-1995', '15-Jul-1995', '01-Aug-1995', '15-Aug-1995',
+    '01-Sep-1995', '15-Sep-1995', '01-Oct-1995', '15-Oct-1995',
+    '01-Nov-1995', '15-Nov-1995', '01-Dec-1995', '15-Dec-1995',
+  ];
 
   const isValid = data.dateOfBirth && data.timeOfBirth && data.placeOfBirth;
 
@@ -84,11 +102,36 @@ export function SignupHoroscopeScreen({ onBack, onNext, onSkip }: SignupHoroscop
         {/* Date of Birth */}
         <View style={styles.field}>
           <Text style={styles.label}>Date of birth</Text>
-          <Pressable style={styles.selector}>
+          <Pressable 
+            style={styles.selector}
+            onPress={() => setShowDatePicker(!showDatePicker)}
+          >
             <Text style={styles.floatingLabel}>Your date of birth</Text>
-            <Text style={styles.selectorText}>05-Apr-1998</Text>
+            <Text style={data.dateOfBirth ? styles.selectorText : styles.selectorPlaceholder}>
+              {data.dateOfBirth || 'Select your date of birth'}
+            </Text>
             <Ionicons name="chevron-down" size={20} color={palette.muted} />
           </Pressable>
+          {showDatePicker && (
+            <View style={styles.dropdown}>
+              <ScrollView style={styles.dateList} showsVerticalScrollIndicator={true}>
+                {sampleDates.map((date) => (
+                  <Pressable
+                    key={date}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setData({ ...data, dateOfBirth: date });
+                      setShowDatePicker(false);
+                    }}
+                  >
+                    <Text style={[styles.dropdownText, data.dateOfBirth === date && styles.dropdownTextActive]}>
+                      {date}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          )}
         </View>
 
         {/* Time of Birth */}
@@ -274,6 +317,9 @@ function createStyles(palette: ThemePalette) {
       borderRadius: 8,
       backgroundColor: palette.cardBg,
       maxHeight: 250,
+    },
+    dateList: {
+      maxHeight: 200,
     },
     dropdownItem: {
       paddingVertical: 12,

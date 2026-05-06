@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,8 +18,7 @@ interface SignupReligiousDetailsScreenProps {
 }
 
 const religions = ['Hindu', 'Muslim', 'Christian', 'Sikh', 'Buddhist', 'Jain', 'Parsi', 'Jewish', 'Other'];
-const castes = ['Patel', 'Brahmin', 'Kshatriya', 'Vaishya', 'Shudra', 'Scheduled Caste', 'Scheduled Tribe', 'Other'];
-const subcastes = ['Leuva Patel', 'Kadva Patel', 'Modh Patel', 'Khadayata', 'Vaniya', 'Lohana', 'Rajput', 'Maratha', 'Jat', 'Yadav', 'Gupta', 'Agarwal', 'Khandelwal', 'Maheshwari', 'Other', "Don't know my subcaste"];
+const castes = ['Chaudhary', 'Patel', 'Brahmin', 'Kshatriya', 'Vaishya', 'Shudra', 'Scheduled Caste', 'Scheduled Tribe', 'Other'];
 
 export function SignupReligiousDetailsScreen({ onBack, onNext }: SignupReligiousDetailsScreenProps) {
   const { palette } = useAppTheme();
@@ -27,14 +26,13 @@ export function SignupReligiousDetailsScreen({ onBack, onNext }: SignupReligious
   
   const [data, setData] = useState<ReligiousDetailsData>({
     religion: 'Hindu',
-    caste: 'Patel',
-    subcaste: "Don't know my subcaste",
+    caste: 'Chaudhary',
+    subcaste: '',
     openToAnySubcaste: false,
     dosh: null,
   });
   const [showReligionPicker, setShowReligionPicker] = useState(false);
   const [showCastePicker, setShowCastePicker] = useState(false);
-  const [showSubcastePicker, setShowSubcastePicker] = useState(false);
 
   const isValid = data.religion && data.caste && data.dosh;
 
@@ -117,34 +115,16 @@ export function SignupReligiousDetailsScreen({ onBack, onNext }: SignupReligious
           )}
         </View>
 
-        {/* Subcaste */}
+        {/* Gol (Subcaste as text input) */}
         <View style={styles.section}>
-          <Pressable 
-            style={styles.selector}
-            onPress={() => setShowSubcastePicker(!showSubcastePicker)}
-          >
-            <Text style={styles.floatingLabel}>Subcaste</Text>
-            <Text style={styles.selectorText}>{data.subcaste}</Text>
-            <Ionicons name="chevron-down" size={20} color={palette.muted} />
-          </Pressable>
-          {showSubcastePicker && (
-            <View style={styles.dropdown}>
-              {subcastes.map((subcaste) => (
-                <Pressable
-                  key={subcaste}
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setData({ ...data, subcaste });
-                    setShowSubcastePicker(false);
-                  }}
-                >
-                  <Text style={[styles.dropdownText, data.subcaste === subcaste && styles.dropdownTextActive]}>
-                    {subcaste}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <Text style={styles.label}>Gol</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter your Gol (subcaste)"
+            placeholderTextColor={palette.muted}
+            value={data.subcaste}
+            onChangeText={(text) => setData({ ...data, subcaste: text })}
+          />
         </View>
 
         {/* Open to any subcaste checkbox */}
@@ -293,6 +273,16 @@ function createStyles(palette: ThemePalette) {
     selectorText: {
       fontSize: 16,
       color: palette.text,
+    },
+    textInput: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: palette.text,
+      backgroundColor: palette.cardBg,
     },
     dropdown: {
       marginTop: 4,

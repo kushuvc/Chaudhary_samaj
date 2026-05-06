@@ -27,19 +27,46 @@ const states: Record<string, string[]> = {
 };
 
 const cities: Record<string, string[]> = {
-  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Gandhinagar', 'Other'],
-  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Other'],
-  'Rajasthan': ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Other'],
-  'Punjab': ['Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Other'],
-  'Haryana': ['Gurgaon', 'Faridabad', 'Panipat', 'Ambala', 'Other'],
-  'Delhi': ['New Delhi', 'Delhi NCR', 'Other'],
-  'Goa': ['Panaji', 'Vasco da Gama', 'Margao', 'Calangute', 'Other'],
-  'California': ['Los Angeles', 'San Francisco', 'San Diego', 'San Jose', 'Other'],
-  'Texas': ['Houston', 'Dallas', 'Austin', 'San Antonio', 'Other'],
-  'New York': ['New York City', 'Buffalo', 'Rochester', 'Other'],
-  'Ontario': ['Toronto', 'Ottawa', 'Mississauga', 'Brampton', 'Other'],
-  'England': ['London', 'Manchester', 'Birmingham', 'Liverpool', 'Other'],
-  'Dubai': ['Dubai', 'Sharjah', 'Ajman', 'Other'],
+  // India
+  'Gujarat': ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Bhavnagar', 'Jamnagar', 'Gandhinagar', 'Anand', 'Nadiad', 'Bharuch', 'Navsari', 'Mehsana', 'Patan', 'Junagadh', 'Porbandar', 'Morbi', 'Surendranagar', 'Amreli', 'Bhuj', 'Gandhidham', 'Other'],
+  'Maharashtra': ['Mumbai', 'Pune', 'Nagpur', 'Thane', 'Nashik', 'Kalyan', 'Vasai-Virar', 'Aurangabad', 'Navi Mumbai', 'Solapur', 'Mira-Bhayandar', 'Bhiwandi', 'Amravati', 'Nanded', 'Kolhapur', 'Akola', 'Ulhasnagar', 'Sangli', 'Malegaon', 'Jalgaon', 'Latur', 'Dhule', 'Ahmednagar', 'Chandrapur', 'Parbhani', 'Ichalkaranji', 'Jalna', 'Ambarnath', 'Bhusawal', 'Badlapur', 'Other'],
+  'Rajasthan': ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Bikaner', 'Ajmer', 'Bhilwara', 'Alwar', 'Bharatpur', 'Sikar', 'Pali', 'Sri Ganganagar', 'Tonk', 'Kishangarh', 'Beawar', 'Hanumangarh', 'Dausa', 'Churu', 'Pratapgarh', 'Other'],
+  'Punjab': ['Ludhiana', 'Amritsar', 'Jalandhar', 'Patiala', 'Bathinda', 'Mohali', 'Pathankot', 'Hoshiarpur', 'Moga', 'Firozpur', 'Kapurthala', 'Sangrur', 'Barnala', 'Malerkotla', 'Anandpur Sahib', 'Other'],
+  'Haryana': ['Gurgaon', 'Faridabad', 'Panipat', 'Ambala', 'Yamunanagar', 'Rohtak', 'Hisar', 'Karnal', 'Sonipat', 'Panchkula', 'Bhiwani', 'Sirsa', 'Bahadurgarh', 'Jind', 'Thanesar', 'Kaithal', 'Rewari', 'Palwal', 'Other'],
+  'Delhi': ['New Delhi', 'Delhi NCR', 'Dwarka', 'Rohini', 'Karol Bagh', 'Saket', 'Vasant Kunj', 'Lajpat Nagar', 'Connaught Place', 'Chandni Chowk', 'Other'],
+  'Uttar Pradesh': ['Lucknow', 'Kanpur', 'Ghaziabad', 'Agra', 'Varanasi', 'Prayagraj', 'Meerut', 'Bareilly', 'Aligarh', 'Gorakhpur', 'Noida', 'Greater Noida', 'Muzaffarnagar', 'Saharanpur', 'Jhansi', 'Mathura', 'Firozabad', 'Ayodhya', 'Faizabad', 'Shahjahanpur', 'Other'],
+  'Madhya Pradesh': ['Indore', 'Bhopal', 'Jabalpur', 'Gwalior', 'Ujjain', 'Sagar', 'Dewas', 'Satna', 'Ratlam', 'Rewa', 'Murwara', 'Singrauli', 'Burhanpur', 'Khandwa', 'Bhind', 'Chhindwara', 'Guna', 'Shivpuri', 'Vidisha', 'Other'],
+  'Karnataka': ['Bengaluru', 'Mysuru', 'Hubli-Dharwad', 'Mangaluru', 'Belagavi', 'Kalaburagi', 'Davanagere', 'Ballari', 'Vijayapura', 'Shivamogga', 'Tumakuru', 'Raichur', 'Bidar', 'Hassan', 'Udupi', 'Chikmagalur', 'Other'],
+  'Tamil Nadu': ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Tiruppur', 'Erode', 'Tirunelveli', 'Vellore', 'Thoothukudi', 'Dindigul', 'Thanjavur', 'Ranipet', 'Sivakasi', 'Karur', 'Other'],
+  'Kerala': ['Thiruvananthapuram', 'Kochi', 'Kozhikode', 'Kollam', 'Thrissur', 'Alappuzha', 'Palakkad', 'Malappuram', 'Kannur', 'Kasaragod', 'Pathanamthitta', 'Idukki', 'Wayanad', 'Other'],
+  'Goa': ['Panaji', 'Vasco da Gama', 'Margao', 'Calangute', 'Mapusa', 'Ponda', 'Bicholim', 'Curchorem', 'Sanquelim', 'Cuncolim', 'Other'],
+  // USA
+  'California': ['Los Angeles', 'San Francisco', 'San Diego', 'San Jose', 'Fresno', 'Sacramento', 'Long Beach', 'Oakland', 'Bakersfield', 'Anaheim', 'Santa Ana', 'Riverside', 'Stockton', 'Chula Vista', 'Irvine', 'Fremont', 'San Bernardino', 'Modesto', 'Oxnard', 'Other'],
+  'Texas': ['Houston', 'Dallas', 'Austin', 'San Antonio', 'Fort Worth', 'El Paso', 'Arlington', 'Corpus Christi', 'Plano', 'Laredo', 'Lubbock', 'Garland', 'Irving', 'Amarillo', 'Grand Prairie', 'McKinney', 'Frisco', 'Brownsville', 'Pasadena', 'Other'],
+  'New York': ['New York City', 'Buffalo', 'Rochester', 'Yonkers', 'Syracuse', 'Albany', 'New Rochelle', 'Mount Vernon', 'Schenectady', 'Utica', 'White Plains', 'Hempstead', 'Troy', 'Niagara Falls', 'Binghamton', 'Other'],
+  'New Jersey': ['Newark', 'Jersey City', 'Paterson', 'Elizabeth', 'Edison', 'Woodbridge', 'Lakewood', 'Toms River', 'Hamilton', 'Trenton', 'Clifton', 'Camden', 'Brick', 'Cherry Hill', 'Passaic', 'Union City', 'Old Bridge', 'Bayonne', 'Vineland', 'Other'],
+  'Illinois': ['Chicago', 'Aurora', 'Rockford', 'Joliet', 'Naperville', 'Springfield', 'Peoria', 'Elgin', 'Waukegan', 'Cicero', 'Champaign', 'Bloomington', 'Decatur', 'Evanston', 'Des Plaines', 'Other'],
+  'Florida': ['Jacksonville', 'Miami', 'Tampa', 'Orlando', 'St. Petersburg', 'Hialeah', 'Port St. Lucie', 'Cape Coral', 'Tallahassee', 'Fort Lauderdale', 'Pembroke Pines', 'Hollywood', 'Gainesville', 'Miramar', 'Coral Springs', 'Other'],
+  // UK
+  'England': ['London', 'Manchester', 'Birmingham', 'Liverpool', 'Leeds', 'Sheffield', 'Bristol', 'Leicester', 'Coventry', 'Bradford', 'Nottingham', 'Southampton', 'Portsmouth', 'Newcastle', 'York', 'Oxford', 'Cambridge', 'Other'],
+  'Scotland': ['Edinburgh', 'Glasgow', 'Aberdeen', 'Dundee', 'Inverness', 'Stirling', 'Perth', 'Paisley', 'Livingston', 'Dumfries', 'Kilmarnock', 'Other'],
+  'Wales': ['Cardiff', 'Swansea', 'Newport', 'Wrexham', 'Barry', 'Neath', 'Cwmbran', 'Bridgend', 'Llanelli', 'Merthyr Tydfil', 'Other'],
+  'Northern Ireland': ['Belfast', 'Derry', 'Lisburn', 'Newtownabbey', 'Bangor', 'Craigavon', 'Castlereagh', 'Ballymena', 'Newtownards', 'Carrickfergus', 'Other'],
+  // Canada
+  'Ontario': ['Toronto', 'Ottawa', 'Mississauga', 'Brampton', 'Hamilton', 'London', 'Markham', 'Vaughan', 'Kitchener', 'Windsor', 'Richmond Hill', 'Burlington', 'Oakville', 'Barrie', 'Sudbury', 'Other'],
+  'British Columbia': ['Vancouver', 'Surrey', 'Burnaby', 'Richmond', 'Abbotsford', 'Coquitlam', 'Kelowna', 'Langley', 'Saanich', 'Delta', 'Victoria', 'Nanaimo', 'Kamloops', 'Other'],
+  'Alberta': ['Calgary', 'Edmonton', 'Red Deer', 'Lethbridge', 'St. Albert', 'Medicine Hat', 'Grande Prairie', 'Airdrie', 'Spruce Grove', 'Leduc', 'Other'],
+  'Quebec': ['Montreal', 'Quebec City', 'Laval', 'Gatineau', 'Longueuil', 'Saguenay', 'Levis', 'Sherbrooke', 'Trois-Rivieres', 'Terrebonne', 'Other'],
+  // Australia
+  'New South Wales': ['Sydney', 'Newcastle', 'Wollongong', 'Maitland', 'Tweed Heads', 'Coffs Harbour', 'Tamworth', 'Albury', 'Port Macquarie', 'Orange', 'Dubbo', 'Other'],
+  'Victoria': ['Melbourne', 'Geelong', 'Ballarat', 'Bendigo', 'Shepparton', 'Mildura', 'Warrnambool', 'Traralgon', 'Wodonga', 'Sunbury', 'Other'],
+  'Queensland': ['Brisbane', 'Gold Coast', 'Sunshine Coast', 'Townsville', 'Cairns', 'Toowoomba', 'Mackay', 'Rockhampton', 'Bundaberg', 'Hervey Bay', 'Other'],
+  'Western Australia': ['Perth', 'Bunbury', 'Geraldton', 'Kalgoorlie', 'Albany', 'Karratha', 'Port Hedland', 'Broome', 'Other'],
+  // UAE
+  'Dubai': ['Dubai Marina', 'Downtown Dubai', 'Jumeirah', 'Deira', 'Bur Dubai', 'Al Barsha', 'Business Bay', 'Palm Jumeirah', 'International City', 'Other'],
+  'Abu Dhabi': ['Al Maryah Island', 'Corniche', 'Al Reem Island', 'Yas Island', 'Khalifa City', 'Mohammed Bin Zayed City', 'Al Ain', 'Other'],
+  'Sharjah': ['Al Majaz', 'Al Qasimia', 'Al Nahda', 'Al Taawun', 'Al Khan', 'Muwaileh', 'Al Saja', 'Other'],
+  // Fallback
   'Other': ['Other'],
 };
 

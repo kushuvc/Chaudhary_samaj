@@ -196,6 +196,16 @@ if (preferPostgres) {
     database = createPostgresLikeDatabase()
     database.prepare('SELECT 1 AS ok').get()
     databaseEngine = 'postgres'
+    // Execute schema for Postgres - split by semicolon and execute each statement
+    const schemaSql = fs.readFileSync(schemaPath, 'utf8')
+    const statements = schemaSql.split(';').filter(s => s.trim())
+    for (const stmt of statements) {
+      try {
+        database.prepare(stmt + ';').run()
+      } catch (e) {
+        // Ignore errors for existing tables
+      }
+    }
   } catch (error) {
     console.warn(`Postgres initialization failed, falling back to SQLite: ${error instanceof Error ? error.message : String(error)}`)
     initializeSqliteDatabase()

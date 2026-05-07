@@ -367,9 +367,9 @@ export function MatrimonyScreen() {
 
               {/* Action Buttons */}
               <View style={styles.newActionRow}>
-                <Pressable style={styles.callNowButton}>
-                  <Ionicons name="call" size={16} color="#E53935" />
-                  <Text style={styles.callNowText}>Call Now</Text>
+                <Pressable style={styles.showNumberButton}>
+                  <Ionicons name="eye-outline" size={16} color="#E53935" />
+                  <Text style={styles.showNumberText}>Show Number</Text>
                 </Pressable>
                 <Pressable 
                   style={styles.sendMessageButton}
@@ -896,7 +896,7 @@ function createStyles(palette: ThemePalette) {
     borderTopWidth: 1,
     borderTopColor: palette.border,
   },
-  callNowButton: {
+  showNumberButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -908,7 +908,7 @@ function createStyles(palette: ThemePalette) {
     borderRadius: 24,
     gap: 6,
   },
-  callNowText: {
+  showNumberText: {
     fontSize: 14,
     fontWeight: '600',
     color: '#E53935',

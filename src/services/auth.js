@@ -37,8 +37,8 @@ class AuthService {
             sentViaFallback: response.data.sentViaFallback,
         };
     }
-    async login(email, password, otpCode) {
-        const response = await apiService.post('/auth/login', { email, password, otpCode });
+    async login(email, password) {
+        const response = await apiService.post('/auth/login', { email, password });
         if (!response.success || !response.data) {
             return { success: false, error: response.error || 'Unable to login' };
         }

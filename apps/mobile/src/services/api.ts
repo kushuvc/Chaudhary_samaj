@@ -163,6 +163,62 @@ export const api = {
     request<{ data: { unlocked: boolean } }>(`/matrimony/profiles/${profileId}/unlock`, {
       method: 'POST'
     }),
+  // Interest APIs
+  sendInterest: (profileId: string) =>
+    request<{ data: { interestId: string; status: 'pending' } }>(`/matrimony/profiles/${profileId}/interest`, {
+      method: 'POST'
+    }),
+  getMyInterests: async () => {
+    const response = await request<{ data: { sent: any[]; received: any[] } }>('/matrimony/interests');
+    return {
+      sent: response.data.sent.map((item) => ({
+        id: String(item.id),
+        profileId: String(item.profileId || item.receiverId || ''),
+        name: String(item.name || ''),
+        status: String(item.status || 'pending'),
+        createdAt: String(item.createdAt || ''),
+      })),
+      received: response.data.received.map((item) => ({
+        id: String(item.id),
+        profileId: String(item.profileId || item.senderId || ''),
+        name: String(item.name || ''),
+        status: String(item.status || 'pending'),
+        createdAt: String(item.createdAt || ''),
+      })),
+    };
+  },
+  respondToInterest: (interestId: string, accept: boolean) =>
+    request<{ data: { status: 'accepted' | 'declined' } }>(`/matrimony/interests/${interestId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ accept })
+    }),
+  // Messaging APIs
+  getMyMatches: async () => {
+    const response = await request<{ data: any[] }>('/matrimony/matches');
+    return response.data.map((item) => ({
+      id: String(item.id || ''),
+      profileId: String(item.profileId || item.matchedUserId || ''),
+      name: String(item.name || ''),
+      lastMessage: String(item.lastMessage || ''),
+      lastMessageTime: String(item.lastMessageTime || ''),
+      unreadCount: Number(item.unreadCount || 0),
+    }));
+  },
+  getMessages: async (matchId: string) => {
+    const response = await request<{ data: any[] }>(`/matrimony/matches/${matchId}/messages`);
+    return response.data.map((item) => ({
+      id: String(item.id || ''),
+      senderId: String(item.senderId || ''),
+      content: String(item.content || item.message || ''),
+      createdAt: String(item.createdAt || ''),
+      isRead: Boolean(item.isRead),
+    }));
+  },
+  sendMessage: (matchId: string, content: string) =>
+    request<{ data: { id: string; createdAt: string } }>(`/matrimony/matches/${matchId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    }),
   getMyMatrimonyProfile: async () => {
     const response = await request<{ data: MatrimonyMemberPayload }>('/matrimony/me');
     return response.data;

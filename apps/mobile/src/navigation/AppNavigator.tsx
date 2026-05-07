@@ -10,6 +10,9 @@ import { LoadingScreen } from '../screens/LoadingScreen';
 import { MatrimonyScreen } from '../screens/MatrimonyScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { InterestsScreen } from '../screens/InterestsScreen';
+import { MessagesScreen } from '../screens/MessagesScreen';
+import { MatrimonyProfileDetailScreen } from '../screens/MatrimonyProfileDetailScreen';
 import { LanguageSelectionScreen } from '../screens/LanguageSelectionScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
@@ -66,6 +69,8 @@ function MainTabs() {
     >
       <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarIcon: tabIcon('home-outline'), tabBarLabel: t('home') }} />
       <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarIcon: tabIcon('heart-outline'), tabBarLabel: t('matrimony') }} />
+      <Tabs.Screen name="Interests" component={InterestsScreen} options={{ tabBarIcon: tabIcon('mail-outline'), tabBarLabel: 'Interests' }} />
+      <Tabs.Screen name="Messages" component={MessagesScreen} options={{ tabBarIcon: tabIcon('chatbubble-outline'), tabBarLabel: 'Messages' }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('person-outline'), tabBarLabel: t('profile') }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline'), tabBarLabel: t('settings') }} />
     </Tabs.Navigator>

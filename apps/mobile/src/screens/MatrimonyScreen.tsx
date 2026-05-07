@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
+import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
@@ -128,6 +129,8 @@ export function MatrimonyScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actionProfileId, setActionProfileId] = useState<string | null>(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [profileDetailVisible, setProfileDetailVisible] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const appliedFilterCount = useMemo(
     () => Object.values(filters).filter((value) => String(value).trim() !== '').length,
@@ -268,7 +271,14 @@ export function MatrimonyScreen() {
         ) : null}
 
         {profiles.map((profile) => (
-          <View key={profile.id} style={styles.card}>
+          <Pressable 
+            key={profile.id} 
+            style={styles.card}
+            onPress={() => {
+              setSelectedProfileId(profile.id);
+              setProfileDetailVisible(true);
+            }}
+          >
             <View style={styles.cardHeader}>
               <Text style={styles.name}>{profile.name}</Text>
               <Text style={styles.score}>{profile.compatibilityScore}%</Text>
@@ -312,9 +322,19 @@ export function MatrimonyScreen() {
                 </View>
               )}
             </View>
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
+
+      {/* Profile Detail Modal */}
+      <Modal visible={profileDetailVisible} animationType="slide" onRequestClose={() => setProfileDetailVisible(false)}>
+        {selectedProfileId && (
+          <MatrimonyProfileDetailScreen
+            profileId={selectedProfileId}
+            onBack={() => setProfileDetailVisible(false)}
+          />
+        )}
+      </Modal>
 
       <Modal visible={filterModalVisible} animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <View style={styles.modalPage}>

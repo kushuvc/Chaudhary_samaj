@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  Image,
   Modal,
   Pressable,
   RefreshControl,
@@ -9,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { useAppLanguage } from '../context/LanguageContext';
@@ -17,13 +20,13 @@ import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { MatrimonyFilterOptions, MatrimonyProfile } from '../types';
 
-type MatchTab = 'all' | 'shortlisted' | 'viewed' | 'locked';
+type MatchTab = 'all' | 'newlyJoined' | 'more';
+type MembershipType = 'regular' | 'prime';
 
 const TAB_CONFIG: Array<{ key: MatchTab; label: string }> = [
-  { key: 'all', label: 'All Matches' },
-  { key: 'shortlisted', label: 'Shortlisted' },
-  { key: 'viewed', label: 'Viewed' },
-  { key: 'locked', label: 'Locked' },
+  { key: 'all', label: 'All matches' },
+  { key: 'newlyJoined', label: 'Newly joined' },
+  { key: 'more', label: 'More' },
 ];
 
 const EMPTY_OPTIONS: MatrimonyFilterOptions = {
@@ -120,7 +123,9 @@ export function MatrimonyScreen() {
   const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [tab, setTab] = useState<MatchTab>('all');
+  const [membership, setMembership] = useState<MembershipType>('regular');
   const [search, setSearch] = useState('');
+  const [interestsMap, setInterestsMap] = useState<Record<string, 'sent' | 'received' | 'mutual'>>({});
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [filterOptions, setFilterOptions] = useState<MatrimonyFilterOptions>(EMPTY_OPTIONS);
   const [profiles, setProfiles] = useState<MatrimonyProfile[]>([]);
@@ -137,11 +142,26 @@ export function MatrimonyScreen() {
     [filters],
   );
 
+  const loadInterests = useCallback(async () => {
+    try {
+      const data = await api.getMyInterests();
+      const map: Record<string, 'sent' | 'received' | 'mutual'> = {};
+      data.sent.forEach(i => { if (i.status === 'pending') map[i.profileId] = 'sent'; });
+      data.received.forEach(i => { 
+        if (i.status === 'accepted') map[i.profileId] = 'mutual';
+        else if (i.status === 'pending') map[i.profileId] = 'received';
+      });
+      setInterestsMap(map);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
   const loadProfiles = useCallback(async () => {
     try {
       setError(null);
       const response = await api.getMatrimonyProfiles({
-        tab,
+        tab: tab === 'more' ? 'all' : tab,
         search,
         location: filters.location,
         community: filters.community,
@@ -155,13 +175,14 @@ export function MatrimonyScreen() {
         maxAge: filters.maxAge,
       });
       setProfiles(response.profiles || []);
+      await loadInterests();
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filters, search, tab]);
+  }, [filters, search, tab, loadInterests]);
 
   useEffect(() => {
     loadProfiles();
@@ -213,10 +234,9 @@ export function MatrimonyScreen() {
   }
 
   const tabLabel = (key: MatchTab) => {
-    if (key === 'all') return t('allMatchesTab');
-    if (key === 'shortlisted') return t('shortlistedTab');
-    if (key === 'viewed') return t('viewedTab');
-    return t('lockedTab');
+    if (key === 'all') return 'All matches';
+    if (key === 'newlyJoined') return 'Newly joined';
+    return 'More';
   };
 
   return (
@@ -225,18 +245,50 @@ export function MatrimonyScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>{t('matrimony')}</Text>
-          <Text style={styles.subtitle}>{t('matrimonySubtitle')}</Text>
+        {/* Membership Toggle */}
+        <View style={styles.membershipToggle}>
+          <Pressable
+            style={[styles.membershipButton, membership === 'regular' && styles.membershipActive]}
+            onPress={() => setMembership('regular')}
+          >
+            <Text style={[styles.membershipText, membership === 'regular' && styles.membershipTextActive]}>
+              Regular
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.membershipButton, membership === 'prime' && styles.membershipPrimeActive]}
+            onPress={() => {
+              Alert.alert('PRIME Membership', 'Upgrade to PRIME for exclusive benefits!');
+              setMembership('prime');
+            }}
+          >
+            <Text style={[styles.membershipText, membership === 'prime' && styles.membershipTextActive]}>
+              PRIME
+            </Text>
+            <View style={styles.primeDot} />
+          </Pressable>
         </View>
 
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          placeholder={t('searchMatrimonyPlaceholder')}
-          style={styles.searchInput}
-          returnKeyType="search"
-        />
+        {/* Match Count */}
+        <Text style={styles.matchCount}>{profiles.length} Matches based on your <Text style={styles.preferencesHighlight}>preferences</Text></Text>
+
+        {/* Filter Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsRow}>
+          <Pressable style={styles.filterChipMain} onPress={() => setFilterModalVisible(true)}>
+            <Ionicons name="options-outline" size={16} color={palette.text} />
+            <Text style={styles.filterChipMainText}>Filter</Text>
+          </Pressable>
+          <Pressable style={styles.filterChipMain}>
+            <Text style={styles.filterChipMainText}>Sort by</Text>
+            <Ionicons name="chevron-down" size={16} color={palette.text} />
+          </Pressable>
+          <Pressable style={styles.filterChipMain}>
+            <Text style={styles.filterChipMainText}>Newly joined</Text>
+          </Pressable>
+          <Pressable style={[styles.filterChipMain, styles.notMatchChip]}>
+            <Text style={[styles.filterChipMainText, styles.notMatchText]}>Not matches</Text>
+          </Pressable>
+        </ScrollView>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
           {TAB_CONFIG.map((item) => (
@@ -270,60 +322,69 @@ export function MatrimonyScreen() {
           />
         ) : null}
 
-        {profiles.map((profile) => (
-          <Pressable 
-            key={profile.id} 
-            style={styles.card}
-            onPress={() => {
-              setSelectedProfileId(profile.id);
-              setProfileDetailVisible(true);
-            }}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={styles.name}>{profile.name}</Text>
-              <Text style={styles.score}>{profile.compatibilityScore}%</Text>
-            </View>
-            <Text style={styles.meta}>
-              {profile.age} • {profile.gender || t('notAvailable')} • {profile.location}
-            </Text>
-            <Text style={styles.meta}>
-              {profile.community}
-              {profile.subCommunity ? ` • ${profile.subCommunity}` : ''}
-            </Text>
-            <Text style={styles.meta}>{profile.education || t('educationNotAdded')} • {profile.occupation || t('occupationNotAdded')}</Text>
-            <Text style={styles.bio}>{profile.bio || t('noBioAddedYet')}</Text>
-
-            <View style={styles.actionRow}>
-              <Pressable
-                style={styles.secondaryAction}
-                onPress={() => runAction(profile.id, 'view')}
-                disabled={actionProfileId === profile.id}
-              >
-                <Text style={styles.secondaryActionText}>{t('view')}</Text>
-              </Pressable>
-              <Pressable
-                style={styles.secondaryAction}
-                onPress={() => runAction(profile.id, 'shortlist')}
-                disabled={actionProfileId === profile.id}
-              >
-                <Text style={styles.secondaryActionText}>{profile.isShortlisted ? t('unshortlist') : t('shortlist')}</Text>
-              </Pressable>
-              {!profile.isUnlocked ? (
-                <Pressable
-                  style={styles.primaryAction}
-                  onPress={() => runAction(profile.id, 'unlock')}
-                  disabled={actionProfileId === profile.id}
-                >
-                  <Text style={styles.primaryActionText}>{t('unlock')}</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.unlockedPill}>
-                  <Text style={styles.unlockedText}>{t('unlocked')}</Text>
+        {profiles.map((profile) => {
+          const interestStatus = interestsMap[profile.id];
+          return (
+            <View key={profile.id} style={styles.newCard}>
+              {/* Profile Image Area */}
+              <View style={styles.imageContainer}>
+                <View style={styles.profileImagePlaceholder}>
+                  <Ionicons name="person" size={80} color={palette.muted} />
                 </View>
-              )}
+                <Pressable style={styles.shortlistButton} onPress={() => runAction(profile.id, 'shortlist')}>
+                  <Ionicons name={profile.isShortlisted ? "bookmark" : "bookmark-outline"} size={20} color="#FFFFFF" />
+                </Pressable>
+              </View>
+
+              {/* Info Section */}
+              <View style={styles.infoSection}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.newName}>{profile.name}</Text>
+                  <View style={styles.contactButtons}>
+                    <Pressable style={styles.iconButton}>
+                      <Ionicons name="call-outline" size={20} color="#E53935" />
+                    </Pressable>
+                    <Pressable style={styles.iconButton}>
+                      <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
+                    </Pressable>
+                  </View>
+                </View>
+
+                <Text style={styles.profileId}>PTL{profile.id.slice(-6)} • Last seen recently</Text>
+
+                <Text style={styles.details}>
+                  {profile.age} Yrs • {profile.height || "4'9\""} • {profile.education || 'M.Com'} • {profile.occupation || 'Accounts / Finance Professional'} • {profile.location}
+                </Text>
+
+                {/* Interest Status */}
+                {interestStatus === 'sent' && (
+                  <Text style={styles.interestStatus}>You sent an interest • {new Date().toLocaleDateString()}</Text>
+                )}
+                {interestStatus === 'mutual' && (
+                  <Text style={styles.mutualStatus}>🎉 Mutual interest! You can now chat</Text>
+                )}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.newActionRow}>
+                <Pressable style={styles.callNowButton}>
+                  <Ionicons name="call" size={16} color="#E53935" />
+                  <Text style={styles.callNowText}>Call Now</Text>
+                </Pressable>
+                <Pressable 
+                  style={styles.sendMessageButton}
+                  onPress={() => {
+                    setSelectedProfileId(profile.id);
+                    setProfileDetailVisible(true);
+                  }}
+                >
+                  <Ionicons name="mail" size={16} color="#FFFFFF" />
+                  <Text style={styles.sendMessageText}>Send Message</Text>
+                </Pressable>
+              </View>
             </View>
-          </Pressable>
-        ))}
+          );
+        })}
       </ScrollView>
 
       {/* Profile Detail Modal */}
@@ -453,22 +514,6 @@ function createStyles(palette: ThemePalette) {
   },
   header: {
     marginBottom: 4,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: palette.text,
-  },
-  subtitle: {
-    color: palette.muted,
-    marginTop: 4,
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: 12,
-    backgroundColor: palette.surface,
-    paddingHorizontal: 14,
     paddingVertical: 10,
     color: palette.text,
   },
@@ -695,6 +740,193 @@ function createStyles(palette: ThemePalette) {
   },
   filterChipTextActive: {
     color: palette.primary,
+  },
+  membershipToggle: {
+    flexDirection: 'row',
+    backgroundColor: palette.cardBg,
+    borderRadius: 24,
+    padding: 4,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  membershipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  membershipActive: {
+    backgroundColor: '#E53935',
+  },
+  membershipPrimeActive: {
+    backgroundColor: '#FFD700',
+  },
+  membershipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.text,
+  },
+  membershipTextActive: {
+    color: '#FFFFFF',
+  },
+  primeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E53935',
+    marginLeft: 6,
+  },
+  matchCount: {
+    fontSize: 14,
+    color: palette.muted,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  preferencesHighlight: {
+    color: '#E53935',
+    fontWeight: '600',
+  },
+  filterChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterChipMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: palette.cardBg,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  filterChipMainText: {
+    fontSize: 13,
+    color: palette.text,
+  },
+  notMatchChip: {
+    borderColor: palette.muted,
+  },
+  notMatchText: {
+    color: palette.muted,
+  },
+  // New card styles
+  newCard: {
+    backgroundColor: palette.cardBg,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  imageContainer: {
+    position: 'relative',
+    height: 200,
+    backgroundColor: palette.border,
+  },
+  profileImagePlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shortlistButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  infoSection: {
+    padding: 16,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  newName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: palette.text,
+    flex: 1,
+  },
+  contactButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: palette.bg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profileId: {
+    fontSize: 12,
+    color: palette.muted,
+    marginBottom: 8,
+  },
+  details: {
+    fontSize: 14,
+    color: palette.text,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  interestStatus: {
+    fontSize: 13,
+    color: palette.primary,
+    fontStyle: 'italic',
+  },
+  mutualStatus: {
+    fontSize: 13,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  newActionRow: {
+    flexDirection: 'row',
+    padding: 12,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: palette.border,
+  },
+  callNowButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.bg,
+    borderWidth: 1,
+    borderColor: '#E53935',
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 6,
+  },
+  callNowText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#E53935',
+  },
+  sendMessageButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E53935',
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 6,
+  },
+  sendMessageText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   });
 }

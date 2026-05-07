@@ -264,3 +264,46 @@ CREATE INDEX IF NOT EXISTS idx_help_requests_created_at ON help_requests(created
 CREATE INDEX IF NOT EXISTS idx_help_support_offers_request_id ON help_support_offers(request_id);
 CREATE INDEX IF NOT EXISTS idx_auth_email_otps_email_purpose ON auth_email_otps(email, purpose);
 CREATE INDEX IF NOT EXISTS idx_auth_email_otps_expires_at ON auth_email_otps(expires_at);
+
+-- Matrimony Interests (for expressing interest in profiles)
+CREATE TABLE IF NOT EXISTS matrimony_interests (
+  id TEXT PRIMARY KEY,
+  sender_id TEXT NOT NULL,
+  receiver_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT,
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(sender_id, receiver_id)
+);
+
+-- Matrimony Matches (mutual interests become matches)
+CREATE TABLE IF NOT EXISTS matrimony_matches (
+  id TEXT PRIMARY KEY,
+  user1_id TEXT NOT NULL,
+  user2_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user1_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (user2_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE(user1_id, user2_id)
+);
+
+-- Matrimony Messages (chat between matched users)
+CREATE TABLE IF NOT EXISTS matrimony_messages (
+  id TEXT PRIMARY KEY,
+  match_id TEXT NOT NULL,
+  sender_id TEXT NOT NULL,
+  content TEXT NOT NULL,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (match_id) REFERENCES matrimony_matches(id) ON DELETE CASCADE,
+  FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_matrimony_interests_sender_id ON matrimony_interests(sender_id);
+CREATE INDEX IF NOT EXISTS idx_matrimony_interests_receiver_id ON matrimony_interests(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_matrimony_matches_user1_id ON matrimony_matches(user1_id);
+CREATE INDEX IF NOT EXISTS idx_matrimony_matches_user2_id ON matrimony_matches(user2_id);
+CREATE INDEX IF NOT EXISTS idx_matrimony_messages_match_id ON matrimony_messages(match_id);
+CREATE INDEX IF NOT EXISTS idx_matrimony_messages_sender_id ON matrimony_messages(sender_id);

@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import crypto from 'crypto'
 import {
   applyProfileUpdate,
   authAccountExistsByEmail,
@@ -700,6 +701,217 @@ app.post('/api/matrimony/profiles/:id/unlock', (request, response) => {
   })
 
   response.json({ success: true, data: { unlocked: true } })
+})
+
+// Interest APIs
+app.post('/api/matrimony/profiles/:id/interest', (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  const { id: receiverId } = request.params
+
+  // Check if profile exists
+  const profile = database.prepare('SELECT id, user_id FROM matrimony_profiles WHERE id = ?').get(receiverId)
+  if (!profile) {
+    response.status(404).json({ success: false, error: 'Profile not found' })
+    return
+  }
+
+  // Cannot send interest to self
+  if (profile.user_id === activeUserId) {
+    response.status(400).json({ success: false, error: 'Cannot send interest to yourself' })
+    return
+  }
+
+  // Check if interest already exists
+  const existing = database.prepare(
+    'SELECT id, status FROM matrimony_interests WHERE sender_id = ? AND receiver_id = ?'
+  ).get(activeUserId, receiverId)
+
+  if (existing) {
+    if (existing.status === 'pending') {
+      response.status(409).json({ success: false, error: 'Interest already sent' })
+      return
+    }
+    if (existing.status === 'accepted') {
+      response.status(409).json({ success: false, error: 'Already matched' })
+      return
+    }
+  }
+
+  // Create interest
+  const interestId = crypto.randomUUID()
+  database.prepare(
+    'INSERT INTO matrimony_interests (id, sender_id, receiver_id, status, created_at) VALUES (?, ?, ?, ?, ?)'
+  ).run(interestId, activeUserId, receiverId, 'pending', new Date().toISOString())
+
+  response.json({ success: true, data: { interestId, status: 'pending' } })
+})
+
+app.get('/api/matrimony/interests', (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  // Get sent interests
+  const sent = database.prepare(`
+    SELECT i.id, i.receiver_id as profileId, p.name, i.status, i.created_at as createdAt
+    FROM matrimony_interests i
+    JOIN matrimony_profiles p ON i.receiver_id = p.id
+    WHERE i.sender_id = ?
+    ORDER BY i.created_at DESC
+  `).all(activeUserId)
+
+  // Get received interests
+  const received = database.prepare(`
+    SELECT i.id, i.sender_id as profileId, p.name, i.status, i.created_at as createdAt
+    FROM matrimony_interests i
+    JOIN matrimony_profiles p ON i.sender_id = p.id
+    WHERE i.receiver_id = ?
+    ORDER BY i.created_at DESC
+  `).all(activeUserId)
+
+  response.json({ success: true, data: { sent, received } })
+})
+
+app.put('/api/matrimony/interests/:id', (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  const { accept } = request.body || {}
+  const { id } = request.params
+
+  // Verify interest exists and belongs to current user
+  const interest = database.prepare(
+    'SELECT * FROM matrimony_interests WHERE id = ? AND receiver_id = ?'
+  ).get(id, activeUserId)
+
+  if (!interest) {
+    response.status(404).json({ success: false, error: 'Interest not found' })
+    return
+  }
+
+  if (interest.status !== 'pending') {
+    response.status(400).json({ success: false, error: 'Interest already processed' })
+    return
+  }
+
+  const newStatus = accept ? 'accepted' : 'declined'
+  database.prepare(
+    'UPDATE matrimony_interests SET status = ?, updated_at = ? WHERE id = ?'
+  ).run(newStatus, new Date().toISOString(), id)
+
+  // If accepted, create a match
+  if (accept) {
+    const matchId = crypto.randomUUID()
+    database.prepare(
+      'INSERT INTO matrimony_matches (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, ?)'
+    ).run(matchId, interest.sender_id, interest.receiver_id, new Date().toISOString())
+  }
+
+  response.json({ success: true, data: { status: newStatus } })
+})
+
+// Matches & Messaging APIs
+app.get('/api/matrimony/matches', (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  // Get all matches where user is either user1 or user2
+  const matches = database.prepare(`
+    SELECT 
+      m.id,
+      CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END as profileId,
+      p.name,
+      m.created_at as lastMessageTime,
+      (SELECT COUNT(*) FROM matrimony_messages WHERE match_id = m.id AND sender_id != ? AND is_read = 0) as unreadCount
+    FROM matrimony_matches m
+    JOIN matrimony_profiles p ON p.user_id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
+    WHERE m.user1_id = ? OR m.user2_id = ?
+    ORDER BY m.created_at DESC
+  `).all(activeUserId, activeUserId, activeUserId, activeUserId, activeUserId)
+
+  response.json({ success: true, data: matches })
+})
+
+app.get('/api/matrimony/matches/:id/messages', (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  const { id: matchId } = request.params
+
+  // Verify user is part of this match
+  const match = database.prepare(
+    'SELECT * FROM matrimony_matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)'
+  ).get(matchId, activeUserId, activeUserId)
+
+  if (!match) {
+    response.status(404).json({ success: false, error: 'Match not found' })
+    return
+  }
+
+  const messages = database.prepare(`
+    SELECT id, sender_id as senderId, content, created_at as createdAt, is_read as isRead
+    FROM matrimony_messages
+    WHERE match_id = ?
+    ORDER BY created_at ASC
+  `).all(matchId)
+
+  // Mark messages as read
+  database.prepare(
+    'UPDATE matrimony_messages SET is_read = 1 WHERE match_id = ? AND sender_id != ?'
+  ).run(matchId, activeUserId)
+
+  response.json({ success: true, data: messages })
+})
+
+app.post('/api/matrimony/matches/:id/messages', (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  const { id: matchId } = request.params
+  const { content } = request.body || {}
+
+  if (!content || !content.trim()) {
+    response.status(400).json({ success: false, error: 'Message content required' })
+    return
+  }
+
+  // Verify user is part of this match
+  const match = database.prepare(
+    'SELECT * FROM matrimony_matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)'
+  ).get(matchId, activeUserId, activeUserId)
+
+  if (!match) {
+    response.status(404).json({ success: false, error: 'Match not found' })
+    return
+  }
+
+  const messageId = crypto.randomUUID()
+  const createdAt = new Date().toISOString()
+
+  database.prepare(
+    'INSERT INTO matrimony_messages (id, match_id, sender_id, content, created_at, is_read) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(messageId, matchId, activeUserId, content.trim(), createdAt, 0)
+
+  response.json({ success: true, data: { id: messageId, createdAt } })
 })
 
 app.get('/api/matrimony/saved-filters', async (_request, response) => {

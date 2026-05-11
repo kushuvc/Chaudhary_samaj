@@ -3,6 +3,8 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
 import Database from 'better-sqlite3'
+import pg from 'pg'
+const { Pool } = pg
 
 const serverDir = path.resolve('server')
 const dataDir = path.join(serverDir, 'data')
@@ -13,6 +15,40 @@ const preferPostgres = Boolean(process.env.DATABASE_URL)
 let database
 let databaseEngine = 'sqlite'
 let currentTransaction = null
+
+// Persistent async pool for fast direct queries (used in async Express routes)
+let _pgPool = null
+export function getPgPool() {
+  if (!_pgPool && process.env.DATABASE_URL) {
+    _pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      min: 2,
+      idleTimeoutMillis: 600000,
+      connectionTimeoutMillis: 5000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    })
+    _pgPool.on('error', () => {})
+  }
+  return _pgPool
+}
+
+// Warm up pool on module load - establishes persistent connections immediately
+export function warmUpPool() {
+  const pool = getPgPool()
+  if (!pool) return
+  pool.query('SELECT 1').catch(() => {})
+}
+
+// Convenience async query helper
+export async function pgQuery(text, values = []) {
+  const pool = getPgPool()
+  if (!pool) throw new Error('No Postgres pool available')
+  const result = await pool.query(text, values)
+  return result.rows
+}
 
 function normalizePostgresSql(sql) {
   let normalized = String(sql || '').trim()
@@ -66,42 +102,20 @@ function executePostgresStatementsSync(queries, useTransaction = false) {
   const payload = { queries, transaction: useTransaction }
   const script = `
     import { Client } from 'pg'
-
     const payload = JSON.parse(process.argv[1])
-    const client = new Client({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    })
-
+    const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
     await client.connect()
-
     try {
-      if (payload.transaction) {
-        await client.query('BEGIN')
-      }
-
+      if (payload.transaction) await client.query('BEGIN')
       let result = { rows: [], rowCount: 0 }
-      for (const query of payload.queries) {
-        result = await client.query(query.text, query.values)
-      }
-
-      if (payload.transaction) {
-        await client.query('COMMIT')
-      }
-
+      for (const query of payload.queries) { result = await client.query(query.text, query.values) }
+      if (payload.transaction) await client.query('COMMIT')
       process.stdout.write(JSON.stringify({ rows: result.rows, rowCount: result.rowCount }))
-    } catch (error) {
-      if (payload.transaction) {
-        try {
-          await client.query('ROLLBACK')
-        } catch {}
-      }
-
-      process.stderr.write(JSON.stringify({ message: error.message, code: error.code }))
+    } catch (e) {
+      if (payload.transaction) { try { await client.query('ROLLBACK') } catch {} }
+      process.stderr.write(JSON.stringify({ message: e.message, code: e.code }))
       process.exit(1)
-    } finally {
-      await client.end()
-    }
+    } finally { await client.end() }
   `
 
   const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script, JSON.stringify(payload)], {
@@ -110,23 +124,12 @@ function executePostgresStatementsSync(queries, useTransaction = false) {
   })
 
   if (result.status !== 0) {
-    let errorMessage = 'Postgres query failed'
-    if (result.stderr) {
-      try {
-        const parsed = JSON.parse(result.stderr)
-        errorMessage = parsed.message || errorMessage
-      } catch {
-        errorMessage = result.stderr.trim() || errorMessage
-      }
-    }
-    throw new Error(errorMessage)
+    let msg = 'Postgres query failed'
+    if (result.stderr) { try { msg = JSON.parse(result.stderr).message || msg } catch { msg = result.stderr.trim() || msg } }
+    throw new Error(msg)
   }
 
-  try {
-    return JSON.parse(result.stdout || '{"rows":[],"rowCount":0}')
-  } catch {
-    return { rows: [], rowCount: 0 }
-  }
+  try { return JSON.parse(result.stdout || '{"rows":[],"rowCount":0}') } catch { return { rows: [], rowCount: 0 } }
 }
 
 function createPostgresLikeDatabase() {
@@ -196,16 +199,7 @@ if (preferPostgres) {
     database = createPostgresLikeDatabase()
     database.prepare('SELECT 1 AS ok').get()
     databaseEngine = 'postgres'
-    // Execute schema for Postgres - split by semicolon and execute each statement
-    const schemaSql = fs.readFileSync(schemaPath, 'utf8')
-    const statements = schemaSql.split(';').filter(s => s.trim())
-    for (const stmt of statements) {
-      try {
-        database.prepare(stmt + ';').run()
-      } catch (e) {
-        // Ignore errors for existing tables
-      }
-    }
+    // Tables already exist in Supabase via migrate.js - skip schema execution on startup
   } catch (error) {
     console.warn(`Postgres initialization failed, falling back to SQLite: ${error instanceof Error ? error.message : String(error)}`)
     initializeSqliteDatabase()

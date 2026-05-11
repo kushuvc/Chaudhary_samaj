@@ -9,12 +9,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface Match {
   id: string;
@@ -49,6 +51,8 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const { session } = useAuth();
+  const currentUserId = session?.user?.id || '';
   
   const [view, setView] = useState<MessagesView>('list');
   const [matches, setMatches] = useState<Match[]>([]);
@@ -89,14 +93,25 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
       setSelectedMatch(match);
       setView('chat');
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message || 'Unable to load messages. Please try again.';
+      setError(msg);
+      showAlert('Failed to Load Chat', msg);
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedMatch || sending) return;
-    
+    if (!selectedMatch) {
+      showAlert('No Match Selected', 'Please select a match to send a message.');
+      return;
+    }
+    if (!newMessage.trim()) {
+      showAlert('Empty Message', 'Please type a message before sending.');
+      return;
+    }
+    if (sending) return;
+
     if (!FEATURES.SEND_MESSAGE_FREE) {
+      showAlert('Premium Feature', 'Upgrade to premium to send messages.');
       setError('Upgrade to premium to send messages.');
       return;
     }
@@ -113,25 +128,30 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).message || 'Failed to send message. Please try again.';
+      setError(msg);
+      showAlert('Send Failed', msg);
     } finally {
       setSending(false);
     }
   };
 
   const formatTime = (dateString: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
     if (diffDays === 0) return formatTime(dateString);
     if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
   };
 
@@ -158,7 +178,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   );
 
   const renderMessageItem = ({ item }: { item: Message }) => {
-    const isMe = item.senderId === 'me'; // Will be replaced with actual user ID check
+    const isMe = item.senderId === currentUserId;
     
     return (
       <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
@@ -191,7 +211,20 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
             <Text style={styles.chatHeaderName}>{selectedMatch.name}</Text>
             <Text style={styles.chatHeaderStatus}>Online</Text>
           </View>
-          <Pressable style={styles.moreButton}>
+          <Pressable
+            style={styles.moreButton}
+            onPress={() => {
+              showAlert(
+                selectedMatch.name,
+                'What would you like to do?',
+                [
+                  { text: 'View Profile', onPress: () => {} },
+                  { text: 'Clear Chat', style: 'destructive', onPress: () => setMessages([]) },
+                  { text: 'Cancel', style: 'cancel' },
+                ]
+              );
+            }}
+          >
             <Ionicons name="ellipsis-vertical" size={24} color={palette.text} />
           </Pressable>
         </View>

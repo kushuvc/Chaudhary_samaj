@@ -199,21 +199,21 @@ export const api = {
     const response = await request<{ data: any[] }>('/matrimony/matches');
     return response.data.map((item) => ({
       id: String(item.id || ''),
-      profileId: String(item.profileId || item.matchedUserId || ''),
+      profileId: String(item.profileId || item.profileid || item.matchedUserId || ''),
       name: String(item.name || ''),
-      lastMessage: String(item.lastMessage || ''),
-      lastMessageTime: String(item.lastMessageTime || ''),
-      unreadCount: Number(item.unreadCount || 0),
+      lastMessage: String(item.lastMessage || item.lastmessage || ''),
+      lastMessageTime: String(item.lastMessageTime || item.lastmessagetime || ''),
+      unreadCount: Number(item.unreadCount ?? item.unreadcount ?? 0),
     }));
   },
   getMessages: async (matchId: string) => {
     const response = await request<{ data: any[] }>(`/matrimony/matches/${matchId}/messages`);
     return response.data.map((item) => ({
       id: String(item.id || ''),
-      senderId: String(item.senderId || ''),
+      senderId: String(item.senderId || item.senderid || item.sender_id || ''),
       content: String(item.content || item.message || ''),
-      createdAt: String(item.createdAt || ''),
-      isRead: Boolean(item.isRead),
+      createdAt: String(item.createdAt || item.createdat || item.created_at || ''),
+      isRead: Boolean(item.isRead ?? item.isread ?? item.is_read),
     }));
   },
   sendMessage: (matchId: string, content: string) =>

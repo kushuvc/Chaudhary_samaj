@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import {
-  Alert,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -8,12 +9,14 @@ import {
   Text,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
+import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 
 type InterestTab = 'received' | 'sent';
 
@@ -42,6 +45,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const navigation = useNavigation<any>();
   
   const [activeTab, setActiveTab] = useState<InterestTab>('received');
   const [sent, setSent] = useState<Interest[]>([]);
@@ -50,6 +54,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
 
   const loadInterests = useCallback(async () => {
     try {
@@ -76,17 +81,17 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   const handleAccept = async (interest: Interest) => {
     if (!FEATURES.ACCEPT_INTEREST_FREE) {
-      Alert.alert('Premium Feature', 'Upgrade to premium to accept interests.');
+      showAlert('Premium Feature', 'Upgrade to premium to accept interests.');
       return;
     }
 
     try {
       setActionId(interest.id);
       await api.respondToInterest(interest.id, true);
-      Alert.alert('Success', `You accepted ${interest.name}'s interest!`);
+      showAlert('Success', `You accepted ${interest.name}'s interest!`);
       await loadInterests();
     } catch (err) {
-      Alert.alert('Error', (err as Error).message || 'Failed to accept interest');
+      showAlert('Error', (err as Error).message || 'Failed to accept interest');
     } finally {
       setActionId(null);
     }
@@ -94,11 +99,11 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   const handleDecline = async (interest: Interest) => {
     if (!FEATURES.DECLINE_INTEREST_FREE) {
-      Alert.alert('Premium Feature', 'Upgrade to premium to decline interests.');
+      showAlert('Premium Feature', 'Upgrade to premium to decline interests.');
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Decline Interest',
       `Are you sure you want to decline ${interest.name}'s interest?`,
       [
@@ -110,10 +115,10 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
             try {
               setActionId(interest.id);
               await api.respondToInterest(interest.id, false);
-              Alert.alert('Declined', `You declined ${interest.name}'s interest.`);
+              showAlert('Declined', `You declined ${interest.name}'s interest.`);
               await loadInterests();
             } catch (err) {
-              Alert.alert('Error', (err as Error).message || 'Failed to decline interest');
+              showAlert('Error', (err as Error).message || 'Failed to decline interest');
             } finally {
               setActionId(null);
             }
@@ -125,10 +130,15 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   const handleMessage = (interest: Interest) => {
     if (!FEATURES.CHAT_FREE) {
-      Alert.alert('Premium Feature', 'Upgrade to premium to chat with matches.');
+      showAlert('Premium Feature', 'Upgrade to premium to chat with matches.');
       return;
     }
-    onMessage?.(interest.profileId, interest.name);
+    if (onMessage) {
+      onMessage(interest.profileId, interest.name);
+    } else {
+      // Navigate to Messages tab when used as standalone tab
+      navigation.navigate('Messages');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -172,7 +182,10 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
         <View style={styles.actionRow}>
           <Pressable
             style={styles.viewButton}
-            onPress={() => onViewProfile?.(interest.profileId)}
+            onPress={() => {
+              setViewingProfileId(interest.profileId);
+              onViewProfile?.(interest.profileId);
+            }}
           >
             <Ionicons name="eye-outline" size={18} color={palette.primary} />
             <Text style={styles.viewButtonText}>View Profile</Text>
@@ -297,6 +310,20 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
           currentList.map(renderInterestCard)
         )}
       </ScrollView>
+
+      {/* Profile Detail Modal */}
+      <Modal
+        visible={viewingProfileId !== null}
+        animationType="slide"
+        onRequestClose={() => setViewingProfileId(null)}
+      >
+        {viewingProfileId && (
+          <MatrimonyProfileDetailScreen
+            profileId={viewingProfileId}
+            onBack={() => setViewingProfileId(null)}
+          />
+        )}
+      </Modal>
     </View>
   );
 }

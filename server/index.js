@@ -39,6 +39,8 @@ import {
   recordProfileAction,
   verifyEmailOtp,
   userExists,
+  pgQuery,
+  warmUpPool,
 } from './db.js'
 import { sendEmailOtp } from './email.js'
 import {
@@ -60,6 +62,21 @@ import {
   requestEmailOtpFast,
 } from './fast-queries.js'
 
+// Simple in-memory cache with TTL for expensive per-user queries
+const _cache = new Map()
+function cacheGet(key) {
+  const entry = _cache.get(key)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null }
+  return entry.value
+}
+function cacheSet(key, value, ttlMs = 5000) {
+  _cache.set(key, { value, expiresAt: Date.now() + ttlMs })
+}
+function cacheInvalidate(prefix) {
+  for (const key of _cache.keys()) { if (key.startsWith(prefix)) _cache.delete(key) }
+}
+
 const app = express()
 const port = process.env.PORT || 3000
 const OTP_SEND_TIMEOUT_MS = Number(process.env.OTP_SEND_TIMEOUT_MS || 25000)
@@ -73,10 +90,14 @@ function isGmailAddress(email) {
 
 function resolveUserId(request) {
   const headerUserId = request.header('x-user-id')
-  if (headerUserId && userExists(headerUserId)) {
-    return headerUserId
+  if (!headerUserId) return null
+  const ck = `user:${headerUserId}`
+  let exists = cacheGet(ck)
+  if (exists === null) {
+    exists = userExists(headerUserId) ? true : false
+    cacheSet(ck, exists, 300000) // 5 min TTL
   }
-  return null
+  return exists ? headerUserId : null
 }
 
 app.post('/api/auth/login', (request, response) => {
@@ -753,50 +774,53 @@ app.post('/api/matrimony/profiles/:id/interest', (request, response) => {
   response.json({ success: true, data: { interestId, status: 'pending' } })
 })
 
-app.get('/api/matrimony/interests', (request, response) => {
+app.get('/api/matrimony/interests', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  // Get sent interests
-  const sentRows = database.prepare(`
-    SELECT i.id, i.receiver_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at as created_at
-    FROM matrimony_interests i
-    JOIN matrimony_profiles p ON i.receiver_id = p.user_id
-    JOIN users u ON p.user_id = u.id
-    WHERE i.sender_id = ?
-    ORDER BY i.created_at DESC
-  `).all(activeUserId)
-  const sent = sentRows.map(r => ({
-    id: r.id,
-    userId: r.user_id,
-    profileId: r.profile_id,
-    name: r.name,
-    status: r.status,
-    createdAt: r.created_at,
-  }))
+  const cacheKey = `interests:${activeUserId}`
+  const cached = cacheGet(cacheKey)
+  if (cached) { response.json(cached); return }
 
-  // Get received interests
-  const receivedRows = database.prepare(`
-    SELECT i.id, i.sender_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at as created_at
-    FROM matrimony_interests i
-    JOIN matrimony_profiles p ON i.sender_id = p.user_id
-    JOIN users u ON p.user_id = u.id
-    WHERE i.receiver_id = ?
-    ORDER BY i.created_at DESC
-  `).all(activeUserId)
-  const received = receivedRows.map(r => ({
-    id: r.id,
-    userId: r.user_id,
-    profileId: r.profile_id,
-    name: r.name,
-    status: r.status,
-    createdAt: r.created_at,
-  }))
+  try {
+    // Run both queries in parallel
+    const [sentRows, receivedRows] = await Promise.all([
+      pgQuery(`
+        SELECT i.id, i.receiver_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at
+        FROM matrimony_interests i
+        JOIN matrimony_profiles p ON i.receiver_id = p.user_id
+        JOIN users u ON p.user_id = u.id
+        WHERE i.sender_id = $1
+        ORDER BY i.created_at DESC
+      `, [activeUserId]),
+      pgQuery(`
+        SELECT i.id, i.sender_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at
+        FROM matrimony_interests i
+        JOIN matrimony_profiles p ON i.sender_id = p.user_id
+        JOIN users u ON p.user_id = u.id
+        WHERE i.receiver_id = $1
+        ORDER BY i.created_at DESC
+      `, [activeUserId]),
+    ])
 
-  response.json({ success: true, data: { sent, received } })
+    const mapRow = r => ({
+      id: r.id,
+      userId: r.user_id,
+      profileId: r.profile_id,
+      name: r.name,
+      status: r.status,
+      createdAt: r.created_at,
+    })
+
+    const result = { success: true, data: { sent: sentRows.map(mapRow), received: receivedRows.map(mapRow) } }
+    cacheSet(cacheKey, result, 10000)
+    response.json(result)
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
 })
 
 app.put('/api/matrimony/interests/:id', (request, response) => {
@@ -841,33 +865,58 @@ app.put('/api/matrimony/interests/:id', (request, response) => {
 })
 
 // Matches & Messaging APIs
-app.get('/api/matrimony/matches', (request, response) => {
+app.get('/api/matrimony/matches', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  // Get all matches where user is either user1 or user2
-  const matches = database.prepare(`
-    SELECT 
-      m.id,
-      CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END as otherUserId,
-      p.id as profileId,
-      u.full_name as name,
-      m.created_at as lastMessageTime,
-      (SELECT COUNT(*) FROM matrimony_messages WHERE match_id = m.id AND sender_id != ? AND is_read = 0) as unreadCount
-    FROM matrimony_matches m
-    JOIN matrimony_profiles p ON p.user_id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
-    JOIN users u ON p.user_id = u.id
-    WHERE m.user1_id = ? OR m.user2_id = ?
-    ORDER BY m.created_at DESC
-  `).all(activeUserId, activeUserId, activeUserId, activeUserId, activeUserId)
+  const cacheKey = `matches:${activeUserId}`
+  const cached = cacheGet(cacheKey)
+  if (cached) { response.set('X-Cache', 'HIT'); response.json(cached); return }
+  response.set('X-Cache', 'MISS')
 
-  response.json({ success: true, data: matches })
+  try {
+    const matches = await pgQuery(`
+      SELECT
+        m.id,
+        CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END as otheruserid,
+        p.id as profileid,
+        u.full_name as name,
+        COALESCE(last_msg.created_at, m.created_at) as lastmessagetime,
+        COALESCE(last_msg.content, '') as lastmessage,
+        COALESCE(unread.cnt, 0) as unreadcount
+      FROM matrimony_matches m
+      JOIN matrimony_profiles p ON p.user_id = CASE WHEN m.user1_id = $1 THEN m.user2_id ELSE m.user1_id END
+      JOIN users u ON p.user_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT content, created_at FROM matrimony_messages
+        WHERE match_id = m.id ORDER BY created_at DESC LIMIT 1
+      ) last_msg ON true
+      LEFT JOIN LATERAL (
+        SELECT COUNT(*)::int as cnt FROM matrimony_messages
+        WHERE match_id = m.id AND sender_id != $1 AND is_read::integer = 0
+      ) unread ON true
+      WHERE m.user1_id = $1 OR m.user2_id = $1
+      ORDER BY COALESCE(last_msg.created_at, m.created_at) DESC
+    `, [activeUserId])
+    const result = { success: true, data: matches.map(r => ({
+      id: r.id,
+      profileId: r.profileid,
+      name: r.name,
+      lastMessage: r.lastmessage || '',
+      lastMessageTime: r.lastmessagetime,
+      unreadCount: Number(r.unreadcount || 0),
+    })) }
+    cacheSet(cacheKey, result, 10000)
+    response.json(result)
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
 })
 
-app.get('/api/matrimony/matches/:id/messages', (request, response) => {
+app.get('/api/matrimony/matches/:id/messages', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
@@ -875,33 +924,49 @@ app.get('/api/matrimony/matches/:id/messages', (request, response) => {
   }
 
   const { id: matchId } = request.params
+  const cacheKey = `messages:${matchId}`
+  const cached = cacheGet(cacheKey)
+  if (cached) { response.json(cached); return }
 
-  // Verify user is part of this match
-  const match = database.prepare(
-    'SELECT * FROM matrimony_matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)'
-  ).get(matchId, activeUserId, activeUserId)
+  try {
+    // Verify user is part of this match
+    const [match] = await pgQuery(
+      'SELECT id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
+      [matchId, activeUserId]
+    )
+    if (!match) {
+      response.status(404).json({ success: false, error: 'Match not found' })
+      return
+    }
 
-  if (!match) {
-    response.status(404).json({ success: false, error: 'Match not found' })
-    return
+    const messages = await pgQuery(`
+      SELECT id, sender_id as senderId, content, created_at as createdAt, is_read as isRead
+      FROM matrimony_messages
+      WHERE match_id = $1
+      ORDER BY created_at ASC
+    `, [matchId])
+
+    // Mark messages as read (fire and forget)
+    pgQuery(
+      'UPDATE matrimony_messages SET is_read = 1 WHERE match_id = $1 AND sender_id != $2',
+      [matchId, activeUserId]
+    ).catch(() => {})
+
+    const result = { success: true, data: messages.map(r => ({
+      id: r.id,
+      senderId: r.senderid,
+      content: r.content,
+      createdAt: r.createdat,
+      isRead: r.isread,
+    })) }
+    cacheSet(cacheKey, result, 3000)
+    response.json(result)
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  const messages = database.prepare(`
-    SELECT id, sender_id as senderId, content, created_at as createdAt, is_read as isRead
-    FROM matrimony_messages
-    WHERE match_id = ?
-    ORDER BY created_at ASC
-  `).all(matchId)
-
-  // Mark messages as read
-  database.prepare(
-    'UPDATE matrimony_messages SET is_read = 1 WHERE match_id = ? AND sender_id != ?'
-  ).run(matchId, activeUserId)
-
-  response.json({ success: true, data: messages })
 })
 
-app.post('/api/matrimony/matches/:id/messages', (request, response) => {
+app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
@@ -916,24 +981,31 @@ app.post('/api/matrimony/matches/:id/messages', (request, response) => {
     return
   }
 
-  // Verify user is part of this match
-  const match = database.prepare(
-    'SELECT * FROM matrimony_matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)'
-  ).get(matchId, activeUserId, activeUserId)
+  try {
+    const [match] = await pgQuery(
+      'SELECT id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
+      [matchId, activeUserId]
+    )
+    if (!match) {
+      response.status(404).json({ success: false, error: 'Match not found' })
+      return
+    }
 
-  if (!match) {
-    response.status(404).json({ success: false, error: 'Match not found' })
-    return
+    const messageId = crypto.randomUUID()
+    const createdAt = new Date().toISOString()
+
+    await pgQuery(
+      'INSERT INTO matrimony_messages (id, match_id, sender_id, content, created_at, is_read) VALUES ($1, $2, $3, $4, $5, 0)',
+      [messageId, matchId, activeUserId, content.trim(), createdAt]
+    )
+
+    // Invalidate caches so next fetch is fresh
+    cacheInvalidate(`messages:${matchId}`)
+    cacheInvalidate(`matches:${activeUserId}`)
+    response.json({ success: true, data: { id: messageId, createdAt } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  const messageId = crypto.randomUUID()
-  const createdAt = new Date().toISOString()
-
-  database.prepare(
-    'INSERT INTO matrimony_messages (id, match_id, sender_id, content, created_at, is_read) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(messageId, matchId, activeUserId, content.trim(), createdAt, 0)
-
-  response.json({ success: true, data: { id: messageId, createdAt } })
 })
 
 app.get('/api/matrimony/saved-filters', async (_request, response) => {
@@ -1224,4 +1296,5 @@ app.use((_request, response) => {
 
 app.listen(port, () => {
   console.log(`Matrimony backend listening on http://localhost:${port}`)
+  warmUpPool()
 })

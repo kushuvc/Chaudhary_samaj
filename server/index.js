@@ -761,24 +761,40 @@ app.get('/api/matrimony/interests', (request, response) => {
   }
 
   // Get sent interests
-  const sent = database.prepare(`
-    SELECT i.id, i.receiver_id as userId, p.id as profileId, u.full_name as name, i.status, i.created_at as createdAt
+  const sentRows = database.prepare(`
+    SELECT i.id, i.receiver_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at as created_at
     FROM matrimony_interests i
     JOIN matrimony_profiles p ON i.receiver_id = p.user_id
     JOIN users u ON p.user_id = u.id
     WHERE i.sender_id = ?
     ORDER BY i.created_at DESC
   `).all(activeUserId)
+  const sent = sentRows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    profileId: r.profile_id,
+    name: r.name,
+    status: r.status,
+    createdAt: r.created_at,
+  }))
 
   // Get received interests
-  const received = database.prepare(`
-    SELECT i.id, i.sender_id as userId, p.id as profileId, u.full_name as name, i.status, i.created_at as createdAt
+  const receivedRows = database.prepare(`
+    SELECT i.id, i.sender_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at as created_at
     FROM matrimony_interests i
     JOIN matrimony_profiles p ON i.sender_id = p.user_id
     JOIN users u ON p.user_id = u.id
     WHERE i.receiver_id = ?
     ORDER BY i.created_at DESC
   `).all(activeUserId)
+  const received = receivedRows.map(r => ({
+    id: r.id,
+    userId: r.user_id,
+    profileId: r.profile_id,
+    name: r.name,
+    status: r.status,
+    createdAt: r.created_at,
+  }))
 
   response.json({ success: true, data: { sent, received } })
 })

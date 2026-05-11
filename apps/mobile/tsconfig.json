@@ -6,7 +6,7 @@
     "paths": {
       "@/*": ["src/*"],
       "@chaudhary/shared-types": ["../../packages/shared-types/src"],
-      "@chaudhary/api-client": ["../../packages/api-client/src"]
+      "@chaudhary/api-client": ["../../packages/api-client/src"]                                                                                           
     }
   }
 }

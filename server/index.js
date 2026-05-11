@@ -726,10 +726,12 @@ app.post('/api/matrimony/profiles/:id/interest', (request, response) => {
     return
   }
 
+  const receiverUserId = profile.user_id
+
   // Check if interest already exists
   const existing = database.prepare(
     'SELECT id, status FROM matrimony_interests WHERE sender_id = ? AND receiver_id = ?'
-  ).get(activeUserId, receiverId)
+  ).get(activeUserId, receiverUserId)
 
   if (existing) {
     if (existing.status === 'pending') {
@@ -746,7 +748,7 @@ app.post('/api/matrimony/profiles/:id/interest', (request, response) => {
   const interestId = crypto.randomUUID()
   database.prepare(
     'INSERT INTO matrimony_interests (id, sender_id, receiver_id, status, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(interestId, activeUserId, receiverId, 'pending', new Date().toISOString())
+  ).run(interestId, activeUserId, receiverUserId, 'pending', new Date().toISOString())
 
   response.json({ success: true, data: { interestId, status: 'pending' } })
 })

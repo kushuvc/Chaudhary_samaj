@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -8,6 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
@@ -57,7 +57,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
       const profileData = response.profiles?.[0];
       
       if (profileData) {
-        // Check interest status
+        // Check interest status - profileId from API is now the profile-xxx format
         const interests = await api.getMyInterests();
         const sent = interests.sent.find(i => i.profileId === profileId);
         const received = interests.received.find(i => i.profileId === profileId);
@@ -102,17 +102,22 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const handleSendInterest = async () => {
     // Check if feature is premium-locked
     if (!FEATURES.SEND_INTEREST_FREE) {
-      Alert.alert('Premium Feature', 'Upgrade to premium to send interests.');
+      showAlert('Premium Feature', 'Upgrade to premium to send interests.');
       return;
     }
 
     try {
       setActionLoading(true);
       await api.sendInterest(profileId);
-      Alert.alert('Success', 'Interest sent successfully!');
+      showAlert('Interest Sent! 💌', `Your interest has been sent to ${profile?.name || 'this profile'}. You will be notified when they respond.`);
       await loadProfile();
     } catch (err) {
-      Alert.alert('Error', (err as Error).message || 'Failed to send interest');
+      const msg = (err as Error).message || '';
+      if (msg.toLowerCase().includes('already')) {
+        showAlert('Already Sent', 'You have already sent an interest to this profile.');
+      } else {
+        showAlert('Failed to Send Interest', msg || 'Something went wrong. Please try again.');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -121,21 +126,33 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const handleShowPhoneNumber = () => {
     // Check if feature is premium-locked
     if (!FEATURES.SHOW_PHONE_FREE) {
-      Alert.alert('Premium Feature', 'Upgrade to premium to view phone numbers.');
+      showAlert('Premium Feature', 'Upgrade to premium to view phone numbers.');
       return;
     }
 
     if (profile?.interestStatus === 'accepted') {
-      // Show phone number
-      Alert.alert(
-        'Contact Information',
-        `Phone: ${profile.phone || 'Not available'}\nEmail: ${profile.email || 'Not available'}`,
+      const phone = profile.phone;
+      if (phone) {
+        showAlert('Phone Number 📞', phone, [{ text: 'OK' }]);
+      } else {
+        showAlert('No Number Found', `${profile.name || 'This user'} has not added a phone number to their profile yet.`, [{ text: 'OK' }]);
+      }
+    } else if (profile?.interestStatus === 'sent') {
+      showAlert(
+        'Interest Pending',
+        'Your interest has been sent. Phone number will be visible once they accept your interest.',
+        [{ text: 'OK' }]
+      );
+    } else if (profile?.interestStatus === 'declined') {
+      showAlert(
+        'Interest Declined',
+        'Your interest was declined. Phone number is not accessible.',
         [{ text: 'OK' }]
       );
     } else {
-      Alert.alert(
-        'Phone Number Hidden',
-        'Phone number will be visible after mutual interest. Send interest to connect!',
+      showAlert(
+        'Phone Number Hidden 🔒',
+        'You need to have a mutual interest accepted to view the phone number. Send interest to connect!',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Send Interest', onPress: handleSendInterest }

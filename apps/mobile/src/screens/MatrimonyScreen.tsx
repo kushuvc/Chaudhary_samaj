@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Image,
   Modal,
   Pressable,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
@@ -125,7 +125,7 @@ export function MatrimonyScreen() {
   const [tab, setTab] = useState<MatchTab>('all');
   const [membership, setMembership] = useState<MembershipType>('regular');
   const [search, setSearch] = useState('');
-  const [interestsMap, setInterestsMap] = useState<Record<string, 'sent' | 'received' | 'mutual'>>({});
+  const [interestsMap, setInterestsMap] = useState<Record<string, 'sent' | 'received' | 'mutual' | 'accepted'>>({});
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [filterOptions, setFilterOptions] = useState<MatrimonyFilterOptions>(EMPTY_OPTIONS);
   const [profiles, setProfiles] = useState<MatrimonyProfile[]>([]);
@@ -136,6 +136,8 @@ export function MatrimonyScreen() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [profileDetailVisible, setProfileDetailVisible] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [shownNumbers, setShownNumbers] = useState<Record<string, string | null>>({});
+  const [sendingInterest, setSendingInterest] = useState<string | null>(null);
 
   const appliedFilterCount = useMemo(
     () => Object.values(filters).filter((value) => String(value).trim() !== '').length,
@@ -145,11 +147,14 @@ export function MatrimonyScreen() {
   const loadInterests = useCallback(async () => {
     try {
       const data = await api.getMyInterests();
-      const map: Record<string, 'sent' | 'received' | 'mutual'> = {};
-      data.sent.forEach(i => { if (i.status === 'pending') map[i.profileId] = 'sent'; });
-      data.received.forEach(i => { 
+      const map: Record<string, 'sent' | 'received' | 'mutual' | 'accepted'> = {}; // eslint-disable-line
+      data.sent.forEach(i => {
         if (i.status === 'accepted') map[i.profileId] = 'mutual';
-        else if (i.status === 'pending') map[i.profileId] = 'received';
+        else if (i.status === 'pending') map[i.profileId] = 'sent';
+      });
+      data.received.forEach(i => {
+        if (i.status === 'accepted') map[i.profileId] = 'mutual';
+        else if (i.status === 'pending' && !map[i.profileId]) map[i.profileId] = 'received';
       });
       setInterestsMap(map);
     } catch (e) {
@@ -210,7 +215,12 @@ export function MatrimonyScreen() {
     try {
       setActionProfileId(profileId);
       if (action === 'shortlist') {
+        const wasShortlisted = profiles.find(p => p.id === profileId)?.isShortlisted;
         await api.toggleMatrimonyShortlist(profileId);
+        showAlert(
+          wasShortlisted ? 'Removed from Shortlist' : 'Added to Shortlist',
+          wasShortlisted ? 'Profile removed from your shortlist.' : 'Profile saved to your shortlist!'
+        );
       } else if (action === 'view') {
         await api.markMatrimonyViewed(profileId);
       } else {
@@ -218,6 +228,7 @@ export function MatrimonyScreen() {
       }
       await loadProfiles();
     } catch (err) {
+      showAlert('Action Failed', (err as Error).message || 'Something went wrong. Please try again.');
       setError((err as Error).message);
     } finally {
       setActionProfileId(null);
@@ -258,7 +269,7 @@ export function MatrimonyScreen() {
           <Pressable
             style={[styles.membershipButton, membership === 'prime' && styles.membershipPrimeActive]}
             onPress={() => {
-              Alert.alert('PRIME Membership', 'Upgrade to PRIME for exclusive benefits!');
+              showAlert('PRIME Membership', 'Upgrade to PRIME for exclusive benefits!');
               setMembership('prime');
             }}
           >
@@ -327,27 +338,19 @@ export function MatrimonyScreen() {
           return (
             <View key={profile.id} style={styles.newCard}>
               {/* Profile Image Area */}
-              <View style={styles.imageContainer}>
+              <Pressable style={styles.imageContainer} onPress={() => { setSelectedProfileId(profile.id); setProfileDetailVisible(true); }}>
                 <View style={styles.profileImagePlaceholder}>
                   <Ionicons name="person" size={80} color={palette.muted} />
                 </View>
                 <Pressable style={styles.shortlistButton} onPress={() => runAction(profile.id, 'shortlist')}>
                   <Ionicons name={profile.isShortlisted ? "bookmark" : "bookmark-outline"} size={20} color="#FFFFFF" />
                 </Pressable>
-              </View>
+              </Pressable>
 
               {/* Info Section */}
               <View style={styles.infoSection}>
                 <View style={styles.nameRow}>
                   <Text style={styles.newName}>{profile.name}</Text>
-                  <View style={styles.contactButtons}>
-                    <Pressable style={styles.iconButton}>
-                      <Ionicons name="call-outline" size={20} color="#E53935" />
-                    </Pressable>
-                    <Pressable style={styles.iconButton}>
-                      <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
-                    </Pressable>
-                  </View>
                 </View>
 
                 <Text style={styles.profileId}>PTL{profile.id.slice(-6)} • Last seen recently</Text>
@@ -367,20 +370,69 @@ export function MatrimonyScreen() {
 
               {/* Action Buttons */}
               <View style={styles.newActionRow}>
-                <Pressable style={styles.showNumberButton}>
+                <Pressable
+                  style={styles.showNumberButton}
+                  onPress={() => {
+                    if (shownNumbers[profile.id] !== undefined) {
+                      const num = shownNumbers[profile.id];
+                      showAlert('Phone Number', num ? num : 'This user has not added a phone number.');
+                    } else {
+                      api.unlockMatrimonyProfile(profile.id)
+                        .then(() => {
+                          const phone = (profile as any).phone || null;
+                          setShownNumbers(prev => ({ ...prev, [profile.id]: phone }));
+                          showAlert(
+                            'Phone Number',
+                            phone
+                              ? phone
+                              : 'This user has not added a phone number yet.'
+                          );
+                        })
+                        .catch((err: Error) => {
+                          showAlert('Unable to Show Number', err.message || 'Something went wrong. Please try again.');
+                        });
+                    }
+                  }}
+                >
                   <Ionicons name="eye-outline" size={16} color="#E53935" />
                   <Text style={styles.showNumberText}>Show Number</Text>
                 </Pressable>
-                <Pressable 
-                  style={styles.sendMessageButton}
-                  onPress={() => {
-                    setSelectedProfileId(profile.id);
-                    setProfileDetailVisible(true);
-                  }}
-                >
-                  <Ionicons name="mail" size={16} color="#FFFFFF" />
-                  <Text style={styles.sendMessageText}>Send Message</Text>
-                </Pressable>
+                {interestStatus === 'sent' || interestStatus === 'mutual' ? (
+                  <View style={[styles.sendMessageButton, styles.sendMessageButtonDisabled]}>
+                    <Ionicons name={interestStatus === 'mutual' ? 'heart' : 'checkmark-circle'} size={16} color="#FFFFFF" />
+                    <Text style={styles.sendMessageText}>
+                      {interestStatus === 'mutual' ? 'Matched!' : 'Interest Sent'}
+                    </Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={[styles.sendMessageButton, sendingInterest === profile.id && styles.sendMessageButtonDisabled]}
+                    disabled={sendingInterest === profile.id}
+                    onPress={async () => {
+                      try {
+                        setSendingInterest(profile.id);
+                        await api.sendInterest(profile.id);
+                        setInterestsMap(prev => ({ ...prev, [profile.id]: 'sent' }));
+                        showAlert('Interest Sent! 💌', `Your interest has been sent successfully.`);
+                      } catch (err) {
+                        const msg = (err as Error).message || '';
+                        if (msg.toLowerCase().includes('already')) {
+                          setInterestsMap(prev => ({ ...prev, [profile.id]: 'sent' }));
+                          showAlert('Already Sent', 'You have already sent an interest to this profile.');
+                        } else {
+                          showAlert('Failed', msg || 'Could not send interest. Please try again.');
+                        }
+                      } finally {
+                        setSendingInterest(null);
+                      }
+                    }}
+                  >
+                    <Ionicons name="heart-outline" size={16} color="#FFFFFF" />
+                    <Text style={styles.sendMessageText}>
+                      {sendingInterest === profile.id ? 'Sending...' : 'Send Interest'}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           );
@@ -922,6 +974,10 @@ function createStyles(palette: ThemePalette) {
     paddingVertical: 10,
     borderRadius: 24,
     gap: 6,
+  },
+  sendMessageButtonDisabled: {
+    backgroundColor: '#9E9E9E',
+    opacity: 0.85,
   },
   sendMessageText: {
     fontSize: 14,

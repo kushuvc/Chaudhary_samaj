@@ -762,7 +762,7 @@ app.get('/api/matrimony/interests', (request, response) => {
 
   // Get sent interests
   const sent = database.prepare(`
-    SELECT i.id, i.receiver_id as profileId, u.full_name as name, i.status, i.created_at as createdAt
+    SELECT i.id, i.receiver_id as userId, p.id as profileId, u.full_name as name, i.status, i.created_at as createdAt
     FROM matrimony_interests i
     JOIN matrimony_profiles p ON i.receiver_id = p.user_id
     JOIN users u ON p.user_id = u.id
@@ -772,7 +772,7 @@ app.get('/api/matrimony/interests', (request, response) => {
 
   // Get received interests
   const received = database.prepare(`
-    SELECT i.id, i.sender_id as profileId, u.full_name as name, i.status, i.created_at as createdAt
+    SELECT i.id, i.sender_id as userId, p.id as profileId, u.full_name as name, i.status, i.created_at as createdAt
     FROM matrimony_interests i
     JOIN matrimony_profiles p ON i.sender_id = p.user_id
     JOIN users u ON p.user_id = u.id

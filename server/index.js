@@ -760,18 +760,20 @@ app.get('/api/matrimony/interests', (request, response) => {
 
   // Get sent interests
   const sent = database.prepare(`
-    SELECT i.id, i.receiver_id as profileId, p.name, i.status, i.created_at as createdAt
+    SELECT i.id, i.receiver_id as profileId, u.full_name as name, i.status, i.created_at as createdAt
     FROM matrimony_interests i
     JOIN matrimony_profiles p ON i.receiver_id = p.user_id
+    JOIN users u ON p.user_id = u.id
     WHERE i.sender_id = ?
     ORDER BY i.created_at DESC
   `).all(activeUserId)
 
   // Get received interests
   const received = database.prepare(`
-    SELECT i.id, i.sender_id as profileId, p.name, i.status, i.created_at as createdAt
+    SELECT i.id, i.sender_id as profileId, u.full_name as name, i.status, i.created_at as createdAt
     FROM matrimony_interests i
     JOIN matrimony_profiles p ON i.sender_id = p.user_id
+    JOIN users u ON p.user_id = u.id
     WHERE i.receiver_id = ?
     ORDER BY i.created_at DESC
   `).all(activeUserId)
@@ -834,11 +836,12 @@ app.get('/api/matrimony/matches', (request, response) => {
       m.id,
       CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END as otherUserId,
       p.id as profileId,
-      p.name,
+      u.full_name as name,
       m.created_at as lastMessageTime,
       (SELECT COUNT(*) FROM matrimony_messages WHERE match_id = m.id AND sender_id != ? AND is_read = 0) as unreadCount
     FROM matrimony_matches m
     JOIN matrimony_profiles p ON p.user_id = CASE WHEN m.user1_id = ? THEN m.user2_id ELSE m.user1_id END
+    JOIN users u ON p.user_id = u.id
     WHERE m.user1_id = ? OR m.user2_id = ?
     ORDER BY m.created_at DESC
   `).all(activeUserId, activeUserId, activeUserId, activeUserId, activeUserId)

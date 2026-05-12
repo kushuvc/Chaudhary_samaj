@@ -105,7 +105,7 @@ function mapHelpRequestRow(row) {
   }
 }
 
-function mapPublicProfile(row) {
+export function mapPublicProfile(row) {
   return {
     id: row.id,
     name: row.full_name,
@@ -128,6 +128,17 @@ function mapPublicProfile(row) {
     createdAt: row.created_at,
     gender: row.gender,
     dateOfBirth: row.date_of_birth,
+    familyStatus: row.family_status,
+    familyType: row.family_type,
+    familyWealth: row.family_wealth,
+    fatherName: row.father_name,
+    motherName: row.mother_name,
+    fatherOccupation: row.father_occupation,
+    motherOccupation: row.mother_occupation,
+    siblings: row.siblings,
+    nativeCity: row.native_city,
+    nativeVillage: row.native_village,
+    photos: row.photos || [],
   }
 }
 
@@ -570,6 +581,8 @@ export async function getCurrentMemberPayloadFast(userId) {
              p.id AS profile_id, p.date_of_birth, p.age, p.gender, p.location, p.community,
              p.sub_community, p.education, p.occupation, p.bio, p.marital_status, p.height, p.income, p.language,
              p.compatibility_score, p.is_unlocked, p.is_shortlisted, p.is_viewed,
+             p.family_status, p.family_type, p.family_wealth, p.father_name, p.mother_name, p.father_occupation, p.mother_occupation, p.siblings,
+             p.native_city, p.native_village, p.photos,
              p.created_at, p.updated_at
       FROM users u
       JOIN matrimony_profiles p ON p.user_id = u.id
@@ -601,6 +614,10 @@ export async function getCurrentMemberPayloadFast(userId) {
       occupation: record.occupation,
       education: record.education,
       bio: record.bio,
+      gender: record.gender,
+      dateOfBirth: record.date_of_birth,
+      nativeCity: record.native_city,
+      nativeVillage: record.native_village,
     },
     matrimony: {
       age: String(record.age),
@@ -614,6 +631,15 @@ export async function getCurrentMemberPayloadFast(userId) {
       preferredEducation: preference?.preferred_education || '',
       preferredOccupation: preference?.preferred_occupation || '',
       subCommunity: record.sub_community || '',
+      familyStatus: record.family_status || '',
+      familyType: record.family_type || '',
+      familyWealth: record.family_wealth || '',
+      fatherName: record.father_name || '',
+      motherName: record.mother_name || '',
+      fatherOccupation: record.father_occupation || '',
+      motherOccupation: record.mother_occupation || '',
+      siblings: record.siblings || '',
+      photos: record.photos || [],
     },
     preferences: preference
       ? {

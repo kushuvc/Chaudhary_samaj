@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native';
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
+import { PhotoManager } from '../components/PhotoManager';
+import type { Photo } from './SignupManagePhotosScreen';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { useAuth } from '../context/AuthContext';
 import { useAppLanguage } from '../context/LanguageContext';
@@ -38,6 +40,8 @@ const emptyProfile: MatrimonyMemberProfile = {
   state: '',
   city: '',
   village: '',
+  nativeCity: '',
+  nativeVillage: '',
   eatingHabit: '',
   horoscopeTime: '',
   horoscopePlace: '',
@@ -57,7 +61,13 @@ const emptyMatrimony: MatrimonyMemberSettings = {
   preferredOccupation: '',
   // Extended fields
   familyStatus: '',
+  familyType: '',
   familyWealth: '',
+  fatherName: '',
+  motherName: '',
+  fatherOccupation: '',
+  motherOccupation: '',
+  siblings: '',
   hobbies: [],
   music: [],
   sports: [],
@@ -231,6 +241,8 @@ export function ProfileScreen() {
           state: normalizeValue(data.profile.state),
           city: normalizeValue(data.profile.city),
           village: normalizeValue(data.profile.village),
+          nativeCity: normalizeValue(data.profile.nativeCity),
+          nativeVillage: normalizeValue(data.profile.nativeVillage),
           eatingHabit: normalizeValue(data.profile.eatingHabit),
           horoscopeTime: normalizeValue(data.profile.horoscopeTime),
           horoscopePlace: normalizeValue(data.profile.horoscopePlace),
@@ -249,7 +261,13 @@ export function ProfileScreen() {
           preferredOccupation: normalizeValue(data.matrimony.preferredOccupation),
           // Extended fields
           familyStatus: normalizeValue(data.matrimony.familyStatus),
+          familyType: normalizeValue(data.matrimony.familyType),
           familyWealth: normalizeValue(data.matrimony.familyWealth),
+          fatherName: normalizeValue(data.matrimony.fatherName),
+          motherName: normalizeValue(data.matrimony.motherName),
+          fatherOccupation: normalizeValue(data.matrimony.fatherOccupation),
+          motherOccupation: normalizeValue(data.matrimony.motherOccupation),
+          siblings: normalizeValue(data.matrimony.siblings),
           hobbies: data.matrimony.hobbies || [],
           music: data.matrimony.music || [],
           sports: data.matrimony.sports || [],
@@ -301,6 +319,8 @@ export function ProfileScreen() {
           state: profile.state,
           city: profile.city,
           village: profile.village,
+          nativeCity: profile.nativeCity,
+          nativeVillage: profile.nativeVillage,
           eatingHabit: profile.eatingHabit,
           horoscopeTime: profile.horoscopeTime,
           horoscopePlace: profile.horoscopePlace,
@@ -310,7 +330,13 @@ export function ProfileScreen() {
           ...matrimony,
           // Ensure all extended fields are included
           familyStatus: matrimony.familyStatus,
+          familyType: matrimony.familyType,
           familyWealth: matrimony.familyWealth,
+          fatherName: matrimony.fatherName,
+          motherName: matrimony.motherName,
+          fatherOccupation: matrimony.fatherOccupation,
+          motherOccupation: matrimony.motherOccupation,
+          siblings: matrimony.siblings,
           hobbies: matrimony.hobbies,
           music: matrimony.music,
           sports: matrimony.sports,
@@ -518,6 +544,22 @@ export function ProfileScreen() {
           placeholder="Not set"
           styles={styles}
         />
+        <LabeledInput
+          label="Native City"
+          value={profile.nativeCity || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, nativeCity: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Native Village"
+          value={profile.nativeVillage || ''}
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, nativeVillage: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
       </SectionCard>
 
       {/* Interests from Signup */}
@@ -549,23 +591,71 @@ export function ProfileScreen() {
         />
       </SectionCard>
 
-      {/* Additional Details from Signup */}
+      {/* Family Details */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Additional Details</Text>
-        <LabeledInput
+        <Text style={styles.sectionTitle}>Family Details</Text>
+        <OptionSelect
           label="Family Status"
           value={matrimony.familyStatus || ''}
-          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, familyStatus: value }))}
+          options={['Middle Class', 'Upper Middle Class', 'Rich', 'Affluent']}
+          editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, familyStatus: value }))}
+          styles={styles}
+        />
+        <OptionSelect
+          label="Family Type"
+          value={matrimony.familyType || ''}
+          options={['Joint Family', 'Nuclear Family', 'Extended Family']}
+          editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, familyType: value }))}
+          styles={styles}
+        />
+        <OptionSelect
+          label="Family Wealth"
+          value={matrimony.familyWealth || ''}
+          options={['Below Average', 'Average', 'Above Average', 'High']}
+          editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, familyWealth: value }))}
+          styles={styles}
+        />
+        <LabeledInput
+          label="Father's Name"
+          value={matrimony.fatherName || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, fatherName: value }))}
           editable={isEditing}
           placeholder="Not set"
           styles={styles}
         />
         <LabeledInput
-          label="Family Wealth"
-          value={matrimony.familyWealth || ''}
-          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, familyWealth: value }))}
+          label="Father's Occupation"
+          value={matrimony.fatherOccupation || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, fatherOccupation: value }))}
+          editable={isEditing}
+          placeholder="e.g. Farmer, Business"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Mother's Name"
+          value={matrimony.motherName || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, motherName: value }))}
           editable={isEditing}
           placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Mother's Occupation"
+          value={matrimony.motherOccupation || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, motherOccupation: value }))}
+          editable={isEditing}
+          placeholder="e.g. Homemaker, Teacher"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Siblings"
+          value={matrimony.siblings || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, siblings: value }))}
+          editable={isEditing}
+          placeholder="e.g. 1 Brother, 2 Sisters"
           styles={styles}
         />
       </SectionCard>
@@ -604,13 +694,18 @@ export function ProfileScreen() {
         />
       </SectionCard>
 
-      {/* Photos from Signup */}
-      {profile.photos && profile.photos.length > 0 && (
-        <SectionCard>
-          <Text style={styles.sectionTitle}>Photos</Text>
-          <Text style={styles.photosCount}>{profile.photos.length} photo(s) uploaded</Text>
-        </SectionCard>
-      )}
+      {/* Photos */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Photos</Text>
+        <PhotoManager
+          photos={(profile.photos || []).filter((p: any) => p.status === 'done')}
+          editable={isEditing}
+          onChange={(updated: Photo[]) => setProfile((prev) => ({ ...prev, photos: updated }))}
+        />
+        {!isEditing && (!profile.photos || profile.photos.filter((p: any) => p.status === 'done').length === 0) && (
+          <Text style={styles.noPhotosText}>No photos uploaded yet. Tap Edit to add photos.</Text>
+        )}
+      </SectionCard>
 
       <Pressable style={styles.logoutButton} onPress={() => logout()}>
         <Text style={styles.logoutButtonText}>{t('logoutLabel')}</Text>
@@ -724,6 +819,11 @@ function createStyles(palette: ThemePalette) {
   logoutButtonText: {
     color: palette.surface,
     fontWeight: '700',
+  },
+  noPhotosText: {
+    ...type.body,
+    color: palette.muted,
+    marginTop: spacing.xs,
   },
   photosCount: {
     ...type.body,

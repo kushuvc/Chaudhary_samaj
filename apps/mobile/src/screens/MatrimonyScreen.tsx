@@ -40,30 +40,22 @@ const EMPTY_OPTIONS: MatrimonyFilterOptions = {
   languages: [],
 };
 
+type SortBy = '' | 'name' | 'age';
+
 interface FilterState {
-  location: string;
-  community: string;
-  subCommunity: string;
   gender: string;
   education: string;
-  occupation: string;
-  maritalStatus: string;
-  language: string;
   minAge: string;
   maxAge: string;
+  sortBy: SortBy;
 }
 
 const INITIAL_FILTERS: FilterState = {
-  location: '',
-  community: '',
-  subCommunity: '',
   gender: '',
   education: '',
-  occupation: '',
-  maritalStatus: '',
-  language: '',
   minAge: '',
   maxAge: '',
+  sortBy: '',
 };
 
 function FilterChip({
@@ -168,16 +160,11 @@ export function MatrimonyScreen() {
       const response = await api.getMatrimonyProfiles({
         tab: tab === 'more' ? 'all' : tab,
         search,
-        location: filters.location,
-        community: filters.community,
-        subCommunity: filters.subCommunity,
         gender: filters.gender,
         education: filters.education,
-        occupation: filters.occupation,
-        maritalStatus: filters.maritalStatus,
-        language: filters.language,
         minAge: filters.minAge,
         maxAge: filters.maxAge,
+        sortBy: filters.sortBy,
       });
       setProfiles(response.profiles || []);
       await loadInterests();
@@ -289,9 +276,11 @@ export function MatrimonyScreen() {
             <Ionicons name="options-outline" size={16} color={palette.text} />
             <Text style={styles.filterChipMainText}>Filter</Text>
           </Pressable>
-          <Pressable style={styles.filterChipMain}>
-            <Text style={styles.filterChipMainText}>Sort by</Text>
-            <Ionicons name="chevron-down" size={16} color={palette.text} />
+          <Pressable style={[styles.filterChipMain, filters.sortBy ? styles.filterChipMainActive : null]} onPress={() => setFilterModalVisible(true)}>
+            <Text style={[styles.filterChipMainText, filters.sortBy ? styles.filterChipMainActiveText : null]}>
+              {filters.sortBy ? `Sort: ${filters.sortBy === 'name' ? 'Name' : 'Age'}` : 'Sort by'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={filters.sortBy ? '#FFFFFF' : palette.text} />
           </Pressable>
           <Pressable style={styles.filterChipMain}>
             <Text style={styles.filterChipMainText}>Newly joined</Text>
@@ -459,6 +448,7 @@ export function MatrimonyScreen() {
           </View>
 
           <ScrollView contentContainerStyle={styles.modalContent}>
+            {/* Age Range */}
             <View style={styles.ageRow}>
               <View style={styles.ageFieldWrap}>
                 <Text style={styles.ageLabel}>{t('minAge')}</Text>
@@ -482,30 +472,7 @@ export function MatrimonyScreen() {
               </View>
             </View>
 
-            <FilterSection
-              title={t('locationLabel')}
-              allLabel={t('allLocations')}
-              selectedValue={filters.location}
-              options={filterOptions.locations}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, location: value }))}
-              styles={styles}
-            />
-            <FilterSection
-              title={t('community')}
-              allLabel={t('allCommunities')}
-              selectedValue={filters.community}
-              options={filterOptions.communities}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, community: value }))}
-              styles={styles}
-            />
-            <FilterSection
-              title={t('subCommunityLabel')}
-              allLabel={t('allSubCommunities')}
-              selectedValue={filters.subCommunity}
-              options={filterOptions.subCommunities}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, subCommunity: value }))}
-              styles={styles}
-            />
+            {/* Gender */}
             <FilterSection
               title={t('genderLabel')}
               allLabel={t('allGenders')}
@@ -514,6 +481,8 @@ export function MatrimonyScreen() {
               onSelect={(value) => setFilters((prev) => ({ ...prev, gender: value }))}
               styles={styles}
             />
+
+            {/* Education */}
             <FilterSection
               title={t('educationLabel')}
               allLabel={t('allEducation')}
@@ -522,30 +491,16 @@ export function MatrimonyScreen() {
               onSelect={(value) => setFilters((prev) => ({ ...prev, education: value }))}
               styles={styles}
             />
-            <FilterSection
-              title={t('occupationLabel')}
-              allLabel={t('allOccupations')}
-              selectedValue={filters.occupation}
-              options={filterOptions.occupations}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, occupation: value }))}
-              styles={styles}
-            />
-            <FilterSection
-              title={t('maritalStatusLabel')}
-              allLabel={t('allStatus')}
-              selectedValue={filters.maritalStatus}
-              options={filterOptions.maritalStatuses}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, maritalStatus: value }))}
-              styles={styles}
-            />
-            <FilterSection
-              title={t('languageFieldLabel')}
-              allLabel={t('allLanguages')}
-              selectedValue={filters.language}
-              options={filterOptions.languages}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, language: value }))}
-              styles={styles}
-            />
+
+            {/* Sort By */}
+            <View style={styles.filterSection}>
+              <Text style={styles.filterSectionTitle}>Sort By</Text>
+              <View style={styles.filterChipRow}>
+                <FilterChip label="Default" active={!filters.sortBy} onPress={() => setFilters(prev => ({ ...prev, sortBy: '' }))} styles={styles} />
+                <FilterChip label="Name" active={filters.sortBy === 'name'} onPress={() => setFilters(prev => ({ ...prev, sortBy: 'name' }))} styles={styles} />
+                <FilterChip label="Age" active={filters.sortBy === 'age'} onPress={() => setFilters(prev => ({ ...prev, sortBy: 'age' }))} styles={styles} />
+              </View>
+            </View>
           </ScrollView>
         </View>
       </Modal>
@@ -858,6 +813,13 @@ function createStyles(palette: ThemePalette) {
   filterChipMainText: {
     fontSize: 13,
     color: palette.text,
+  },
+  filterChipMainActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  filterChipMainActiveText: {
+    color: '#FFFFFF',
   },
   notMatchChip: {
     borderColor: palette.muted,

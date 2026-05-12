@@ -90,13 +90,39 @@ export const api = {
         phone: payload.phone,
         gender: payload.gender,
         age: payload.age,
+        dateOfBirth: payload.dateOfBirth,
+        height: payload.height,
+        maritalStatus: payload.maritalStatus,
+        physicalStatus: payload.physicalStatus,
         location: payload.location,
+        country: payload.country,
+        state: payload.state,
+        city: payload.city,
+        village: payload.village,
+        nativeCity: payload.nativeCity,
+        nativeVillage: payload.nativeVillage,
         community: payload.community,
         subCommunity: payload.subCommunity,
+        religion: payload.religion,
+        caste: payload.caste,
+        dosh: payload.dosh,
         education: payload.education,
         occupation: payload.occupation,
-        maritalStatus: payload.maritalStatus,
-        language: payload.language
+        language: payload.language,
+        eatingHabit: payload.eatingHabit,
+        horoscopeTime: payload.horoscopeTime,
+        horoscopePlace: payload.horoscopePlace,
+        familyStatus: payload.familyStatus,
+        familyType: payload.familyType,
+        familyWealth: payload.familyWealth,
+        fatherName: payload.fatherName,
+        motherName: payload.motherName,
+        fatherOccupation: payload.fatherOccupation,
+        motherOccupation: payload.motherOccupation,
+        siblings: payload.siblings,
+        hobbies: payload.hobbies,
+        music: payload.music,
+        sports: payload.sports,
       })
     });
 
@@ -133,6 +159,10 @@ export const api = {
         isVerified: Boolean(user.isVerified)
       }
     } as AuthSession;
+  },
+  getMatrimonyProfileById: async (profileId: string) => {
+    const response = await request<{ data: MatrimonyProfile }>(`/matrimony/profiles/${profileId}`);
+    return response.data;
   },
   getMatrimonyProfiles: async (params?: Record<string, string | number | undefined>) => {
     const query = new URLSearchParams();
@@ -468,5 +498,43 @@ export const api = {
       createdAt: String(item.createdAt || item.created_at || new Date().toISOString()),
       creatorUserId: item.creatorUserId ? String(item.creatorUserId) : item.creator_user_id ? String(item.creator_user_id) : undefined
     } as CommunityMeeting;
-  }
+  },
+
+  uploadPhoto: async (localUri: string): Promise<string> => {
+    const filename = localUri.split('/').pop() || 'photo.jpg';
+    const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+    const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+    const formData = new FormData();
+
+    // On web, fetch the blob from the object URL; on native use the RN file object syntax
+    if (localUri.startsWith('blob:') || localUri.startsWith('http')) {
+      const blobRes = await fetch(localUri);
+      const blob = await blobRes.blob();
+      formData.append('photo', blob, filename);
+    } else {
+      formData.append('photo', { uri: localUri, name: filename, type: mimeType } as any);
+    }
+
+    // Do NOT set Content-Type — fetch must auto-set multipart/form-data with boundary
+    const headers: Record<string, string> = {};
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+    if (userId) headers['x-user-id'] = userId;
+
+    const res = await fetch(`${API_BASE_URL}/upload/photo`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    const data = await res.json().catch(() => ({})) as any;
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data.data.url as string;
+  },
+
+  deletePhoto: async (url: string): Promise<void> => {
+    await request<{ success: boolean }>('/upload/photo', {
+      method: 'DELETE',
+      body: JSON.stringify({ url }),
+    });
+  },
 };

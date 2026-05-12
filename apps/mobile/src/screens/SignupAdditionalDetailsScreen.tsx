@@ -6,7 +6,13 @@ import { Ionicons } from '@expo/vector-icons';
 
 export interface AdditionalDetailsData {
   familyStatus: 'middle_class' | 'upper_middle_class' | 'rich_affluent' | null;
+  familyType: 'joint' | 'nuclear' | 'extended' | null;
   familyWealth: string;
+  fatherName: string;
+  motherName: string;
+  fatherOccupation: string;
+  motherOccupation: string;
+  siblings: string;
   aboutMyself: string;
 }
 
@@ -14,6 +20,12 @@ interface SignupAdditionalDetailsScreenProps {
   onBack: () => void;
   onSubmit: (data: AdditionalDetailsData) => void;
 }
+
+const familyTypes = [
+  { id: 'joint', label: 'Joint Family' },
+  { id: 'nuclear', label: 'Nuclear Family' },
+  { id: 'extended', label: 'Extended Family' },
+];
 
 const familyStatuses = [
   { id: 'middle_class', label: 'Middle class' },
@@ -40,15 +52,18 @@ export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditi
   
   const [data, setData] = useState<AdditionalDetailsData>({
     familyStatus: null,
+    familyType: null,
     familyWealth: '',
+    fatherName: '',
+    motherName: '',
+    fatherOccupation: '',
+    motherOccupation: '',
+    siblings: '',
     aboutMyself: '',
   });
   const [showWealthPicker, setShowWealthPicker] = useState(false);
 
-  const isValid = 
-    data.familyStatus && 
-    data.familyWealth && 
-    data.aboutMyself.length >= 50;
+  const isValid = data.familyStatus;
 
   return (
     <View style={styles.container}>
@@ -71,7 +86,7 @@ export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditi
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
         {/* Family Status */}
         <View style={styles.section}>
-          <Text style={styles.label}>Select family status</Text>
+          <Text style={styles.label}>Family status</Text>
           <View style={styles.statusRow}>
             {familyStatuses.map((status) => {
               const isSelected = data.familyStatus === status.id;
@@ -83,6 +98,27 @@ export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditi
                 >
                   <Text style={[styles.statusText, isSelected && styles.statusTextActive]}>
                     {status.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Family Type */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Family type</Text>
+          <View style={styles.statusRow}>
+            {familyTypes.map((type) => {
+              const isSelected = data.familyType === type.id;
+              return (
+                <Pressable
+                  key={type.id}
+                  style={[styles.statusButton, isSelected && styles.statusButtonActive]}
+                  onPress={() => setData({ ...data, familyType: type.id as any })}
+                >
+                  <Text style={[styles.statusText, isSelected && styles.statusTextActive]}>
+                    {type.label}
                   </Text>
                 </Pressable>
               );
@@ -122,9 +158,59 @@ export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditi
           )}
         </View>
 
+        {/* Father Details */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Father's details</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Father's name"
+            placeholderTextColor="#9E9E9E"
+            value={data.fatherName}
+            onChangeText={(text) => setData({ ...data, fatherName: text })}
+          />
+          <TextInput
+            style={[styles.textInput, { marginTop: 10 }]}
+            placeholder="Father's occupation (e.g. Farmer, Business)"
+            placeholderTextColor="#9E9E9E"
+            value={data.fatherOccupation}
+            onChangeText={(text) => setData({ ...data, fatherOccupation: text })}
+          />
+        </View>
+
+        {/* Mother Details */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Mother's details</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Mother's name"
+            placeholderTextColor="#9E9E9E"
+            value={data.motherName}
+            onChangeText={(text) => setData({ ...data, motherName: text })}
+          />
+          <TextInput
+            style={[styles.textInput, { marginTop: 10 }]}
+            placeholder="Mother's occupation (e.g. Homemaker, Teacher)"
+            placeholderTextColor="#9E9E9E"
+            value={data.motherOccupation}
+            onChangeText={(text) => setData({ ...data, motherOccupation: text })}
+          />
+        </View>
+
+        {/* Siblings */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Siblings <Text style={styles.optional}>(Optional)</Text></Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="e.g. 1 Brother, 2 Sisters"
+            placeholderTextColor="#9E9E9E"
+            value={data.siblings}
+            onChangeText={(text) => setData({ ...data, siblings: text })}
+          />
+        </View>
+
         {/* About Myself */}
         <View style={styles.section}>
-          <Text style={styles.label}>A few words about myself</Text>
+          <Text style={styles.label}>A few words about myself <Text style={styles.optional}>(Optional)</Text></Text>
           <TextInput
             style={styles.bioInput}
             multiline
@@ -135,12 +221,7 @@ export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditi
             onChangeText={(text) => setData({ ...data, aboutMyself: text })}
             maxLength={500}
           />
-          <Text style={styles.charCount}>
-            {data.aboutMyself.length}/500 characters (minimum 50)
-          </Text>
-          {data.aboutMyself.length > 0 && data.aboutMyself.length < 50 && (
-            <Text style={styles.errorText}>Minimum 50 characters required</Text>
-          )}
+          <Text style={styles.charCount}>{data.aboutMyself.length}/500 characters</Text>
         </View>
       </ScrollView>
 
@@ -345,6 +426,21 @@ function createStyles(palette: ThemePalette) {
       fontSize: 13,
       color: '#E53935',
       fontWeight: '600',
+    },
+    textInput: {
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: 8,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      fontSize: 16,
+      color: palette.text,
+      backgroundColor: palette.cardBg,
+    },
+    optional: {
+      fontSize: 14,
+      color: palette.muted,
+      fontWeight: '400',
     },
   });
 }

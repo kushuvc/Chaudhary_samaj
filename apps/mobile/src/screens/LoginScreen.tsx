@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
@@ -26,11 +27,11 @@ export function LoginScreen() {
   const handleSubmit = async () => {
     try {
       if (!validateEmail(email)) {
-        Alert.alert('Invalid Email', 'Please enter a valid Gmail address.');
+        showAlert('Invalid Email', 'Please enter a valid Gmail address.');
         return;
       }
       if (!password) {
-        Alert.alert('Missing Fields', 'Password is required.');
+        showAlert('Missing Fields', 'Password is required.');
         return;
       }
       setSubmitting(true);
@@ -38,7 +39,7 @@ export function LoginScreen() {
         await login({ email: email.trim(), password });
       } else {
         if (!validatePhone(phone)) {
-          Alert.alert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
+          showAlert('Invalid Phone', 'Please enter a valid 10-digit phone number.');
           return;
         }
         await signup({
@@ -49,7 +50,22 @@ export function LoginScreen() {
         });
       }
     } catch (error) {
-      Alert.alert('Auth Error', (error as Error).message);
+      const msg = (error as Error).message || '';
+      if (mode === 'login') {
+        if (msg.toLowerCase().includes('invalid') || msg.toLowerCase().includes('password')) {
+          showAlert('Login Failed', 'Account not found or incorrect password. Please check your credentials and try again.');
+        } else if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('does not exist')) {
+          showAlert('Account Not Found', 'No account exists with this email. Please sign up first.');
+        } else {
+          showAlert('Login Failed', msg || 'Unable to login. Please try again.');
+        }
+      } else {
+        if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exists')) {
+          showAlert('Account Already Exists', 'An account with this email already exists. Please login instead.');
+        } else {
+          showAlert('Signup Failed', msg || 'Unable to create account. Please try again.');
+        }
+      }
     } finally {
       setSubmitting(false);
     }

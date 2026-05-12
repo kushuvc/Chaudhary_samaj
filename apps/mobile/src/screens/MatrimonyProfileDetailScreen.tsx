@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -24,6 +25,18 @@ interface ProfileDetail extends MatrimonyProfile {
   interestStatus?: InterestStatus;
   hasSentInterest?: boolean;
   hasReceivedInterest?: boolean;
+  familyStatus?: string | null;
+  familyType?: string | null;
+  familyWealth?: string | null;
+  fatherName?: string | null;
+  motherName?: string | null;
+  fatherOccupation?: string | null;
+  motherOccupation?: string | null;
+  siblings?: string | null;
+  nativeCity?: string | null;
+  nativeVillage?: string | null;
+  gender?: string | null;
+  photos?: Array<{ uri: string; isPrimary: boolean; status: string }> | null;
 }
 
 interface MatrimonyProfileDetailScreenProps {
@@ -52,16 +65,15 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const loadProfile = useCallback(async () => {
     try {
       setError(null);
-      // Get profile details with interest status
-      const response = await api.getMatrimonyProfiles({ profileId });
-      const profileData = response.profiles?.[0];
-      
+      const [profileData, interests] = await Promise.all([
+        api.getMatrimonyProfileById(profileId),
+        api.getMyInterests(),
+      ]);
+
       if (profileData) {
-        // Check interest status - profileId from API is now the profile-xxx format
-        const interests = await api.getMyInterests();
         const sent = interests.sent.find(i => i.profileId === profileId);
         const received = interests.received.find(i => i.profileId === profileId);
-        
+
         let interestStatus: InterestStatus = 'none';
         if (sent?.status === 'accepted' || received?.status === 'accepted') {
           interestStatus = 'accepted';
@@ -72,7 +84,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         } else if (sent?.status === 'declined' || received?.status === 'declined') {
           interestStatus = 'declined';
         }
-        
+
         setProfile({
           ...profileData,
           interestStatus,
@@ -275,14 +287,33 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
 
         {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <View style={styles.avatarPlaceholder}>
-            <Ionicons name="person" size={60} color={palette.muted} />
-          </View>
+          {(() => {
+            const primaryPhoto = profile.photos?.find((p) => p.isPrimary && p.status === 'done' && p.uri);
+            return primaryPhoto ? (
+              <Image source={{ uri: primaryPhoto.uri }} style={styles.avatar} resizeMode="cover" />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={60} color={palette.muted} />
+              </View>
+            );
+          })()}
           <View style={styles.headerInfo}>
             <Text style={styles.name}>{profile.name}</Text>
             <Text style={styles.compatibility}>{profile.compatibilityScore}% Match</Text>
           </View>
         </View>
+
+        {/* Photo Gallery */}
+        {profile.photos && profile.photos.filter((p) => p.status === 'done' && p.uri).length > 1 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Photos</Text>
+            <View style={styles.photoGallery}>
+              {profile.photos.filter((p) => p.status === 'done' && p.uri).map((p, i) => (
+                <Image key={i} source={{ uri: p.uri }} style={styles.galleryPhoto} resizeMode="cover" />
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Action Buttons */}
         {renderActionButtons()}
@@ -337,6 +368,80 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             <Text style={styles.bio}>{profile.bio}</Text>
           </View>
         )}
+
+        {/* Family Details */}
+        {(profile.familyStatus || profile.familyType || profile.familyWealth || profile.fatherName || profile.motherName || profile.fatherOccupation || profile.motherOccupation || profile.siblings) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Family Details</Text>
+            {!!profile.familyStatus && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Family Status</Text>
+                <Text style={styles.infoValue}>{profile.familyStatus}</Text>
+              </View>
+            )}
+            {!!profile.familyType && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Family Type</Text>
+                <Text style={styles.infoValue}>{profile.familyType}</Text>
+              </View>
+            )}
+            {!!profile.familyWealth && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Family Wealth</Text>
+                <Text style={styles.infoValue}>{profile.familyWealth}</Text>
+              </View>
+            )}
+            {!!profile.fatherName && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Father's Name</Text>
+                <Text style={styles.infoValue}>{profile.fatherName}</Text>
+              </View>
+            )}
+            {!!profile.fatherOccupation && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Father's Occupation</Text>
+                <Text style={styles.infoValue}>{profile.fatherOccupation}</Text>
+              </View>
+            )}
+            {!!profile.motherName && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Mother's Name</Text>
+                <Text style={styles.infoValue}>{profile.motherName}</Text>
+              </View>
+            )}
+            {!!profile.motherOccupation && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Mother's Occupation</Text>
+                <Text style={styles.infoValue}>{profile.motherOccupation}</Text>
+              </View>
+            )}
+            {!!profile.siblings && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Siblings</Text>
+                <Text style={styles.infoValue}>{profile.siblings}</Text>
+              </View>
+            )}
+          </View>
+        ) : null}
+
+        {/* Native Location */}
+        {(profile.nativeCity || profile.nativeVillage) ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Native Place</Text>
+            {!!profile.nativeCity && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Native City</Text>
+                <Text style={styles.infoValue}>{profile.nativeCity}</Text>
+              </View>
+            )}
+            {!!profile.nativeVillage && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Native Village</Text>
+                <Text style={styles.infoValue}>{profile.nativeVillage}</Text>
+              </View>
+            )}
+          </View>
+        ) : null}
 
         {/* Interest Status */}
         {profile.interestStatus !== 'none' && (
@@ -404,6 +509,22 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: 12,
+    },
+    avatar: {
+      width: 120,
+      height: 120,
+      borderRadius: 60,
+      marginBottom: 12,
+    },
+    photoGallery: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    galleryPhoto: {
+      width: '31%',
+      aspectRatio: 0.8,
+      borderRadius: 8,
     },
     headerInfo: {
       alignItems: 'center',

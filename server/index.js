@@ -2,6 +2,7 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
+import multer from 'multer'
 import {
   applyProfileUpdate,
   authAccountExistsByEmail,
@@ -59,6 +60,7 @@ import {
   getPublicProfilesFast,
   getSavedFiltersByUserIdFast,
   invalidateActiveEmailOtpsFast,
+  mapPublicProfile,
   requestEmailOtpFast,
 } from './fast-queries.js'
 
@@ -75,6 +77,20 @@ function cacheSet(key, value, ttlMs = 5000) {
 }
 function cacheInvalidate(prefix) {
   for (const key of _cache.keys()) { if (key.startsWith(prefix)) _cache.delete(key) }
+}
+
+function pgHashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const digest = crypto.scryptSync(password, salt, 64).toString('hex')
+  return `${salt}:${digest}`
+}
+function pgVerifyPassword(password, storedHash) {
+  if (!storedHash || !storedHash.includes(':')) return false
+  const [salt, digest] = storedHash.split(':')
+  const candidate = crypto.scryptSync(password, salt, 64)
+  const stored = Buffer.from(digest, 'hex')
+  if (candidate.length !== stored.length) return false
+  return crypto.timingSafeEqual(candidate, stored)
 }
 
 const app = express()
@@ -100,7 +116,7 @@ function resolveUserId(request) {
   return exists ? headerUserId : null
 }
 
-app.post('/api/auth/login', (request, response) => {
+app.post('/api/auth/login', async (request, response) => {
   const { email, password } = request.body || {}
 
   if (!email || !password) {
@@ -113,16 +129,29 @@ app.post('/api/auth/login', (request, response) => {
     return
   }
 
-  const user = authenticateUser(String(email), String(password))
-  if (!user) {
-    response.status(401).json({ success: false, error: 'Invalid email or password' })
-    return
+  try {
+    const rows = await pgQuery(
+      `SELECT u.id, u.full_name, u.email, u.phone, u.avatar_url, a.password_hash
+       FROM users u
+       JOIN auth_accounts a ON a.user_id = u.id
+       WHERE lower(u.email) = lower($1)
+       LIMIT 1`,
+      [String(email).trim()]
+    )
+    const row = rows[0]
+    if (!row || !pgVerifyPassword(String(password), row.password_hash)) {
+      response.status(401).json({ success: false, error: 'Account not found or incorrect password. Please check your credentials and try again.' })
+      return
+    }
+    const user = { id: row.id, fullName: row.full_name, email: row.email, phone: row.phone, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row.full_name || row.email)}` }
+    cacheSet(`user:${row.id}`, true, 300000)
+    response.json({ success: true, data: { user, authToken: user.id } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  response.json({ success: true, data: { user, authToken: user.id } })
 })
 
-app.post('/api/auth/signup', (request, response) => {
+app.post('/api/auth/signup', async (request, response) => {
   const {
     fullName,
     email,
@@ -132,13 +161,38 @@ app.post('/api/auth/signup', (request, response) => {
     dateOfBirth,
     phone,
     age,
+    height,
+    physicalStatus,
     location,
+    country,
+    state,
+    city,
+    village,
+    nativeCity,
+    nativeVillage,
     community,
     subCommunity,
+    religion,
+    caste,
+    dosh,
     education,
     occupation,
     maritalStatus,
     language,
+    eatingHabit,
+    horoscopeTime,
+    horoscopePlace,
+    familyStatus,
+    familyType,
+    familyWealth,
+    fatherName,
+    motherName,
+    fatherOccupation,
+    motherOccupation,
+    siblings,
+    hobbies,
+    music,
+    sports,
   } = request.body || {}
 
   if (!fullName || !email || !password) {
@@ -161,29 +215,75 @@ app.post('/api/auth/signup', (request, response) => {
     return
   }
 
-  const result = createAuthUser({
-    fullName: String(fullName).trim(),
-    email: String(email).trim(),
-    password: String(password),
-    gender: gender ? String(gender).trim() : null,
-    dateOfBirth: dateOfBirth ? String(dateOfBirth).trim() : null,
-    phone: phone ? String(phone).trim() : null,
-    age: age !== undefined && age !== null && String(age).trim() !== '' ? Number(age) : null,
-    location: location ? String(location).trim() : null,
-    community: community ? String(community).trim() : null,
-    subCommunity: subCommunity ? String(subCommunity).trim() : null,
-    education: education ? String(education).trim() : null,
-    occupation: occupation ? String(occupation).trim() : null,
-    maritalStatus: maritalStatus ? String(maritalStatus).trim() : null,
-    language: language ? String(language).trim() : null,
-  })
+  try {
+    const existing = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [String(email).trim()])
+    if (existing.length > 0) {
+      response.status(409).json({ success: false, error: 'Email already registered' })
+      return
+    }
 
-  if (!result.ok) {
-    response.status(409).json({ success: false, error: result.error || 'Unable to create user' })
-    return
+    const userId = crypto.randomUUID()
+    const profileId = `profile-${crypto.randomUUID()}`
+    const createdAt = new Date().toISOString()
+    const safeStr = (v, fb = '') => v ? String(v).trim() || fb : fb
+    const numericAge = Number(age)
+    const calcAge = Number.isFinite(numericAge) && numericAge >= 18 && numericAge <= 100
+      ? Math.round(numericAge)
+      : dateOfBirth
+        ? Math.max(18, Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
+        : 25
+    const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(String(fullName).trim())}`
+
+    await pgQuery(
+      'INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$6)',
+      [userId, String(email).trim().toLowerCase(), String(fullName).trim(), phone || null, avatarUrl, createdAt]
+    )
+    await pgQuery(
+      'INSERT INTO auth_accounts (user_id, password_hash, created_at, updated_at) VALUES ($1,$2,$3,$3)',
+      [userId, pgHashPassword(String(password)), createdAt]
+    )
+    await pgQuery(
+      `INSERT INTO matrimony_profiles
+        (id, user_id, date_of_birth, age, gender, location, community, sub_community, education, occupation, bio,
+         marital_status, height, income, language, compatibility_score, is_unlocked, is_shortlisted, is_viewed,
+         native_city, native_village, family_status, family_type, family_wealth,
+         father_name, mother_name, father_occupation, mother_occupation, siblings,
+         created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$30)`,
+      [
+        profileId, userId, dateOfBirth || null, calcAge,
+        safeStr(gender, 'unspecified'),
+        safeStr(city || location),
+        safeStr(community || caste, 'Chaudhary'),
+        safeStr(subCommunity),
+        safeStr(education),
+        safeStr(occupation),
+        'New member profile. Please update details in Profile section.',
+        safeStr(maritalStatus, 'Never Married'),
+        safeStr(height),
+        '',
+        safeStr(language, 'Hindi'),
+        0, 1, 0, 0,
+        safeStr(nativeCity),
+        safeStr(nativeVillage),
+        safeStr(familyStatus),
+        safeStr(familyType),
+        safeStr(familyWealth),
+        safeStr(fatherName),
+        safeStr(motherName),
+        safeStr(fatherOccupation),
+        safeStr(motherOccupation),
+        safeStr(siblings),
+        createdAt,
+      ]
+    )
+
+    const user = { id: userId, fullName: String(fullName).trim(), email: String(email).trim().toLowerCase(), phone: phone || null, avatar: avatarUrl }
+    cacheSet(`user:${userId}`, true, 300000)
+    response.status(201).json({ success: true, data: { user, authToken: userId } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  response.status(201).json({ success: true, data: { user: result.user, authToken: result.user.id } })
 })
 
 app.post('/api/auth/otp/request', async (request, response) => {
@@ -609,13 +709,14 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
   let profile = null
 
   try {
-    profile = await getMatrimonyProfileByIdFast(activeUserId, request.params.id)
+    const raw = await getMatrimonyProfileByIdFast(activeUserId, request.params.id)
+    if (raw) profile = mapPublicProfile(raw)
   } catch {
     profile = null
   }
 
   if (!profile) {
-    profile = database
+    const raw = database
       .prepare(`
         SELECT
           u.full_name,
@@ -634,6 +735,7 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
         LIMIT 1
       `)
       .get(activeUserId, request.params.id)
+    if (raw) profile = mapPublicProfile(raw)
   }
 
   if (!profile) {
@@ -1273,21 +1375,182 @@ app.put('/api/events/guests/:guestId/rsvp', (request, response) => {
   response.json({ success: true, data: result })
 })
 
-app.put('/api/matrimony/me', (request, response) => {
+app.put('/api/matrimony/me', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  const updated = applyProfileUpdate(activeUserId, request.body || {})
+  const { user = {}, profile = {}, matrimony = {} } = request.body || {}
+  const now = new Date().toISOString()
 
-  if (!updated) {
-    response.status(404).json({ success: false, error: 'Current profile not found' })
+  try {
+    // Update users table
+    if (user.fullName || user.phone) {
+      await pgQuery(
+        'UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone), updated_at = $3 WHERE id = $4',
+        [user.fullName || null, user.phone || null, now, activeUserId]
+      )
+    }
+
+    // Update matrimony_profiles
+    await pgQuery(
+      `UPDATE matrimony_profiles SET
+        location = COALESCE($1, location),
+        occupation = COALESCE($2, occupation),
+        education = COALESCE($3, education),
+        bio = COALESCE($4, bio),
+        gender = COALESCE($5, gender),
+        date_of_birth = COALESCE($6, date_of_birth),
+        marital_status = COALESCE($7, marital_status),
+        height = COALESCE($8, height),
+        income = COALESCE($9, income),
+        community = COALESCE($10, community),
+        language = COALESCE($11, language),
+        sub_community = COALESCE($12, sub_community),
+        family_status = COALESCE($13, family_status),
+        family_type = COALESCE($14, family_type),
+        family_wealth = COALESCE($15, family_wealth),
+        father_name = COALESCE($16, father_name),
+        mother_name = COALESCE($17, mother_name),
+        father_occupation = COALESCE($18, father_occupation),
+        mother_occupation = COALESCE($19, mother_occupation),
+        siblings = COALESCE($20, siblings),
+        native_city = COALESCE($21, native_city),
+        native_village = COALESCE($22, native_village),
+        photos = COALESCE($23, photos),
+        updated_at = $24
+       WHERE user_id = $25`,
+      [
+        profile.location || null,
+        profile.occupation || null,
+        profile.education || null,
+        profile.bio || null,
+        profile.gender || null,
+        profile.dateOfBirth || null,
+        matrimony.maritalStatus || null,
+        matrimony.height || null,
+        matrimony.income || null,
+        matrimony.community || null,
+        matrimony.language || null,
+        matrimony.subCommunity || null,
+        matrimony.familyStatus || null,
+        matrimony.familyType || null,
+        matrimony.familyWealth || null,
+        matrimony.fatherName || null,
+        matrimony.motherName || null,
+        matrimony.fatherOccupation || null,
+        matrimony.motherOccupation || null,
+        matrimony.siblings || null,
+        profile.nativeCity || null,
+        profile.nativeVillage || null,
+        profile.photos ? JSON.stringify(profile.photos) : null,
+        now,
+        activeUserId,
+      ]
+    )
+
+    // Invalidate cache so next fetch is fresh
+    cacheInvalidate(`memberPayload:${activeUserId}`)
+
+    // Return fresh payload
+    let updated = null
+    try { updated = await getCurrentMemberPayloadFast(activeUserId) } catch {}
+    if (!updated) updated = getCurrentMemberPayload(activeUserId)
+
+    if (!updated) {
+      response.status(404).json({ success: false, error: 'Profile not found after update' })
+      return
+    }
+    response.json({ success: true, data: updated })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Photo upload
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gvcefstsjakuwkxsuwkl.supabase.co'
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
+const STORAGE_BUCKET = 'profile-photos'
+
+app.post('/api/upload/photo', upload.single('photo'), async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  if (!request.file) {
+    response.status(400).json({ success: false, error: 'No file uploaded' })
     return
   }
 
-  response.json({ success: true, data: updated })
+  try {
+    const ext = request.file.mimetype === 'image/png' ? 'png' : 'jpg'
+    const fileName = `${activeUserId}/${crypto.randomUUID()}.${ext}`
+    const storageUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`
+
+    const uploadRes = await fetch(storageUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': request.file.mimetype,
+        'x-upsert': 'false',
+      },
+      body: request.file.buffer,
+    })
+
+    if (!uploadRes.ok) {
+      const err = await uploadRes.text()
+      throw new Error(`Storage upload failed: ${err}`)
+    }
+
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`
+    response.json({ success: true, data: { url: publicUrl } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.delete('/api/upload/photo', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  const { url } = request.body || {}
+  if (!url) {
+    response.status(400).json({ success: false, error: 'No URL provided' })
+    return
+  }
+
+  try {
+    // Extract path after bucket name
+    const marker = `/object/public/${STORAGE_BUCKET}/`
+    const idx = url.indexOf(marker)
+    if (idx === -1) throw new Error('Invalid photo URL')
+    const filePath = url.slice(idx + marker.length)
+
+    // Only allow deleting own photos
+    if (!filePath.startsWith(activeUserId + '/')) {
+      response.status(403).json({ success: false, error: 'Forbidden' })
+      return
+    }
+
+    const deleteRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${filePath}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+    })
+
+    if (!deleteRes.ok && deleteRes.status !== 404) {
+      throw new Error(`Delete failed: ${await deleteRes.text()}`)
+    }
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
 })
 
 app.use((_request, response) => {

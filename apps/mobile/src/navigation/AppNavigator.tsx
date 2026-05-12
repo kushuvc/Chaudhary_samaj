@@ -12,9 +12,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { InterestsScreen } from '../screens/InterestsScreen';
 import { MessagesScreen } from '../screens/MessagesScreen';
-import { MatrimonyProfileDetailScreen } from '../screens/MatrimonyProfileDetailScreen';
 import { LanguageSelectionScreen } from '../screens/LanguageSelectionScreen';
-import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { SignupProfileTypeScreen, type ProfileType } from '../screens/SignupProfileTypeScreen';
 import { SignupPersonalDetailsScreen, type PersonalDetailsData } from '../screens/SignupPersonalDetailsScreen';
@@ -28,6 +26,7 @@ import { SignupManagePhotosScreen, type Photo } from '../screens/SignupManagePho
 import { SignupBasicDetailsScreen, type BasicDetailsData } from '../screens/SignupBasicDetailsScreen';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
+import { api } from '../services/api';
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
@@ -78,7 +77,7 @@ function MainTabs() {
 }
 
 function AuthFlow() {
-  const { signup, completeProfileSetup } = useAuth();
+  const { signup, completeProfileSetup, isNewSignup } = useAuth();
   const [authMode, setAuthMode] = useState<
     | 'welcome'
     | 'login'
@@ -92,7 +91,7 @@ function AuthFlow() {
     | 'signup-horoscope'
     | 'signup-photos'
     | 'signup-basic'
-  >('welcome');
+  >(isNewSignup ? 'signup-photos' : 'welcome');
 
   const [signupData, setSignupData] = useState<{
     profileType?: ProfileType;
@@ -151,33 +150,81 @@ function AuthFlow() {
 
   const handleHoroscopeNext = (data: HoroscopeData) => {
     setSignupData({ ...signupData, horoscope: data });
-    setAuthMode('signup-photos');
+    setAuthMode('signup-basic');
   };
 
   const handleHoroscopeSkip = () => {
-    setAuthMode('signup-photos');
-  };
-
-  const handlePhotosComplete = (photos: Photo[]) => {
-    setSignupData({ ...signupData, photos });
     setAuthMode('signup-basic');
   };
 
   const handleSignupSubmit = async (basicDetails: BasicDetailsData) => {
+    const pd = signupData.personalDetails;
+    const rd = signupData.religiousDetails;
+    const ld = signupData.locationDetails;
+    const ad = signupData.additionalDetails;
+    const intr = signupData.interests;
+
+    const dobYear = pd?.dateOfBirth?.year ? parseInt(pd.dateOfBirth.year) : undefined;
+    const dobMonth = pd?.dateOfBirth?.month ? parseInt(pd.dateOfBirth.month) : undefined;
+    const dobDay = pd?.dateOfBirth?.day ? parseInt(pd.dateOfBirth.day) : undefined;
+    const dobString = dobYear && dobMonth && dobDay
+      ? `${dobYear}-${String(dobMonth).padStart(2, '0')}-${String(dobDay).padStart(2, '0')}`
+      : undefined;
+    const age = dobYear ? new Date().getFullYear() - dobYear : undefined;
+
+    const familyStatusMap: Record<string, string> = {
+      middle_class: 'Middle Class',
+      upper_middle_class: 'Upper Middle Class',
+      rich_affluent: 'Rich',
+    };
+
     await signup({
       name: basicDetails.fullName,
       email: basicDetails.email,
       password: basicDetails.password,
       phone: basicDetails.phone,
-      gender: signupData.personalDetails?.gender || undefined,
-      age: signupData.personalDetails?.dateOfBirth?.year
-        ? new Date().getFullYear() - parseInt(signupData.personalDetails.dateOfBirth.year)
-        : undefined,
-      location: signupData.locationDetails?.city || undefined,
-      community: signupData.religiousDetails?.caste || undefined,
-      subCommunity: signupData.religiousDetails?.subcaste || undefined,
+      gender: pd?.gender || undefined,
+      age,
+      dateOfBirth: dobString,
+      height: pd?.height || undefined,
+      maritalStatus: pd?.maritalStatus?.replace(/_/g, ' ') || undefined,
+      physicalStatus: pd?.physicalStatus || undefined,
+      location: ld?.city || undefined,
+      country: ld?.country || undefined,
+      state: ld?.state || undefined,
+      city: ld?.city || undefined,
+      village: ld?.village || undefined,
+      nativeCity: ld?.nativeCity || undefined,
+      nativeVillage: ld?.nativeVillage || undefined,
+      community: rd?.caste || undefined,
+      subCommunity: rd?.subcaste || undefined,
+      religion: rd?.religion || undefined,
+      caste: rd?.caste || undefined,
+      dosh: rd?.dosh || undefined,
+      eatingHabit: signupData.eatingHabit || undefined,
+      horoscopeTime: signupData.horoscope?.timeOfBirth || undefined,
+      horoscopePlace: signupData.horoscope?.placeOfBirth || undefined,
+      familyStatus: ad?.familyStatus ? familyStatusMap[ad.familyStatus] || ad.familyStatus : undefined,
+      familyType: ad?.familyType?.replace(/_/g, ' ') || undefined,
+      familyWealth: ad?.familyWealth || undefined,
+      fatherName: ad?.fatherName || undefined,
+      motherName: ad?.motherName || undefined,
+      fatherOccupation: ad?.fatherOccupation || undefined,
+      motherOccupation: ad?.motherOccupation || undefined,
+      siblings: ad?.siblings || undefined,
+      hobbies: intr?.hobbies,
+      music: intr?.music,
+      sports: intr?.sports,
     });
-    // Skip ProfileSetupScreen - all data collected in multi-step signup
+    setAuthMode('signup-photos');
+  };
+
+  const handlePhotosComplete = async (photos: Photo[]) => {
+    if (photos.length > 0) {
+      try {
+        await api.updateMyMatrimonyProfile({ profile: { photos } } as any);
+      } catch {}
+    }
     await completeProfileSetup();
   };
 
@@ -250,18 +297,18 @@ function AuthFlow() {
           onSkip={handleHoroscopeSkip}
         />
       );
-    case 'signup-photos':
-      return (
-        <SignupManagePhotosScreen
-          onBack={() => setAuthMode('signup-horoscope')}
-          onComplete={handlePhotosComplete}
-        />
-      );
     case 'signup-basic':
       return (
         <SignupBasicDetailsScreen
-          onBack={() => setAuthMode('signup-photos')}
+          onBack={() => setAuthMode('signup-horoscope')}
           onSubmit={handleSignupSubmit}
+        />
+      );
+    case 'signup-photos':
+      return (
+        <SignupManagePhotosScreen
+          onBack={() => setAuthMode('signup-basic')}
+          onComplete={handlePhotosComplete}
         />
       );
   }
@@ -281,9 +328,8 @@ export function AppNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {!session ? <Stack.Screen name="Auth" component={AuthFlow} /> : null}
-      {session && isNewSignup ? <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} /> : null}
-      {session ? <Stack.Screen name="Main" component={MainTabs} /> : null}
+      {(!session || isNewSignup) ? <Stack.Screen name="Auth" component={AuthFlow} /> : null}
+      {(session && !isNewSignup) ? <Stack.Screen name="Main" component={MainTabs} /> : null}
     </Stack.Navigator>
   );
 }

@@ -9,6 +9,8 @@ export interface LocationDetailsData {
   state: string;
   city: string;
   village?: string;
+  nativeCity?: string;
+  nativeVillage?: string;
 }
 
 interface SignupLocationDetailsScreenProps {
@@ -80,6 +82,8 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
     state: 'Goa',
     city: 'Calangute',
     village: '',
+    nativeCity: '',
+    nativeVillage: '',
   });
   const [activePicker, setActivePicker] = useState<'country' | 'state' | 'city' | null>(null);
 
@@ -152,6 +156,30 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
             placeholderTextColor={palette.muted}
             value={data.village}
             onChangeText={(text) => setData({ ...data, village: text })}
+          />
+        </View>
+
+        {/* Native City */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Native City <Text style={styles.optional}>(Optional)</Text></Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter your native city"
+            placeholderTextColor={palette.muted}
+            value={data.nativeCity}
+            onChangeText={(text) => setData({ ...data, nativeCity: text })}
+          />
+        </View>
+
+        {/* Native Village */}
+        <View style={styles.section}>
+          <Text style={styles.label}>Native Village <Text style={styles.optional}>(Optional)</Text></Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter your native village"
+            placeholderTextColor={palette.muted}
+            value={data.nativeVillage}
+            onChangeText={(text) => setData({ ...data, nativeVillage: text })}
           />
         </View>
       </ScrollView>

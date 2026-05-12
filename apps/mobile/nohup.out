@@ -1,0 +1,9 @@
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL
+Starting project at /Users/kush/Chaudhary_samaj/apps/mobile
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  expo@54.0.33 - expected version: ~54.0.34
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +14,7 @@ export interface BasicDetailsData {
 
 interface SignupBasicDetailsScreenProps {
   onBack: () => void;
-  onSubmit: (data: BasicDetailsData) => void;
+  onSubmit: (data: BasicDetailsData) => Promise<void> | void;
 }
 
 export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetailsScreenProps) {
@@ -29,6 +29,21 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
     agreeToTerms: false,
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    if (!isValid || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit(data);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const validateEmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email);
   
@@ -143,12 +158,17 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
 
       {/* Footer */}
       <View style={styles.footer}>
+        {!!error && <Text style={styles.errorText}>{error}</Text>}
         <Pressable
-          style={[styles.submitButton, !isValid && styles.submitButtonDisabled]}
-          onPress={() => isValid && onSubmit(data)}
-          disabled={!isValid}
+          style={[styles.submitButton, (!isValid || loading) && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={!isValid || loading}
         >
-          <Text style={styles.submitButtonText}>Register</Text>
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.submitButtonText}>Register</Text>
+          )}
         </Pressable>
       </View>
     </View>

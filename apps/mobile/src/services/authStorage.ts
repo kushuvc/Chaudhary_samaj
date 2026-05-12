@@ -1,14 +1,14 @@
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AuthSession } from '../types';
 
 const SESSION_KEY = 'chaudhary_mobile_auth_session';
 
 export async function saveSession(session: AuthSession) {
-  await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+  await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
 export async function loadSession(): Promise<AuthSession | null> {
-  const raw = await SecureStore.getItemAsync(SESSION_KEY);
+  const raw = await AsyncStorage.getItem(SESSION_KEY);
   if (!raw) return null;
 
   try {
@@ -19,5 +19,5 @@ export async function loadSession(): Promise<AuthSession | null> {
 }
 
 export async function clearSession() {
-  await SecureStore.deleteItemAsync(SESSION_KEY);
+  await AsyncStorage.removeItem(SESSION_KEY);
 }

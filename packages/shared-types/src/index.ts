@@ -18,13 +18,39 @@ export interface SignupPayload {
   phone?: string;
   gender?: string;
   age?: number;
+  dateOfBirth?: string;
+  height?: string;
+  maritalStatus?: string;
+  physicalStatus?: string;
   location?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  village?: string;
+  nativeCity?: string;
+  nativeVillage?: string;
   community?: string;
   subCommunity?: string;
+  religion?: string;
+  caste?: string;
+  dosh?: string;
   education?: string;
   occupation?: string;
-  maritalStatus?: string;
   language?: string;
+  eatingHabit?: string;
+  horoscopeTime?: string;
+  horoscopePlace?: string;
+  familyStatus?: string;
+  familyType?: string;
+  familyWealth?: string;
+  fatherName?: string;
+  motherName?: string;
+  fatherOccupation?: string;
+  motherOccupation?: string;
+  siblings?: string;
+  hobbies?: string[];
+  music?: string[];
+  sports?: string[];
 }
 
 export type OtpPurpose = 'signup' | 'login';
@@ -261,10 +287,12 @@ export interface MatrimonyMemberProfile {
   state?: string | null;
   city?: string | null;
   village?: string | null;
+  nativeCity?: string | null;
+  nativeVillage?: string | null;
   eatingHabit?: string | null;
   horoscopeTime?: string | null;
   horoscopePlace?: string | null;
-  photos?: string[] | null;
+  photos?: any[] | null;
 }
 
 export interface MatrimonyMemberSettings {
@@ -280,7 +308,13 @@ export interface MatrimonyMemberSettings {
   preferredOccupation: string;
   // Extended fields from signup flow
   familyStatus?: string | null;
+  familyType?: string | null;
   familyWealth?: string | null;
+  fatherName?: string | null;
+  motherName?: string | null;
+  fatherOccupation?: string | null;
+  motherOccupation?: string | null;
+  siblings?: string | null;
   hobbies?: string[] | null;
   music?: string[] | null;
   sports?: string[] | null;

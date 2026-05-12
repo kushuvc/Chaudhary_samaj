@@ -1,14 +1,17 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, Image } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { api } from '../services/api';
 
 export interface Photo {
   id: string;
-  uri: string;
+  uri: string;        // remote URL after upload
+  localUri?: string;  // local URI while uploading
   isPrimary: boolean;
-  status: 'pending' | 'uploading' | 'validated' | 'rejected';
+  status: 'uploading' | 'done' | 'error';
 }
 
 interface SignupManagePhotosScreenProps {
@@ -19,61 +22,70 @@ interface SignupManagePhotosScreenProps {
 export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePhotosScreenProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  
-  const [photos, setPhotos] = useState<Photo[]>([
-    { id: '1', uri: '', isPrimary: true, status: 'pending' },
-    { id: '2', uri: '', isPrimary: false, status: 'pending' },
-  ]);
-  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [photos, setPhotos] = useState<Photo[]>([]);
 
-  const addPhoto = () => {
-    if (photos.length < 6) {
-      const newPhoto: Photo = {
-        id: Date.now().toString(),
-        uri: '',
-        isPrimary: photos.length === 0,
-        status: 'pending',
-      };
-      setPhotos([...photos, newPhoto]);
+  const pickAndUpload = async () => {
+    if (photos.length >= 6) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: false,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [3, 4],
+    });
+
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    const tempId = Date.now().toString();
+    const newPhoto: Photo = {
+      id: tempId,
+      uri: '',
+      localUri: asset.uri,
+      isPrimary: photos.length === 0,
+      status: 'uploading',
+    };
+    setPhotos((prev) => [...prev, newPhoto]);
+
+    try {
+      const remoteUrl = await api.uploadPhoto(asset.uri);
+      setPhotos((prev) =>
+        prev.map((p) => p.id === tempId ? { ...p, uri: remoteUrl, status: 'done' } : p)
+      );
+    } catch (err: any) {
+      Alert.alert('Upload failed', err.message || 'Could not upload photo');
+      setPhotos((prev) => prev.filter((p) => p.id !== tempId));
     }
   };
 
-  const removePhoto = (id: string) => {
-    const filtered = photos.filter((p) => p.id !== id);
-    if (filtered.length > 0 && !filtered.some((p) => p.isPrimary)) {
-      filtered[0].isPrimary = true;
+  const removePhoto = async (id: string) => {
+    const photo = photos.find((p) => p.id === id);
+    if (!photo) return;
+    setPhotos((prev) => prev.filter((p) => p.id !== id));
+    // Ensure another photo becomes primary
+    setPhotos((prev) => {
+      if (prev.length > 0 && !prev.some((p) => p.isPrimary)) {
+        return prev.map((p, i) => i === 0 ? { ...p, isPrimary: true } : p);
+      }
+      return prev;
+    });
+    if (photo.uri) {
+      try { await api.deletePhoto(photo.uri); } catch {}
     }
-    setPhotos(filtered);
   };
 
   const setPrimary = (id: string) => {
-    setPhotos(
-      photos.map((p) => ({
-        ...p,
-        isPrimary: p.id === id,
-      }))
-    );
+    setPhotos((prev) => prev.map((p) => ({ ...p, isPrimary: p.id === id })));
   };
 
-  const simulateUpload = (id: string) => {
-    setPhotos(
-      photos.map((p) =>
-        p.id === id ? { ...p, status: 'uploading' as const } : p
-      )
-    );
-    
-    setTimeout(() => {
-      setPhotos((current) =>
-        current.map((p) =>
-          p.id === id ? { ...p, status: 'validated' as const, uri: 'placeholder' } : p
-        )
-      );
-      setShowSuccessToast(true);
-      setTimeout(() => setShowSuccessToast(false), 3000);
-    }, 2000);
-  };
-
-  const hasUploadedPhotos = photos.some((p) => p.status === 'validated' || p.status === 'uploading');
+  const hasUploadedPhotos = photos.some((p) => p.status === 'done');
 
   return (
     <View style={styles.container}>
@@ -88,72 +100,57 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
         <Text style={styles.subtitle}>
-          Drag photos to reorder. First photo will be displayed as your profile photo
+          Tap + to add photos. First photo will be your profile photo. Up to 6 photos.
         </Text>
 
         {/* Photos Grid */}
         <View style={styles.photosGrid}>
-          {photos.map((photo, index) => (
-            <View key={photo.id} style={styles.photoContainer}>
-              {photo.isPrimary && (
-                <View style={styles.primaryBadge}>
-                  <Text style={styles.primaryText}>Profile Photo</Text>
-                </View>
-              )}
-              
-              <Pressable 
-                style={[styles.photoBox, photo.status === 'validated' && styles.photoBoxValidated]}
-                onPress={() => photo.status === 'pending' && simulateUpload(photo.id)}
-              >
-                {photo.status === 'pending' && (
-                  <View style={styles.placeholderContent}>
-                    <View style={styles.personIcon}>
+          {photos.map((photo) => {
+            const displayUri = photo.localUri || photo.uri;
+            return (
+              <View key={photo.id} style={styles.photoContainer}>
+                {photo.isPrimary && (
+                  <View style={styles.primaryBadge}>
+                    <Text style={styles.primaryText}>Profile Photo</Text>
+                  </View>
+                )}
+
+                <View style={[styles.photoBox, photo.status === 'done' && styles.photoBoxDone]}>
+                  {displayUri ? (
+                    <Image source={{ uri: displayUri }} style={styles.photoImage} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.placeholderContent}>
                       <Ionicons name="person" size={40} color="#CCCCCC" />
                     </View>
-                    <Text style={styles.underValidationText}>Under{'\n'}Validation</Text>
-                  </View>
-                )}
-                
-                {photo.status === 'uploading' && (
-                  <View style={styles.uploadingContent}>
-                    <Ionicons name="cloud-upload" size={32} color="#E53935" />
-                    <Text style={styles.uploadingText}>Uploading...</Text>
-                  </View>
-                )}
-                
-                {photo.status === 'validated' && (
-                  <View style={styles.validatedContent}>
-                    <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
-                    <Text style={styles.validatedText}>Validated</Text>
-                  </View>
-                )}
-              </Pressable>
+                  )}
+                  {photo.status === 'uploading' && (
+                    <View style={styles.uploadOverlay}>
+                      <ActivityIndicator size="large" color="#FFFFFF" />
+                      <Text style={styles.uploadingText}>Uploading...</Text>
+                    </View>
+                  )}
+                </View>
 
-              {/* Remove button */}
-              <Pressable 
-                style={styles.removeButton}
-                onPress={() => removePhoto(photo.id)}
-              >
-                <Ionicons name="close" size={18} color="#FFFFFF" />
-              </Pressable>
-
-              {/* Set primary button */}
-              {!photo.isPrimary && photo.status === 'validated' && (
-                <Pressable 
-                  style={styles.setPrimaryButton}
-                  onPress={() => setPrimary(photo.id)}
-                >
-                  <Text style={styles.setPrimaryText}>Set as Profile</Text>
+                {/* Remove button */}
+                <Pressable style={styles.removeButton} onPress={() => removePhoto(photo.id)}>
+                  <Ionicons name="close" size={16} color="#FFFFFF" />
                 </Pressable>
-              )}
-            </View>
-          ))}
+
+                {/* Set primary button */}
+                {!photo.isPrimary && photo.status === 'done' && (
+                  <Pressable style={styles.setPrimaryButton} onPress={() => setPrimary(photo.id)}>
+                    <Text style={styles.setPrimaryText}>Set as Profile</Text>
+                  </Pressable>
+                )}
+              </View>
+            );
+          })}
 
           {/* Add Photo Button */}
           {photos.length < 6 && (
-            <Pressable style={styles.addPhotoButton} onPress={addPhoto}>
+            <Pressable style={styles.addPhotoButton} onPress={pickAndUpload}>
               <View style={styles.addPhotoIcon}>
-                <Ionicons name="add" size={32} color="#2196F3" />
+                <Ionicons name="add" size={32} color="#E53935" />
               </View>
               <Text style={styles.addPhotoText}>Add Photo</Text>
             </Pressable>
@@ -161,26 +158,19 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
         </View>
       </ScrollView>
 
-      {/* Success Toast */}
-      {showSuccessToast && (
-        <View style={styles.toast}>
-          <View style={styles.toastIcon}>
-            <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
-          </View>
-          <Text style={styles.toastText}>uploaded successfully</Text>
-        </View>
-      )}
-
       {/* Footer */}
       <View style={styles.footer}>
         <Pressable
           style={[styles.completeButton, !hasUploadedPhotos && styles.completeButtonDisabled]}
-          onPress={() => hasUploadedPhotos && onComplete(photos)}
+          onPress={() => hasUploadedPhotos && onComplete(photos.filter((p) => p.status === 'done'))}
           disabled={!hasUploadedPhotos}
         >
           <Text style={styles.completeButtonText}>
-            {hasUploadedPhotos ? 'Complete' : 'Add at least one photo'}
+            {hasUploadedPhotos ? `Continue (${photos.filter(p => p.status === 'done').length} photo${photos.filter(p => p.status === 'done').length > 1 ? 's' : ''})` : 'Add at least one photo'}
           </Text>
+        </Pressable>
+        <Pressable style={styles.skipButton} onPress={() => onComplete([])}>
+          <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
       </View>
     </View>
@@ -258,50 +248,29 @@ function createStyles(palette: ThemePalette) {
       borderColor: '#E0E0E0',
       overflow: 'hidden',
     },
-    photoBoxValidated: {
-      borderColor: '#4CAF50',
+    photoBoxDone: {
+      borderColor: '#E53935',
+    },
+    photoImage: {
+      width: '100%',
+      height: '100%',
     },
     placeholderContent: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    personIcon: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: '#E0E0E0',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 12,
-    },
-    underValidationText: {
-      fontSize: 12,
-      color: palette.muted,
-      textAlign: 'center',
-      lineHeight: 18,
-    },
-    uploadingContent: {
-      flex: 1,
+    uploadOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.45)',
       justifyContent: 'center',
       alignItems: 'center',
     },
     uploadingText: {
-      fontSize: 14,
-      color: '#E53935',
+      fontSize: 13,
+      color: '#FFFFFF',
       marginTop: 8,
-      fontWeight: '500',
-    },
-    validatedContent: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    validatedText: {
-      fontSize: 14,
-      color: '#4CAF50',
-      marginTop: 8,
-      fontWeight: '500',
+      fontWeight: '600',
     },
     removeButton: {
       position: 'absolute',
@@ -359,36 +328,6 @@ function createStyles(palette: ThemePalette) {
       color: palette.muted,
       fontWeight: '500',
     },
-    toast: {
-      position: 'absolute',
-      bottom: 100,
-      alignSelf: 'center',
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: '#FFFFFF',
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      borderRadius: 28,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      elevation: 8,
-      gap: 10,
-    },
-    toastIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: '#E53935',
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    toastText: {
-      fontSize: 14,
-      color: palette.text,
-      fontWeight: '500',
-    },
     footer: {
       padding: 24,
       paddingBottom: 40,
@@ -408,6 +347,14 @@ function createStyles(palette: ThemePalette) {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '700',
+    },
+    skipButton: {
+      alignItems: 'center',
+      paddingVertical: 12,
+    },
+    skipText: {
+      fontSize: 14,
+      color: palette.muted,
     },
   });
 }

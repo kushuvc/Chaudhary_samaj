@@ -1385,6 +1385,30 @@ app.put('/api/matrimony/me', async (request, response) => {
   const { user = {}, profile = {}, matrimony = {} } = request.body || {}
   const now = new Date().toISOString()
 
+  // Debug: log what photos look like
+  console.log('[update profile] photos received:', typeof profile.photos, JSON.stringify(profile.photos).slice(0, 200))
+
+  // Clean photos array - ensure it's valid JSON
+  let cleanPhotos = null
+  if (profile.photos && Array.isArray(profile.photos) && profile.photos.length > 0) {
+    try {
+      // Only keep necessary fields
+      cleanPhotos = profile.photos.map(p => ({
+        id: p.id || String(Math.random()).slice(2),
+        uri: p.uri || p.url || '',
+        url: p.url || p.uri || '',
+        status: p.status || 'done',
+        isPrimary: Boolean(p.isPrimary),
+        uploadedAt: p.uploadedAt || new Date().toISOString()
+      }))
+      // Validate it's serializable
+      JSON.parse(JSON.stringify(cleanPhotos))
+    } catch (e) {
+      console.error('[update profile] photos serialization error:', e.message)
+      cleanPhotos = null
+    }
+  }
+
   try {
     // Update users table
     if (user.fullName || user.phone) {
@@ -1445,7 +1469,7 @@ app.put('/api/matrimony/me', async (request, response) => {
         matrimony.siblings || null,
         profile.nativeCity || null,
         profile.nativeVillage || null,
-        profile.photos || null,
+        cleanPhotos,
         now,
         activeUserId,
       ]

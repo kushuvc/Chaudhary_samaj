@@ -1445,7 +1445,7 @@ app.put('/api/matrimony/me', async (request, response) => {
         matrimony.siblings || null,
         profile.nativeCity || null,
         profile.nativeVillage || null,
-        profile.photos ? JSON.stringify(profile.photos) : null,
+        profile.photos || null,
         now,
         activeUserId,
       ]

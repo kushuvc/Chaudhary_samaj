@@ -138,7 +138,16 @@ export function mapPublicProfile(row) {
     siblings: row.siblings,
     nativeCity: row.native_city,
     nativeVillage: row.native_village,
-    photos: row.photos || [],
+    photos: (() => {
+      if (!row.photos) return []
+      if (Array.isArray(row.photos)) return row.photos
+      try {
+        const parsed = JSON.parse(row.photos)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    })(),
   }
 }
 
@@ -639,7 +648,16 @@ export async function getCurrentMemberPayloadFast(userId) {
       fatherOccupation: record.father_occupation || '',
       motherOccupation: record.mother_occupation || '',
       siblings: record.siblings || '',
-      photos: record.photos || [],
+      photos: (() => {
+        if (!record.photos) return []
+        if (Array.isArray(record.photos)) return record.photos
+        try {
+          const parsed = JSON.parse(record.photos)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      })(),
     },
     preferences: preference
       ? {

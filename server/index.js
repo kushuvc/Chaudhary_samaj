@@ -1389,11 +1389,11 @@ app.put('/api/matrimony/me', async (request, response) => {
   console.log('[update profile] photos received:', typeof profile.photos, JSON.stringify(profile.photos).slice(0, 200))
 
   // Clean photos array - ensure it's valid JSON
-  let cleanPhotos = null
+  let photosJson = null
   if (profile.photos && Array.isArray(profile.photos) && profile.photos.length > 0) {
     try {
-      // Only keep necessary fields
-      cleanPhotos = profile.photos.map(p => ({
+      // Only keep necessary fields and serialize for JSONB
+      const cleanPhotos = profile.photos.map(p => ({
         id: p.id || String(Math.random()).slice(2),
         uri: p.uri || p.url || '',
         url: p.url || p.uri || '',
@@ -1401,11 +1401,11 @@ app.put('/api/matrimony/me', async (request, response) => {
         isPrimary: Boolean(p.isPrimary),
         uploadedAt: p.uploadedAt || new Date().toISOString()
       }))
-      // Validate it's serializable
-      JSON.parse(JSON.stringify(cleanPhotos))
+      photosJson = JSON.stringify(cleanPhotos)
+      console.log('[update profile] photos serialized:', photosJson.slice(0, 100))
     } catch (e) {
       console.error('[update profile] photos serialization error:', e.message)
-      cleanPhotos = null
+      photosJson = null
     }
   }
 
@@ -1469,7 +1469,7 @@ app.put('/api/matrimony/me', async (request, response) => {
         matrimony.siblings || null,
         profile.nativeCity || null,
         profile.nativeVillage || null,
-        cleanPhotos,
+        photosJson,
         now,
         activeUserId,
       ]

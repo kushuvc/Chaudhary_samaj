@@ -1386,7 +1386,11 @@ app.put('/api/matrimony/me', async (request, response) => {
   const now = new Date().toISOString()
 
   // Debug: log what photos look like
-  console.log('[update profile] photos received:', typeof profile.photos, JSON.stringify(profile.photos).slice(0, 200))
+  let photosDebug = 'undefined'
+  try {
+    photosDebug = JSON.stringify(profile.photos).slice(0, 200)
+  } catch {}
+  console.log('[update profile] photos received:', typeof profile.photos, photosDebug)
 
   // Clean photos array - ensure it's valid JSON
   let photosJson = null

@@ -3,6 +3,7 @@ import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
 import multer from 'multer'
+import Razorpay from 'razorpay'
 import {
   applyProfileUpdate,
   authAccountExistsByEmail,
@@ -1600,6 +1601,132 @@ app.delete('/api/upload/photo', async (request, response) => {
     }
     response.json({ success: true })
   } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Razorpay Payment Integration
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret'
+})
+
+// Create order
+app.post('/api/payments/create-order', async (request, response) => {
+  try {
+    const activeUserId = resolveUserId(request)
+    if (!activeUserId) {
+      response.status(401).json({ success: false, error: 'Authentication required' })
+      return
+    }
+
+    const { plan, amount } = request.body
+    
+    const options = {
+      amount: amount * 100, // Razorpay expects amount in paise
+      currency: 'INR',
+      receipt: `receipt_${activeUserId}_${Date.now()}`,
+      notes: {
+        userId: activeUserId,
+        plan: plan || 'basic'
+      }
+    }
+
+    const order = await razorpay.orders.create(options)
+    response.json({ success: true, data: order })
+  } catch (err) {
+    console.error('[razorpay] Create order error:', err)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Verify payment
+app.post('/api/payments/verify', async (request, response) => {
+  try {
+    const activeUserId = resolveUserId(request)
+    if (!activeUserId) {
+      response.status(401).json({ success: false, error: 'Authentication required' })
+      return
+    }
+
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, amount } = request.body
+
+    // Verify signature
+    const body = razorpay_order_id + '|' + razorpay_payment_id
+    const expectedSignature = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret')
+      .update(body)
+      .digest('hex')
+
+    if (expectedSignature !== razorpay_signature) {
+      response.status(400).json({ success: false, error: 'Invalid signature' })
+      return
+    }
+
+    // Calculate expiry date based on plan
+    const now = new Date()
+    const expiryDate = new Date(now)
+    if (plan === 'basic') {
+      expiryDate.setDate(now.getDate() + 7) // 7 days
+    } else {
+      expiryDate.setDate(now.getDate() + 30) // 30 days
+    }
+
+    // Store subscription in database
+    await pgQuery(
+      `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         plan = $2,
+         amount = $3,
+         payment_id = $4,
+         order_id = $5,
+         status = 'active',
+         started_at = $6,
+         expires_at = $7`,
+      [activeUserId, plan, amount, razorpay_payment_id, razorpay_order_id, now.toISOString(), expiryDate.toISOString()]
+    )
+
+    response.json({ success: true, data: { verified: true, plan, expiresAt: expiryDate.toISOString() } })
+  } catch (err) {
+    console.error('[razorpay] Verify error:', err)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Get subscription status
+app.get('/api/payments/subscription', async (request, response) => {
+  try {
+    const activeUserId = resolveUserId(request)
+    if (!activeUserId) {
+      response.status(401).json({ success: false, error: 'Authentication required' })
+      return
+    }
+
+    const result = await pgQuery(
+      `SELECT * FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
+       ORDER BY expires_at DESC LIMIT 1`,
+      [activeUserId]
+    )
+
+    if (result.rows.length === 0) {
+      response.json({ success: true, data: { hasSubscription: false } })
+      return
+    }
+
+    const sub = result.rows[0]
+    response.json({
+      success: true,
+      data: {
+        hasSubscription: true,
+        plan: sub.plan,
+        amount: sub.amount,
+        startedAt: sub.started_at,
+        expiresAt: sub.expires_at
+      }
+    })
+  } catch (err) {
+    console.error('[razorpay] Get subscription error:', err)
     response.status(500).json({ success: false, error: err.message })
   }
 })

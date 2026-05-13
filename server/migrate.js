@@ -47,6 +47,20 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS idx_matrimony_messages_match_id ON matrimony_messages(match_id)`,
   `CREATE INDEX IF NOT EXISTS idx_matrimony_messages_sender_id ON matrimony_messages(sender_id)`,
   `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS photos JSONB`,
+  `CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    plan TEXT NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic', 'premium')),
+    amount INTEGER NOT NULL,
+    payment_id TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'cancelled')),
+    started_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(status)`,
 ]
 
 for (const sql of migrations) {

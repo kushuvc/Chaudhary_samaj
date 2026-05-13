@@ -537,4 +537,32 @@ export const api = {
       body: JSON.stringify({ url }),
     });
   },
+
+  // Payment APIs
+  getSubscriptionStatus: async (): Promise<{ hasSubscription: boolean; plan?: string; amount?: number; expiresAt?: string }> => {
+    const response = await request<{ data: { hasSubscription: boolean; plan?: string; amount?: number; expiresAt?: string } }>('/payments/subscription');
+    return response.data;
+  },
+
+  createPaymentOrder: async (plan: string, amount: number): Promise<{ id: string; amount: number; currency: string }> => {
+    const response = await request<{ data: { id: string; amount: number; currency: string } }>('/payments/create-order', {
+      method: 'POST',
+      body: JSON.stringify({ plan, amount }),
+    });
+    return response.data;
+  },
+
+  verifyPayment: async (orderId: string, paymentId: string, signature: string, plan: string, amount: number): Promise<{ verified: boolean }> => {
+    const response = await request<{ data: { verified: boolean } }>('/payments/verify', {
+      method: 'POST',
+      body: JSON.stringify({
+        razorpay_order_id: orderId,
+        razorpay_payment_id: paymentId,
+        razorpay_signature: signature,
+        plan,
+        amount,
+      }),
+    });
+    return response.data;
+  },
 };

@@ -57,27 +57,26 @@ export function SubscriptionsScreen() {
     try {
       setProcessing(true);
       
-      // Create order via backend
+      // Create Razorpay Payment Link via backend
       const planData = PLANS[plan];
-      const order = await api.createPaymentOrder(plan, planData.amount);
+      const paymentLink = await api.createPaymentLink(plan, planData.amount);
       
-      // Build Razorpay checkout URL
-      const razorpayKey = 'rzp_test_SoumuudukTdW0a';
-      const checkoutUrl = `https://checkout.razorpay.com/v1/checkout?key_id=${razorpayKey}&order_id=${order.id}&amount=${planData.amount * 100}&currency=INR&name=Chaudhary%20Samaj&description=${encodeURIComponent(planData.name)}&prefill[name]=&prefill[email]=&prefill[contact]=&theme[color]=F44336&callback_url=${encodeURIComponent('chaudharysamaj://payment/success')}&cancel_url=${encodeURIComponent('chaudharysamaj://payment/cancel')}`;
-      
-      // Open Razorpay checkout in browser
-      const supported = await Linking.canOpenURL(checkoutUrl);
+      // Open payment link in browser
+      const supported = await Linking.canOpenURL(paymentLink.short_url);
       if (supported) {
-        await Linking.openURL(checkoutUrl);
+        await Linking.openURL(paymentLink.short_url);
         
         // Show instructions
         Alert.alert(
           'Complete Payment',
-          'Razorpay checkout is now open in your browser.\n\nTest Card: 5267 3181 8797 5449\nExpiry: Any future date\nCVV: Any 3 digits\n\nOr use UPI: success@razorpay\n\nAfter payment, return to app and pull down to refresh.',
-          [{ text: 'OK' }]
+          'Razorpay payment page is now open in your browser.\n\nTest Card: 5267 3181 8797 5449\nExpiry: Any future date\nCVV: Any 3 digits\n\nOr use UPI: success@razorpay\n\nAfter payment, return to app and pull down to refresh.',
+          [{ text: 'OK', onPress: () => {
+            // Auto-refresh after 15 seconds
+            setTimeout(() => loadSubscription(), 15000);
+          }}]
         );
       } else {
-        Alert.alert('Error', 'Cannot open Razorpay checkout');
+        Alert.alert('Error', 'Cannot open payment page');
       }
       
     } catch (err) {

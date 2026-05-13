@@ -1497,13 +1497,23 @@ app.put('/api/matrimony/me', async (request, response) => {
 
     // Return fresh payload
     let updated = null
-    try { updated = await getCurrentMemberPayloadFast(activeUserId) } catch {}
-    if (!updated) updated = getCurrentMemberPayload(activeUserId)
+    try { updated = await getCurrentMemberPayloadFast(activeUserId) } catch (e) {
+      console.error('[update profile] Fast query failed:', e.message)
+    }
+    if (!updated) {
+      console.log('[update profile] Falling back to regular getCurrentMemberPayload')
+      updated = getCurrentMemberPayload(activeUserId)
+    }
 
     if (!updated) {
       response.status(404).json({ success: false, error: 'Profile not found after update' })
       return
     }
+    
+    // Debug: Log what we're returning
+    console.log('[update profile] Returning profile.photos:', updated?.profile?.photos?.length || 0, 'photos')
+    console.log('[update profile] Returning matrimony.photos:', updated?.matrimony?.photos?.length || 0, 'photos')
+    
     response.json({ success: true, data: updated })
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })

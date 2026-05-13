@@ -627,6 +627,16 @@ export async function getCurrentMemberPayloadFast(userId) {
       dateOfBirth: record.date_of_birth,
       nativeCity: record.native_city,
       nativeVillage: record.native_village,
+      photos: (() => {
+        if (!record.photos) return []
+        if (Array.isArray(record.photos)) return record.photos
+        try {
+          const parsed = JSON.parse(record.photos)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      })(),
     },
     matrimony: {
       age: String(record.age),
@@ -648,16 +658,6 @@ export async function getCurrentMemberPayloadFast(userId) {
       fatherOccupation: record.father_occupation || '',
       motherOccupation: record.mother_occupation || '',
       siblings: record.siblings || '',
-      photos: (() => {
-        if (!record.photos) return []
-        if (Array.isArray(record.photos)) return record.photos
-        try {
-          const parsed = JSON.parse(record.photos)
-          return Array.isArray(parsed) ? parsed : []
-        } catch {
-          return []
-        }
-      })(),
     },
     preferences: preference
       ? {

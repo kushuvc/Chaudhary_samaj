@@ -12,6 +12,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { InterestsScreen } from '../screens/InterestsScreen';
 import { MessagesScreen } from '../screens/MessagesScreen';
+import { SubscriptionsScreen } from '../screens/SubscriptionsScreen';
 import { LanguageSelectionScreen } from '../screens/LanguageSelectionScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { SignupProfileTypeScreen, type ProfileType } from '../screens/SignupProfileTypeScreen';
@@ -70,6 +71,7 @@ function MainTabs() {
       <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarIcon: tabIcon('heart-outline'), tabBarLabel: t('matrimony') }} />
       <Tabs.Screen name="Interests" component={InterestsScreen} options={{ tabBarIcon: tabIcon('mail-outline'), tabBarLabel: 'Interests' }} />
       <Tabs.Screen name="Messages" component={MessagesScreen} options={{ tabBarIcon: tabIcon('chatbubble-outline'), tabBarLabel: 'Messages' }} />
+      <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ tabBarIcon: tabIcon('card-outline'), tabBarLabel: 'Subscriptions' }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('person-outline'), tabBarLabel: t('profile') }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline'), tabBarLabel: t('settings') }} />
     </Tabs.Navigator>

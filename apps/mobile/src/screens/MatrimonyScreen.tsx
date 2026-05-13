@@ -21,7 +21,6 @@ import { api } from '../services/api';
 import type { MatrimonyFilterOptions, MatrimonyProfile } from '../types';
 
 type MatchTab = 'all' | 'newlyJoined' | 'more';
-type MembershipType = 'regular' | 'prime';
 
 const TAB_CONFIG: Array<{ key: MatchTab; label: string }> = [
   { key: 'all', label: 'All matches' },
@@ -115,7 +114,6 @@ export function MatrimonyScreen() {
   const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [tab, setTab] = useState<MatchTab>('all');
-  const [membership, setMembership] = useState<MembershipType>('regular');
   const [search, setSearch] = useState('');
   const [interestsMap, setInterestsMap] = useState<Record<string, 'sent' | 'received' | 'mutual' | 'accepted'>>({});
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
@@ -243,31 +241,7 @@ export function MatrimonyScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
-        {/* Membership Toggle */}
-        <View style={styles.membershipToggle}>
-          <Pressable
-            style={[styles.membershipButton, membership === 'regular' && styles.membershipActive]}
-            onPress={() => setMembership('regular')}
-          >
-            <Text style={[styles.membershipText, membership === 'regular' && styles.membershipTextActive]}>
-              Regular
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.membershipButton, membership === 'prime' && styles.membershipPrimeActive]}
-            onPress={() => {
-              showAlert('PRIME Membership', 'Upgrade to PRIME for exclusive benefits!');
-              setMembership('prime');
-            }}
-          >
-            <Text style={[styles.membershipText, membership === 'prime' && styles.membershipTextActive]}>
-              PRIME
-            </Text>
-            <View style={styles.primeDot} />
-          </Pressable>
-        </View>
-
-        {/* Match Count */}
+        {/* Tab Row */}
         <Text style={styles.matchCount}>{profiles.length} Matches based on your <Text style={styles.preferencesHighlight}>preferences</Text></Text>
 
         {/* Filter Chips */}
@@ -755,42 +729,6 @@ function createStyles(palette: ThemePalette) {
   },
   filterChipTextActive: {
     color: palette.primary,
-  },
-  membershipToggle: {
-    flexDirection: 'row',
-    backgroundColor: palette.cardBg,
-    borderRadius: 24,
-    padding: 4,
-    marginBottom: 16,
-    alignSelf: 'center',
-  },
-  membershipButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-  },
-  membershipActive: {
-    backgroundColor: '#E53935',
-  },
-  membershipPrimeActive: {
-    backgroundColor: '#FFD700',
-  },
-  membershipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  membershipTextActive: {
-    color: '#FFFFFF',
-  },
-  primeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#E53935',
-    marginLeft: 6,
   },
   matchCount: {
     fontSize: 14,

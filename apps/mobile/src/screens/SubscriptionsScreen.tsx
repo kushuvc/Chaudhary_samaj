@@ -57,27 +57,32 @@ export function SubscriptionsScreen() {
     try {
       setProcessing(true);
       
-      // Create order
+      // Create Razorpay Payment Link via backend
       const planData = PLANS[plan];
-      const order = await api.createPaymentOrder(plan, planData.amount);
+      const paymentLink = await api.createPaymentLink(plan, planData.amount);
       
-      // Build Razorpay checkout URL
-      const razorpayKey = 'rzp_test_SoumuudukTdW0a';
-      const checkoutUrl = `https://checkout.razorpay.com/v1/checkout.js?key=${razorpayKey}&order_id=${order.id}&amount=${planData.amount * 100}&currency=INR&name=Chaudhary%20Samaj&description=${planData.name}&prefill[email]=&prefill[contact]=&theme[color]=${palette.primary.replace('#', '')}`;
-      
-      // For now, show alert with test instructions
-      Alert.alert(
-        'Test Payment',
-        `Order created: ${order.id}\n\nIn production, this would open Razorpay checkout.\n\nFor testing, use these UPI IDs:\n• success@razorpay (success)\n• failure@razorpay (failure)`,
-        [
-          { text: 'Simulate Success', onPress: () => simulatePayment(order.id, plan, planData.amount, 'success') },
-          { text: 'Simulate Failure', onPress: () => simulatePayment(order.id, plan, planData.amount, 'failure') },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
+      // Open payment link in browser
+      const supported = await Linking.canOpenURL(paymentLink.short_url);
+      if (supported) {
+        await Linking.openURL(paymentLink.short_url);
+        
+        // Show confirmation dialog
+        Alert.alert(
+          'Complete Payment',
+          'You will be redirected to complete payment in your browser. After payment, return to the app and pull down to refresh.',
+          [
+            { text: 'OK', onPress: () => {
+              // Auto-refresh subscription status after 10 seconds
+              setTimeout(() => loadSubscription(), 10000);
+            }}
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Cannot open payment link');
+      }
       
     } catch (err) {
-      Alert.alert('Error', 'Failed to create order: ' + (err as Error).message);
+      Alert.alert('Error', 'Failed to create payment: ' + (err as Error).message);
     } finally {
       setProcessing(false);
     }

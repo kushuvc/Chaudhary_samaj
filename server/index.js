@@ -1731,6 +1731,63 @@ app.get('/api/payments/subscription', async (request, response) => {
   }
 })
 
+// Create Razorpay Payment Link
+app.post('/api/payments/create-link', async (request, response) => {
+  try {
+    const activeUserId = resolveUserId(request)
+    if (!activeUserId) {
+      response.status(401).json({ success: false, error: 'Authentication required' })
+      return
+    }
+
+    const { plan, amount } = request.body
+
+    // Create payment link via Razorpay API
+    const linkData = {
+      amount: amount * 100, // in paise
+      currency: 'INR',
+      accept_partial: false,
+      description: `${plan === 'basic' ? 'Basic' : 'Premium'} Subscription - Chaudhary Samaj`,
+      customer: {
+        name: 'User',
+      },
+      notify: {
+        sms: false,
+        email: false,
+      },
+      reminder_enable: false,
+      notes: {
+        userId: activeUserId,
+        plan: plan,
+      },
+      callback_url: `${process.env.FRONTEND_URL || 'https://chaudhary-samaj.onrender.com'}/payment-success?userId=${activeUserId}&plan=${plan}&amount=${amount}`,
+      callback_method: 'get',
+    }
+
+    const res = await fetch('https://api.razorpay.com/v1/payment_links', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + Buffer.from(`${process.env.RAZORPAY_KEY_ID || 'rzp_test_SoumuudukTdW0a'}:${process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc'}`).toString('base64'),
+      },
+      body: JSON.stringify(linkData),
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      console.error('[razorpay] Create link error:', data)
+      response.status(500).json({ success: false, error: data.error?.description || 'Failed to create payment link' })
+      return
+    }
+
+    response.json({ success: true, data: { id: data.id, short_url: data.short_url } })
+  } catch (err) {
+    console.error('[razorpay] Create link error:', err)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
 app.use((_request, response) => {
   response.status(404).json({ success: false, error: 'Route not found' })
 })

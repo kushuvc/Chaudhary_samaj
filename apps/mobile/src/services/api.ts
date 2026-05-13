@@ -565,4 +565,12 @@ export const api = {
     });
     return response.data;
   },
+
+  createPaymentLink: async (plan: string, amount: number): Promise<{ id: string; short_url: string }> => {
+    const response = await request<{ data: { id: string; short_url: string } }>('/payments/create-link', {
+      method: 'POST',
+      body: JSON.stringify({ plan, amount }),
+    });
+    return response.data;
+  },
 };

@@ -1421,62 +1421,73 @@ app.put('/api/matrimony/me', async (request, response) => {
       )
     }
 
+    // Debug: Log what we're sending for photos
+    console.log('[update profile] photosForDb type:', typeof photosForDb, Array.isArray(photosForDb), JSON.stringify(photosForDb).slice(0, 100))
+
     // Update matrimony_profiles
-    await pgQuery(
-      `UPDATE matrimony_profiles SET
-        location = COALESCE($1, location),
-        occupation = COALESCE($2, occupation),
-        education = COALESCE($3, education),
-        bio = COALESCE($4, bio),
-        gender = COALESCE($5, gender),
-        date_of_birth = COALESCE($6, date_of_birth),
-        marital_status = COALESCE($7, marital_status),
-        height = COALESCE($8, height),
-        income = COALESCE($9, income),
-        community = COALESCE($10, community),
-        language = COALESCE($11, language),
-        sub_community = COALESCE($12, sub_community),
-        family_status = COALESCE($13, family_status),
-        family_type = COALESCE($14, family_type),
-        family_wealth = COALESCE($15, family_wealth),
-        father_name = COALESCE($16, father_name),
-        mother_name = COALESCE($17, mother_name),
-        father_occupation = COALESCE($18, father_occupation),
-        mother_occupation = COALESCE($19, mother_occupation),
-        siblings = COALESCE($20, siblings),
-        native_city = COALESCE($21, native_city),
-        native_village = COALESCE($22, native_village),
-        photos = COALESCE($23, photos),
-        updated_at = $24
-       WHERE user_id = $25`,
-      [
-        profile.location || null,
-        profile.occupation || null,
-        profile.education || null,
-        profile.bio || null,
-        profile.gender || null,
-        profile.dateOfBirth || null,
-        matrimony.maritalStatus || null,
-        matrimony.height || null,
-        matrimony.income || null,
-        matrimony.community || null,
-        matrimony.language || null,
-        matrimony.subCommunity || null,
-        matrimony.familyStatus || null,
-        matrimony.familyType || null,
-        matrimony.familyWealth || null,
-        matrimony.fatherName || null,
-        matrimony.motherName || null,
-        matrimony.fatherOccupation || null,
-        matrimony.motherOccupation || null,
-        matrimony.siblings || null,
-        profile.nativeCity || null,
-        profile.nativeVillage || null,
-        photosForDb,
-        now,
-        activeUserId,
-      ]
-    )
+    const queryParams = [
+      profile.location || null,
+      profile.occupation || null,
+      profile.education || null,
+      profile.bio || null,
+      profile.gender || null,
+      profile.dateOfBirth || null,
+      matrimony.maritalStatus || null,
+      matrimony.height || null,
+      matrimony.income || null,
+      matrimony.community || null,
+      matrimony.language || null,
+      matrimony.subCommunity || null,
+      matrimony.familyStatus || null,
+      matrimony.familyType || null,
+      matrimony.familyWealth || null,
+      matrimony.fatherName || null,
+      matrimony.motherName || null,
+      matrimony.fatherOccupation || null,
+      matrimony.motherOccupation || null,
+      matrimony.siblings || null,
+      profile.nativeCity || null,
+      profile.nativeVillage || null,
+      photosForDb,
+      now,
+      activeUserId,
+    ]
+    console.log('[update profile] Query param 23 (photos):', typeof queryParams[22], JSON.stringify(queryParams[22]).slice(0, 100))
+
+    try {
+      await pgQuery(
+        `UPDATE matrimony_profiles SET
+          location = COALESCE($1, location),
+          occupation = COALESCE($2, occupation),
+          education = COALESCE($3, education),
+          bio = COALESCE($4, bio),
+          gender = COALESCE($5, gender),
+          date_of_birth = COALESCE($6, date_of_birth),
+          marital_status = COALESCE($7, marital_status),
+          height = COALESCE($8, height),
+          income = COALESCE($9, income),
+          community = COALESCE($10, community),
+          language = COALESCE($11, language),
+          sub_community = COALESCE($12, sub_community),
+          family_status = COALESCE($13, family_status),
+          family_type = COALESCE($14, family_type),
+          family_wealth = COALESCE($15, family_wealth),
+          father_name = COALESCE($16, father_name),
+          mother_name = COALESCE($17, mother_name),
+          father_occupation = COALESCE($18, father_occupation),
+          mother_occupation = COALESCE($19, mother_occupation),
+          siblings = COALESCE($20, siblings),
+          native_city = COALESCE($21, native_city),
+          native_village = COALESCE($22, native_village),
+          photos = COALESCE($23, photos),
+          updated_at = $24
+         WHERE user_id = $25`,
+        queryParams
+      )
+    } catch (dbErr) {
+      console.error('[update profile] DB Error:', dbErr.message, '| Photos param:', JSON.stringify(photosForDb))
+      throw dbErr
+    }
 
     // Invalidate cache so next fetch is fresh
     cacheInvalidate(`memberPayload:${activeUserId}`)

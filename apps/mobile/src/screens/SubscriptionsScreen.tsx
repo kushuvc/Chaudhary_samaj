@@ -62,7 +62,7 @@ export function SubscriptionsScreen() {
       const order = await api.createPaymentOrder(plan, planData.amount);
       
       // Build Razorpay checkout URL
-      const razorpayKey = 'rzp_test_placeholder'; // Replace with your test key
+      const razorpayKey = 'rzp_test_SoumuudukTdW0a';
       const checkoutUrl = `https://checkout.razorpay.com/v1/checkout.js?key=${razorpayKey}&order_id=${order.id}&amount=${planData.amount * 100}&currency=INR&name=Chaudhary%20Samaj&description=${planData.name}&prefill[email]=&prefill[contact]=&theme[color]=${palette.primary.replace('#', '')}`;
       
       // For now, show alert with test instructions

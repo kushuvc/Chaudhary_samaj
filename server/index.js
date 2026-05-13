@@ -1607,8 +1607,8 @@ app.delete('/api/upload/photo', async (request, response) => {
 
 // Razorpay Payment Integration
 const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret'
+  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_SoumuudukTdW0a',
+  key_secret: process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc'
 })
 
 // Create order

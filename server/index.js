@@ -1392,12 +1392,12 @@ app.put('/api/matrimony/me', async (request, response) => {
   } catch {}
   console.log('[update profile] photos received:', typeof profile.photos, photosDebug)
 
-  // Clean photos array - ensure it's valid JSON
-  let photosJson = null
+  // Clean photos array - ensure it's valid JSON for JSONB column
+  let photosForDb = null
   if (profile.photos && Array.isArray(profile.photos) && profile.photos.length > 0) {
     try {
-      // Only keep necessary fields and serialize for JSONB
-      const cleanPhotos = profile.photos.map(p => ({
+      // Only keep necessary fields - pass as object for JSONB
+      photosForDb = profile.photos.map(p => ({
         id: p.id || String(Math.random()).slice(2),
         uri: p.uri || p.url || '',
         url: p.url || p.uri || '',
@@ -1405,11 +1405,10 @@ app.put('/api/matrimony/me', async (request, response) => {
         isPrimary: Boolean(p.isPrimary),
         uploadedAt: p.uploadedAt || new Date().toISOString()
       }))
-      photosJson = JSON.stringify(cleanPhotos)
-      console.log('[update profile] photos serialized:', photosJson.slice(0, 100))
+      console.log('[update profile] photos cleaned:', photosForDb.length, 'photos')
     } catch (e) {
-      console.error('[update profile] photos serialization error:', e.message)
-      photosJson = null
+      console.error('[update profile] photos cleaning error:', e.message)
+      photosForDb = null
     }
   }
 
@@ -1473,7 +1472,7 @@ app.put('/api/matrimony/me', async (request, response) => {
         matrimony.siblings || null,
         profile.nativeCity || null,
         profile.nativeVillage || null,
-        photosJson,
+        photosForDb,
         now,
         activeUserId,
       ]

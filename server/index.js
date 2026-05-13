@@ -1424,6 +1424,9 @@ app.put('/api/matrimony/me', async (request, response) => {
     // Debug: Log what we're sending for photos
     console.log('[update profile] photosForDb type:', typeof photosForDb, Array.isArray(photosForDb), JSON.stringify(photosForDb).slice(0, 100))
 
+    // Convert photos array to JSON string for ::jsonb cast
+    const photosJson = photosForDb ? JSON.stringify(photosForDb) : null
+
     // Update matrimony_profiles
     const queryParams = [
       profile.location || null,
@@ -1448,11 +1451,11 @@ app.put('/api/matrimony/me', async (request, response) => {
       matrimony.siblings || null,
       profile.nativeCity || null,
       profile.nativeVillage || null,
-      photosForDb,
+      photosJson,  // Now a JSON string with ::jsonb cast
       now,
       activeUserId,
     ]
-    console.log('[update profile] Query param 23 (photos):', typeof queryParams[22], JSON.stringify(queryParams[22]).slice(0, 100))
+    console.log('[update profile] Query param 23 (photos):', typeof queryParams[22], queryParams[22]?.slice(0, 100))
 
     try {
       await pgQuery(
@@ -1479,7 +1482,7 @@ app.put('/api/matrimony/me', async (request, response) => {
           siblings = COALESCE($20, siblings),
           native_city = COALESCE($21, native_city),
           native_village = COALESCE($22, native_village),
-          photos = COALESCE($23, photos),
+          photos = COALESCE($23::jsonb, photos),
           updated_at = $24
          WHERE user_id = $25`,
         queryParams

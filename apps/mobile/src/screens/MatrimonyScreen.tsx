@@ -844,8 +844,11 @@ function createStyles(palette: ThemePalette) {
   },
   imageContainer: {
     position: 'relative',
-    height: 200,
+    height: 240,
     backgroundColor: palette.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   profileImagePlaceholder: {
     flex: 1,
@@ -853,10 +856,10 @@ function createStyles(palette: ThemePalette) {
     alignItems: 'center',
   },
   profileImage: {
-    flex: 1,
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
+    backgroundColor: palette.border,
   },
   shortlistButton: {
     position: 'absolute',

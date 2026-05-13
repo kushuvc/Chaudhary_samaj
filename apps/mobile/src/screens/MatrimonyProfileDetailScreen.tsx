@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  FlatList,
   Image,
   Pressable,
   RefreshControl,
@@ -36,7 +37,6 @@ interface ProfileDetail extends MatrimonyProfile {
   nativeCity?: string | null;
   nativeVillage?: string | null;
   gender?: string | null;
-  photos?: Array<{ uri: string; isPrimary: boolean; status: string }> | null;
 }
 
 interface MatrimonyProfileDetailScreenProps {
@@ -303,15 +303,26 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           </View>
         </View>
 
-        {/* Photo Gallery */}
-        {profile.photos && profile.photos.filter((p) => p.status === 'done' && p.uri).length > 1 && (
+        {/* Photo Gallery - Swipeable Carousel */}
+        {profile.photos && profile.photos.filter((p) => p.status === 'done' && p.uri).length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Photos</Text>
-            <View style={styles.photoGallery}>
-              {profile.photos.filter((p) => p.status === 'done' && p.uri).map((p, i) => (
-                <Image key={i} source={{ uri: p.uri }} style={styles.galleryPhoto} resizeMode="cover" />
-              ))}
-            </View>
+            <FlatList
+              data={profile.photos.filter((p) => p.status === 'done' && p.uri)}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item, index) => item.id || `photo-${index}`}
+              renderItem={({ item }) => (
+                <View style={styles.carouselItem}>
+                  <Image source={{ uri: item.uri }} style={styles.carouselPhoto} resizeMode="contain" />
+                </View>
+              )}
+              style={styles.carousel}
+            />
+            <Text style={styles.photoCount}>
+              Swipe left/right • {profile.photos.filter((p) => p.status === 'done' && p.uri).length} photos
+            </Text>
           </View>
         )}
 
@@ -516,15 +527,26 @@ function createStyles(palette: ThemePalette) {
       borderRadius: 60,
       marginBottom: 12,
     },
-    photoGallery: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
+    carousel: {
+      height: 300,
     },
-    galleryPhoto: {
-      width: '31%',
-      aspectRatio: 0.8,
-      borderRadius: 8,
+    carouselItem: {
+      width: 300,
+      height: 300,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: palette.border,
+    },
+    carouselPhoto: {
+      width: '100%',
+      height: '100%',
+      resizeMode: 'contain',
+    },
+    photoCount: {
+      textAlign: 'center',
+      color: palette.muted,
+      fontSize: 12,
+      marginTop: 8,
     },
     headerInfo: {
       alignItems: 'center',

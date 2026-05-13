@@ -700,6 +700,7 @@ export function ProfileScreen() {
         <PhotoManager
           photos={(profile.photos || []).filter((p: any) => p.status === 'done')}
           editable={isEditing}
+          maxPhotos={2}
           onChange={(updated: Photo[]) => setProfile((prev) => ({ ...prev, photos: updated }))}
         />
         {!isEditing && (!profile.photos || profile.photos.filter((p: any) => p.status === 'done').length === 0) && (

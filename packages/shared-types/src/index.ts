@@ -74,6 +74,7 @@ export interface MatrimonyProfile {
   isShortlisted?: boolean;
   isViewed?: boolean;
   isUnlocked?: boolean;
+  photos?: Array<{ id: string; uri?: string; url?: string; status?: string; isPrimary?: boolean }> | null;
 }
 
 export interface MatrimonyFilterOptions {

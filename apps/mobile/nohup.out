@@ -7,3 +7,6 @@ The following packages should be updated for best compatibility with the install
 Your project may not work correctly until you install the expected versions of the packages.
 Waiting on http://localhost:8081
 Logs for your project will appear below.
+Web node_modules/expo/AppEntry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 202ms node_modules/expo/AppEntry.js (345 modules)
+ LOG  [web] Logs will appear in the browser console

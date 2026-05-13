@@ -324,13 +324,21 @@ export function MatrimonyScreen() {
 
         {profiles.map((profile) => {
           const interestStatus = interestsMap[profile.id];
+          // Get primary photo or first available photo
+          const primaryPhoto = profile.photos?.find(p => p.status === 'done' && p.isPrimary)
+            || profile.photos?.find(p => p.status === 'done')
+            || null;
           return (
             <View key={profile.id} style={styles.newCard}>
               {/* Profile Image Area */}
               <Pressable style={styles.imageContainer} onPress={() => { setSelectedProfileId(profile.id); setProfileDetailVisible(true); }}>
-                <View style={styles.profileImagePlaceholder}>
-                  <Ionicons name="person" size={80} color={palette.muted} />
-                </View>
+                {primaryPhoto?.uri ? (
+                  <Image source={{ uri: primaryPhoto.uri }} style={styles.profileImage} />
+                ) : (
+                  <View style={styles.profileImagePlaceholder}>
+                    <Ionicons name="person" size={80} color={palette.muted} />
+                  </View>
+                )}
                 <Pressable style={styles.shortlistButton} onPress={() => runAction(profile.id, 'shortlist')}>
                   <Ionicons name={profile.isShortlisted ? "bookmark" : "bookmark-outline"} size={20} color="#FFFFFF" />
                 </Pressable>
@@ -843,6 +851,12 @@ function createStyles(palette: ThemePalette) {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  profileImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   shortlistButton: {
     position: 'absolute',

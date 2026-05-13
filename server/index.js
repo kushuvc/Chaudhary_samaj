@@ -1703,13 +1703,21 @@ app.get('/api/payments/subscription', async (request, response) => {
       return
     }
 
-    const result = await pgQuery(
-      `SELECT * FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at > NOW()
-       ORDER BY expires_at DESC LIMIT 1`,
-      [activeUserId]
-    )
+    let result
+    try {
+      result = await pgQuery(
+        `SELECT * FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW()
+         ORDER BY expires_at::timestamp DESC LIMIT 1`,
+        [activeUserId]
+      )
+    } catch (queryErr) {
+      console.error('[razorpay] Subscription query error:', queryErr.message)
+      // Return no subscription if query fails (table might not exist yet)
+      response.json({ success: true, data: { hasSubscription: false } })
+      return
+    }
 
-    if (result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       response.json({ success: true, data: { hasSubscription: false } })
       return
     }

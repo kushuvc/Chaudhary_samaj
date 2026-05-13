@@ -57,32 +57,23 @@ export function SubscriptionsScreen() {
     try {
       setProcessing(true);
       
-      // Create Razorpay Payment Link via backend
+      // Create order via backend
       const planData = PLANS[plan];
-      const paymentLink = await api.createPaymentLink(plan, planData.amount);
+      const order = await api.createPaymentOrder(plan, planData.amount);
       
-      // Open payment link in browser
-      const supported = await Linking.canOpenURL(paymentLink.short_url);
-      if (supported) {
-        await Linking.openURL(paymentLink.short_url);
-        
-        // Show confirmation dialog
-        Alert.alert(
-          'Complete Payment',
-          'You will be redirected to complete payment in your browser. After payment, return to the app and pull down to refresh.',
-          [
-            { text: 'OK', onPress: () => {
-              // Auto-refresh subscription status after 10 seconds
-              setTimeout(() => loadSubscription(), 10000);
-            }}
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'Cannot open payment link');
-      }
+      // Show Razorpay test instructions (for now, until we add native checkout)
+      Alert.alert(
+        'Test Payment',
+        `Order created: ${order.id}\n\nAmount: ₹${planData.amount}\n\nIn production, this opens Razorpay checkout.\n\nTest UPI IDs:\n• success@razorpay (always succeeds)\n• failure@razorpay (always fails)`,
+        [
+          { text: 'Simulate Success', onPress: () => simulatePayment(order.id, plan, planData.amount, 'success') },
+          { text: 'Simulate Failure', onPress: () => simulatePayment(order.id, plan, planData.amount, 'failure') },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
       
     } catch (err) {
-      Alert.alert('Error', 'Failed to create payment: ' + (err as Error).message);
+      Alert.alert('Error', 'Failed to create order: ' + (err as Error).message);
     } finally {
       setProcessing(false);
     }

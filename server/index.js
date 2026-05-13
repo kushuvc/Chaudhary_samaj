@@ -1625,7 +1625,7 @@ app.post('/api/payments/create-order', async (request, response) => {
     const options = {
       amount: amount * 100, // Razorpay expects amount in paise
       currency: 'INR',
-      receipt: `receipt_${activeUserId}_${Date.now()}`,
+      receipt: `r_${activeUserId.slice(0, 8)}_${Date.now().toString().slice(-6)}`,
       notes: {
         userId: activeUserId,
         plan: plan || 'basic'

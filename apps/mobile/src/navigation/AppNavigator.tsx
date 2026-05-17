@@ -8,7 +8,6 @@ import { DashboardScreen } from '../screens/DashboardScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { PhoneLoginScreen } from '../screens/PhoneLoginScreen';
 import { LoadingScreen } from '../screens/LoadingScreen';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MatrimonyScreen } from '../screens/MatrimonyScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -81,7 +80,7 @@ function MainTabs() {
 }
 
 function AuthFlow() {
-  const { signup, completeProfileSetup, isNewSignup } = useAuth();
+  const { signup, completeProfileSetup, isNewSignup, loginWithToken } = useAuth();
   const [authMode, setAuthMode] = useState<
     | 'welcome'
     | 'login'
@@ -247,9 +246,7 @@ function AuthFlow() {
       return (
         <PhoneLoginScreen
           onLoginSuccess={async (token, userId) => {
-            await AsyncStorage.setItem('auth_token', token);
-            await AsyncStorage.setItem('user_id', userId);
-            window.location.reload();
+            await loginWithToken(token, userId);
           }}
           onBack={() => setAuthMode('login')}
         />

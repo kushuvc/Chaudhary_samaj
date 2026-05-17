@@ -9,6 +9,7 @@ interface AuthContextValue {
   isNewSignup: boolean;
   requestOtp: (email: string, purpose: OtpPurpose) => Promise<{ message?: string; debugOtp?: string }>;
   login: (payload: { email: string; password: string }) => Promise<void>;
+  loginWithToken: (token: string, userId: string) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
   logout: () => Promise<void>;
   completeProfileSetup: () => Promise<void>;
@@ -45,6 +46,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setApiSession(next);
         setIsNewSignup(false);
         await saveSession(next);
+      },
+      loginWithToken: async (token, userId) => {
+        const session: AuthSession = {
+          authToken: token,
+          user: {
+            id: userId,
+            name: '',
+            email: '',
+            isVerified: true,
+          }
+        };
+        setSession(session);
+        setApiSession(session);
+        setIsNewSignup(false);
+        await saveSession(session);
       },
       signup: async (payload) => {
         const next = await api.signup(payload);

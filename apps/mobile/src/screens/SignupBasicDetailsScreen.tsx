@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { api } from '../services/api';
 
 export interface BasicDetailsData {
   fullName: string;
@@ -31,12 +32,37 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState<'details' | 'otp'>('details');
+  const [otp, setOtp] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [mockOtpHint, setMockOtpHint] = useState('');
+
+  const handleSendOtp = async () => {
+    if (!isValid || otpSending) return;
+    setOtpSending(true);
+    setError(null);
+    try {
+      const response = await api.requestPhoneOtp(data.phone);
+      if (response.mockOtp) {
+        setMockOtpHint(response.mockOtp);
+        Alert.alert('Test Mode OTP', `Your OTP is: ${response.mockOtp}`);
+      }
+      setStep('otp');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
 
   const handleSubmit = async () => {
-    if (!isValid || loading) return;
+    if (otp.length !== 6 || loading) return;
     setLoading(true);
     setError(null);
     try {
+      // Verify OTP first (verifyOnly = true, don't create user yet)
+      await api.verifyPhoneOtp(data.phone, otp, true);
+      // OTP verified, proceed with full signup
       await onSubmit(data);
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
@@ -53,6 +79,70 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
     data.password.length >= 6 &&
     data.phone.length === 10 &&
     data.agreeToTerms;
+
+  if (step === 'otp') {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Pressable style={styles.backButton} onPress={() => { setStep('details'); setOtp(''); setError(null); }}>
+            <Ionicons name="arrow-back" size={24} color={palette.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Verify Phone</Text>
+          <View style={styles.backButton} />
+        </View>
+
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
+          <Text style={[styles.hintText, { fontSize: 16, marginBottom: 8, color: palette.text }]}>
+            Enter the 6-digit OTP sent to
+          </Text>
+          <Text style={[styles.hintText, { fontSize: 18, fontWeight: '700', color: palette.text, marginBottom: 24 }]}>
+            +91 {data.phone}
+          </Text>
+
+          {!!mockOtpHint && (
+            <View style={{ backgroundColor: '#FFF3CD', padding: 12, borderRadius: 8, marginBottom: 16 }}>
+              <Text style={{ color: '#856404', fontSize: 14 }}>
+                Test Mode OTP: <Text style={{ fontWeight: '700' }}>{mockOtpHint}</Text>
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              style={[styles.input, { fontSize: 24, textAlign: 'center', letterSpacing: 8 }]}
+              placeholder="000000"
+              value={otp}
+              onChangeText={(text) => setOtp(text.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholderTextColor={palette.muted}
+            />
+          </View>
+
+          <Pressable onPress={handleSendOtp} disabled={otpSending}>
+            <Text style={[styles.termsLink, { textAlign: 'center', marginTop: 8 }]}>
+              {otpSending ? 'Sending...' : 'Resend OTP'}
+            </Text>
+          </Pressable>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          {!!error && <Text style={styles.errorText}>{error}</Text>}
+          <Pressable
+            style={[styles.submitButton, (otp.length !== 6 || loading) && styles.submitButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={otp.length !== 6 || loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitButtonText}>Verify & Register</Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -160,14 +250,14 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
       <View style={styles.footer}>
         {!!error && <Text style={styles.errorText}>{error}</Text>}
         <Pressable
-          style={[styles.submitButton, (!isValid || loading) && styles.submitButtonDisabled]}
-          onPress={handleSubmit}
-          disabled={!isValid || loading}
+          style={[styles.submitButton, (!isValid || otpSending) && styles.submitButtonDisabled]}
+          onPress={handleSendOtp}
+          disabled={!isValid || otpSending}
         >
-          {loading ? (
+          {otpSending ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.submitButtonText}>Register</Text>
+            <Text style={styles.submitButtonText}>Send OTP</Text>
           )}
         </Pressable>
       </View>
@@ -295,13 +385,13 @@ function createStyles(palette: ThemePalette) {
       height: 22,
       borderRadius: 4,
       borderWidth: 2,
-      borderColor: '#E53935',
+      borderColor: palette.primary,
       justifyContent: 'center',
       alignItems: 'center',
       marginTop: 2,
     },
     checkboxChecked: {
-      backgroundColor: '#E53935',
+      backgroundColor: palette.primary,
     },
     termsText: {
       flex: 1,
@@ -310,7 +400,7 @@ function createStyles(palette: ThemePalette) {
       lineHeight: 20,
     },
     termsLink: {
-      color: '#E53935',
+      color: palette.primary,
       fontWeight: '600',
     },
     footer: {
@@ -320,18 +410,26 @@ function createStyles(palette: ThemePalette) {
       borderTopColor: palette.border,
     },
     submitButton: {
-      backgroundColor: '#E53935',
-      borderRadius: 28,
+      backgroundColor: palette.primary,
+      borderRadius: 14,
       paddingVertical: 16,
       alignItems: 'center',
+      shadowColor: palette.primary,
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
     },
     submitButtonDisabled: {
-      backgroundColor: '#F5F5F5',
+      backgroundColor: palette.border,
+      shadowOpacity: 0,
+      elevation: 0,
     },
     submitButtonText: {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '700',
+      letterSpacing: 0.3,
     },
   });
 }

@@ -461,7 +461,7 @@ app.post('/api/auth/phone/send-otp', async (request, response) => {
 })
 
 app.post('/api/auth/phone/verify-otp', async (request, response) => {
-  const { phone, otp } = request.body || {}
+  const { phone, otp, verifyOnly } = request.body || {}
   const normalizedPhone = String(phone || '').trim().replace(/\D/g, '')
   const normalizedOtp = String(otp || '').trim()
 
@@ -494,6 +494,13 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
     return
   }
 
+  // verifyOnly mode: just confirm OTP is valid (used in signup flow before account creation)
+  if (verifyOnly) {
+    phoneOtpStore.delete(normalizedPhone)
+    response.json({ success: true, verified: true, message: 'OTP verified successfully' })
+    return
+  }
+
   // OTP verified - create/find user
   const fullPhone = `+91${normalizedPhone}`
   let userId = null
@@ -503,8 +510,8 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
     // Check if user exists
     const existingUser = await pgQuery('SELECT id FROM users WHERE phone = $1 LIMIT 1', [fullPhone])
 
-    if (existingUser.rows.length > 0) {
-      userId = existingUser.rows[0].id
+    if (existingUser.length > 0) {
+      userId = existingUser[0].id
     } else {
       // Create new user
       isNewUser = true

@@ -42,7 +42,7 @@ export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScr
         {/* Logo */}
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
-            <Ionicons name="heart" size={40} color="#E53935" />
+            <Ionicons name="heart" size={40} color={palette.primary} />
           </View>
         </View>
 
@@ -65,7 +65,7 @@ export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScr
                 <Ionicons
                   name={type.icon}
                   size={20}
-                  color={isSelected ? '#FFFFFF' : '#E53935'}
+                  color={isSelected ? '#FFFFFF' : palette.primary}
                 />
                 <Text style={[styles.typeLabel, isSelected && styles.typeLabelSelected]}>
                   {type.label}
@@ -131,7 +131,7 @@ function createStyles(palette: ThemePalette) {
       width: 80,
       height: 80,
       borderRadius: 40,
-      backgroundColor: '#FFEBEE',
+      backgroundColor: palette.primarySoft,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -160,19 +160,19 @@ function createStyles(palette: ThemePalette) {
       gap: 8,
       paddingVertical: 12,
       paddingHorizontal: 20,
-      borderRadius: 24,
+      borderRadius: 14,
       borderWidth: 1.5,
-      borderColor: '#E53935',
-      backgroundColor: '#FFFFFF',
+      borderColor: palette.primary,
+      backgroundColor: palette.surface,
     },
     typeButtonSelected: {
-      backgroundColor: '#E53935',
-      borderColor: '#E53935',
+      backgroundColor: palette.primary,
+      borderColor: palette.primary,
     },
     typeLabel: {
       fontSize: 14,
       fontWeight: '500',
-      color: '#E53935',
+      color: palette.primary,
     },
     typeLabelSelected: {
       color: '#FFFFFF',
@@ -184,13 +184,20 @@ function createStyles(palette: ThemePalette) {
       borderTopColor: palette.border,
     },
     nextButton: {
-      backgroundColor: '#E53935',
-      borderRadius: 28,
+      backgroundColor: palette.primary,
+      borderRadius: 14,
       paddingVertical: 16,
       alignItems: 'center',
+      shadowColor: palette.primary,
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
     },
     nextButtonDisabled: {
-      backgroundColor: '#F5F5F5',
+      backgroundColor: palette.border,
+      shadowOpacity: 0,
+      elevation: 0,
     },
     nextButtonText: {
       color: '#FFFFFF',

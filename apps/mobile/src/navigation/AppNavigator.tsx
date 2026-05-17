@@ -241,7 +241,7 @@ function AuthFlow() {
         />
       );
     case 'login':
-      return <LoginScreen onPhoneLogin={() => setAuthMode('phone-login')} />;
+      return <LoginScreen onPhoneLogin={() => setAuthMode('phone-login')} onSignup={() => setAuthMode('signup-profile-type')} />;
     case 'phone-login':
       return (
         <PhoneLoginScreen

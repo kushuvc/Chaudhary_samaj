@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { useAppLanguage } from '../context/LanguageContext';
-import { BrandArtwork } from '../components/BrandArtwork';
 
 interface WelcomeScreenProps {
   onCreateProfile: () => void;
@@ -13,66 +13,105 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const { t } = useAppLanguage();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Hero Image Grid */}
-      <View style={styles.heroContainer}>
-        <View style={styles.imageGrid}>
-          <View style={styles.imageRow}>
-            <View style={[styles.imagePlaceholder, styles.imageSmall]} />
-            <View style={[styles.imagePlaceholder, styles.imageMedium]} />
-            <View style={[styles.imagePlaceholder, styles.imageSmall]} />
+    <View style={styles.container}>
+      {/* Hero Section */}
+      <View style={styles.heroSection}>
+        <Svg style={StyleSheet.absoluteFill as any} width="100%" height="100%" viewBox="0 0 390 520" preserveAspectRatio="xMidYMid slice">
+          <Defs>
+            <LinearGradient id="bgG" x1="0" y1="0" x2="0.4" y2="1">
+              <Stop offset="0" stopColor="#f97316" />
+              <Stop offset="0.45" stopColor="#ea580c" />
+              <Stop offset="1" stopColor="#7c2d12" />
+            </LinearGradient>
+            <LinearGradient id="shineG" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#ffffff" stopOpacity="0.18" />
+              <Stop offset="0.6" stopColor="#ffffff" stopOpacity="0" />
+            </LinearGradient>
+            <LinearGradient id="waveG" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#ffffff" stopOpacity="0.07" />
+              <Stop offset="1" stopColor="#ffffff" stopOpacity="0.02" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="390" height="520" fill="url(#bgG)" />
+          <Rect x="0" y="0" width="390" height="260" fill="url(#shineG)" />
+          {/* Decorative circles */}
+          <Circle cx="360" cy="40"  r="90"  fill="#ffffff" fillOpacity="0.05" />
+          <Circle cx="380" cy="200" r="60"  fill="#ffffff" fillOpacity="0.04" />
+          <Circle cx="20"  cy="460" r="110" fill="#ffffff" fillOpacity="0.05" />
+          <Circle cx="-10" cy="120" r="55"  fill="#ffffff" fillOpacity="0.06" />
+          <Circle cx="200" cy="20"  r="45"  fill="#ffffff" fillOpacity="0.04" />
+          {/* Bottom wave */}
+          <Path d="M0 420 C 80 390, 160 445, 240 415 C 300 393, 350 425, 390 408 L390 520 L0 520 Z" fill="url(#waveG)" />
+          <Path d="M0 455 C 100 430, 200 468, 300 445 C 340 433, 370 450, 390 442 L390 520 L0 520 Z" fill="#ffffff" fillOpacity="0.04" />
+          {/* Accent dots */}
+          <Circle cx="55"  cy="80"  r="5"   fill="#ffffff" fillOpacity="0.35" />
+          <Circle cx="80"  cy="55"  r="3"   fill="#ffffff" fillOpacity="0.28" />
+          <Circle cx="300" cy="350" r="6"   fill="#ffffff" fillOpacity="0.2"  />
+          <Circle cx="330" cy="310" r="3.5" fill="#ffffff" fillOpacity="0.22" />
+          <Ellipse cx="195" cy="530" rx="180" ry="60" fill="#ffffff" fillOpacity="0.04" />
+        </Svg>
+
+        {/* Hero content */}
+        <View style={styles.heroContent}>
+          {/* Logo badge */}
+          <View style={styles.logoBadge}>
+            <Ionicons name="heart" size={28} color="#ea580c" />
           </View>
-          <View style={styles.imageRow}>
-            <View style={[styles.imagePlaceholder, styles.imageMedium]} />
-            <View style={[styles.imagePlaceholder, styles.imageLarge]} />
-            <View style={[styles.imagePlaceholder, styles.imageMedium]} />
-          </View>
-          <View style={styles.imageRow}>
-            <View style={[styles.imagePlaceholder, styles.imageSmall]} />
-            <View style={[styles.imagePlaceholder, styles.imageMedium]} />
-            <View style={[styles.imagePlaceholder, styles.imageSmall]} />
+
+          {/* Headline */}
+          <Text style={styles.heroTitle}>Find Your{'\n'}Perfect Match</Text>
+          <Text style={styles.heroSubtitle}>
+            Trusted matrimony service for{'\n'}the Chaudhary community
+          </Text>
+
+          {/* Feature pills */}
+          <View style={styles.pillsRow}>
+            <View style={styles.pill}>
+              <Ionicons name="shield-checkmark" size={14} color="#ffffff" />
+              <Text style={styles.pillText}>Verified Profiles</Text>
+            </View>
+            <View style={styles.pill}>
+              <Ionicons name="people" size={14} color="#ffffff" />
+              <Text style={styles.pillText}>Same Community</Text>
+            </View>
+            <View style={styles.pill}>
+              <Ionicons name="lock-closed" size={14} color="#ffffff" />
+              <Text style={styles.pillText}>100% Private</Text>
+            </View>
           </View>
         </View>
-        
-        {/* Curved Overlay */}
-        <View style={styles.curveOverlay}>
-          <BrandArtwork compact />
-        </View>
+
+        {/* Bottom notch */}
+        <View style={styles.heroBottomNotch} />
       </View>
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
+      {/* Bottom Card */}
+      <View style={styles.bottomCard}>
+        {/* Brand name */}
         <Text style={styles.brandName}>Chaudhary Samaj</Text>
-        <Text style={styles.tagline}>
-          No. 1 and the most trusted matrimony{'\n'}service for Chaudhary community
-        </Text>
-      </View>
+        <Text style={styles.brandTagline}>No. 1 matrimony platform for Chaudhary families</Text>
 
-      {/* Action Buttons */}
-      <View style={styles.actionSection}>
-        <Text style={styles.newUserText}>New user?</Text>
-        
+        {/* CTA */}
         <Pressable style={styles.primaryButton} onPress={onCreateProfile}>
-          <Text style={styles.primaryButtonText}>Create profile</Text>
+          <Ionicons name="person-add" size={20} color="#ffffff" />
+          <Text style={styles.primaryButtonText}>Create Free Profile</Text>
         </Pressable>
 
-        <View style={styles.dividerContainer}>
+        {/* Divider */}
+        <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
+          <Text style={styles.dividerText}>Already have an account?</Text>
           <View style={styles.dividerLine} />
         </View>
 
-        <View style={styles.loginRow}>
-          <Text style={styles.loginText}>Already registered?</Text>
-          <Pressable style={styles.loginButton} onPress={onLogin}>
-            <Text style={styles.loginButtonText}>Login</Text>
-          </Pressable>
-        </View>
+        {/* Login */}
+        <Pressable style={styles.loginButton} onPress={onLogin}>
+          <Text style={styles.loginButtonText}>Log In</Text>
+        </Pressable>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -82,108 +121,117 @@ function createStyles(palette: ThemePalette) {
       flex: 1,
       backgroundColor: palette.bg,
     },
-    content: {
-      flexGrow: 1,
-      paddingBottom: 40,
-    },
-    heroContainer: {
+    heroSection: {
+      flex: 1,
       position: 'relative',
-      backgroundColor: '#E53935',
-      borderBottomLeftRadius: 40,
-      borderBottomRightRadius: 40,
       overflow: 'hidden',
-      paddingTop: 20,
-      paddingBottom: 60,
     },
-    imageGrid: {
-      paddingHorizontal: 12,
-      gap: 8,
-    },
-    imageRow: {
-      flexDirection: 'row',
-      gap: 8,
-      marginBottom: 8,
+    heroContent: {
+      flex: 1,
+      paddingHorizontal: 28,
+      paddingTop: 80,
       justifyContent: 'center',
     },
-    imagePlaceholder: {
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      borderRadius: 8,
-    },
-    imageSmall: {
-      width: 80,
-      height: 80,
-    },
-    imageMedium: {
-      width: 100,
-      height: 100,
-    },
-    imageLarge: {
-      width: 120,
-      height: 120,
-    },
-    curveOverlay: {
-      position: 'absolute',
-      bottom: -30,
-      alignSelf: 'center',
-      width: 80,
-      height: 80,
-      backgroundColor: palette.bg,
-      borderRadius: 40,
+    logoBadge: {
+      width: 60,
+      height: 60,
+      borderRadius: 20,
+      backgroundColor: '#ffffff',
       justifyContent: 'center',
       alignItems: 'center',
+      marginBottom: 28,
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.15,
-      shadowRadius: 8,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
       elevation: 8,
     },
-    titleSection: {
+    heroTitle: {
+      fontSize: 42,
+      fontWeight: '800',
+      color: '#ffffff',
+      letterSpacing: -1,
+      lineHeight: 50,
+      marginBottom: 14,
+    },
+    heroSubtitle: {
+      fontSize: 16,
+      color: 'rgba(255,255,255,0.82)',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    pillsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    pill: {
+      flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 50,
+      gap: 5,
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.25)',
+    },
+    pillText: {
+      color: '#ffffff',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    heroBottomNotch: {
+      height: 32,
+      backgroundColor: palette.bg,
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+    },
+    bottomCard: {
+      backgroundColor: palette.bg,
       paddingHorizontal: 24,
+      paddingBottom: 40,
+      paddingTop: 4,
     },
     brandName: {
-      fontSize: 24,
-      fontWeight: '700',
+      fontSize: 22,
+      fontWeight: '800',
       color: palette.text,
-      marginBottom: 12,
+      textAlign: 'center',
+      letterSpacing: -0.3,
     },
-    tagline: {
-      fontSize: 14,
+    brandTagline: {
+      fontSize: 13,
       color: palette.muted,
       textAlign: 'center',
-      lineHeight: 20,
-    },
-    actionSection: {
-      marginTop: 40,
-      paddingHorizontal: 24,
-    },
-    newUserText: {
-      fontSize: 14,
-      color: palette.text,
-      textAlign: 'center',
-      marginBottom: 12,
+      marginTop: 4,
+      marginBottom: 24,
     },
     primaryButton: {
-      backgroundColor: '#E53935',
-      borderRadius: 28,
-      paddingVertical: 16,
+      flexDirection: 'row',
       alignItems: 'center',
-      shadowColor: '#E53935',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
+      justifyContent: 'center',
+      gap: 10,
+      backgroundColor: palette.primary,
+      borderRadius: 14,
+      paddingVertical: 16,
+      shadowColor: palette.primary,
+      shadowOffset: { width: 0, height: 5 },
+      shadowOpacity: 0.38,
+      shadowRadius: 12,
       elevation: 6,
     },
     primaryButtonText: {
-      color: '#FFFFFF',
+      color: '#ffffff',
       fontSize: 16,
       fontWeight: '700',
+      letterSpacing: 0.2,
     },
-    dividerContainer: {
+    dividerRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginVertical: 24,
+      gap: 10,
+      marginVertical: 18,
     },
     dividerLine: {
       flex: 1,
@@ -191,31 +239,21 @@ function createStyles(palette: ThemePalette) {
       backgroundColor: palette.border,
     },
     dividerText: {
-      marginHorizontal: 16,
-      fontSize: 14,
+      fontSize: 12,
       color: palette.muted,
-    },
-    loginRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 12,
-    },
-    loginText: {
-      fontSize: 14,
-      color: palette.text,
+      fontWeight: '500',
     },
     loginButton: {
       borderWidth: 1.5,
-      borderColor: '#E53935',
-      borderRadius: 20,
-      paddingVertical: 8,
-      paddingHorizontal: 24,
+      borderColor: palette.primary,
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: 'center',
     },
     loginButtonText: {
-      color: '#E53935',
-      fontSize: 14,
-      fontWeight: '600',
+      color: palette.primary,
+      fontSize: 15,
+      fontWeight: '700',
     },
   });
 }

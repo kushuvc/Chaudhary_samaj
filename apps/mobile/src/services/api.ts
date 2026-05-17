@@ -583,10 +583,10 @@ export const api = {
     return response;
   },
 
-  verifyPhoneOtp: async (phone: string, otp: string): Promise<{ token: string; userId: string; message: string }> => {
-    const response = await request<{ token: string; userId: string; message: string }>('/auth/phone/verify-otp', {
+  verifyPhoneOtp: async (phone: string, otp: string, verifyOnly?: boolean): Promise<{ token?: string; userId?: string; message: string; verified?: boolean }> => {
+    const response = await request<{ token?: string; userId?: string; message: string; verified?: boolean }>('/auth/phone/verify-otp', {
       method: 'POST',
-      body: JSON.stringify({ phone, otp }),
+      body: JSON.stringify({ phone, otp, verifyOnly: !!verifyOnly }),
     });
     return response;
   },

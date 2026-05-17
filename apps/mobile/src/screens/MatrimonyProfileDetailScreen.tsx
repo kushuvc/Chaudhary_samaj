@@ -26,6 +26,23 @@ interface ProfileDetail extends MatrimonyProfile {
   interestStatus?: InterestStatus;
   hasSentInterest?: boolean;
   hasReceivedInterest?: boolean;
+  // Personal Details
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  physicalStatus?: string | null;
+  // Religious Details
+  religion?: string | null;
+  caste?: string | null;
+  subCaste?: string | null;
+  dosh?: string | null;
+  // Location Details
+  country?: string | null;
+  state?: string | null;
+  city?: string | null;
+  village?: string | null;
+  nativeCity?: string | null;
+  nativeVillage?: string | null;
+  // Family Details
   familyStatus?: string | null;
   familyType?: string | null;
   familyWealth?: string | null;
@@ -34,15 +51,55 @@ interface ProfileDetail extends MatrimonyProfile {
   fatherOccupation?: string | null;
   motherOccupation?: string | null;
   siblings?: string | null;
-  nativeCity?: string | null;
-  nativeVillage?: string | null;
-  gender?: string | null;
+  // Interests
+  hobbies?: string[] | null;
+  music?: string[] | null;
+  sports?: string[] | null;
+  // Lifestyle
+  eatingHabit?: string | null;
+  // Horoscope
+  horoscopeTime?: string | null;
+  horoscopePlace?: string | null;
+  // Matrimony prefs
+  language?: string | null;
+  preferredLocation?: string | null;
+  preferredEducation?: string | null;
+  preferredOccupation?: string | null;
 }
 
 interface MatrimonyProfileDetailScreenProps {
   profileId: string;
   onBack: () => void;
 }
+
+function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+  return (
+    <View style={infoRowStyle}>
+      <Text style={infoLabelStyle}>{label}</Text>
+      <Text style={infoValueStyle}>{value != null && String(value).trim() !== '' ? String(value) : 'Not specified'}</Text>
+    </View>
+  );
+}
+
+const infoRowStyle: import('react-native').ViewStyle = {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  paddingVertical: 8,
+  borderBottomWidth: 1,
+  borderBottomColor: '#e2e8f0',
+};
+const infoLabelStyle: import('react-native').TextStyle = {
+  fontSize: 14,
+  color: '#64748b',
+  flex: 1,
+};
+const infoValueStyle: import('react-native').TextStyle = {
+  fontSize: 14,
+  color: '#0f172a',
+  fontWeight: '500',
+  flex: 1,
+  textAlign: 'right',
+};
 
 // Feature flag for monetization - easily toggle later
 const FEATURES = {
@@ -332,127 +389,83 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         {/* Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Age</Text>
-            <Text style={styles.infoValue}>{profile.age} Years</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Height</Text>
-            <Text style={styles.infoValue}>{profile.height || 'Not specified'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Marital Status</Text>
-            <Text style={styles.infoValue}>{profile.maritalStatus || 'Not specified'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Location</Text>
-            <Text style={styles.infoValue}>{profile.location}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Community</Text>
-            <Text style={styles.infoValue}>{profile.community}</Text>
-          </View>
-          {profile.subCommunity && (
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Sub Community</Text>
-              <Text style={styles.infoValue}>{profile.subCommunity}</Text>
-            </View>
-          )}
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Education</Text>
-            <Text style={styles.infoValue}>{profile.education || 'Not specified'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Occupation</Text>
-            <Text style={styles.infoValue}>{profile.occupation || 'Not specified'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Income</Text>
-            <Text style={styles.infoValue}>{profile.income || 'Not specified'}</Text>
-          </View>
+          <InfoRow label="Age" value={profile.age ? `${profile.age} Years` : null} />
+          <InfoRow label="Gender" value={profile.gender} />
+          <InfoRow label="Date of Birth" value={profile.dateOfBirth} />
+          <InfoRow label="Height" value={profile.height} />
+          <InfoRow label="Marital Status" value={profile.maritalStatus} />
+          <InfoRow label="Physical Status" value={profile.physicalStatus} />
+          <InfoRow label="Location" value={profile.location} />
+          <InfoRow label="Community" value={profile.community} />
+          <InfoRow label="Sub Community" value={profile.subCommunity} />
+          <InfoRow label="Language" value={profile.language} />
+          <InfoRow label="Education" value={profile.education} />
+          <InfoRow label="Occupation" value={profile.occupation} />
+          <InfoRow label="Income" value={profile.income} />
         </View>
 
-        {/* Bio */}
-        {profile.bio && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.bio}>{profile.bio}</Text>
-          </View>
-        )}
+        {/* About */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={styles.bio}>{profile.bio || 'Not specified'}</Text>
+        </View>
+
+        {/* Religious Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Religious Details</Text>
+          <InfoRow label="Religion" value={profile.religion} />
+          <InfoRow label="Caste" value={profile.caste} />
+          <InfoRow label="Gol (Subcaste)" value={profile.subCaste} />
+          <InfoRow label="Dosh" value={profile.dosh} />
+        </View>
+
+        {/* Location Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location Details</Text>
+          <InfoRow label="Country" value={profile.country} />
+          <InfoRow label="State" value={profile.state} />
+          <InfoRow label="City" value={profile.city} />
+          <InfoRow label="Village" value={profile.village} />
+          <InfoRow label="Native City" value={profile.nativeCity} />
+          <InfoRow label="Native Village" value={profile.nativeVillage} />
+        </View>
 
         {/* Family Details */}
-        {(profile.familyStatus || profile.familyType || profile.familyWealth || profile.fatherName || profile.motherName || profile.fatherOccupation || profile.motherOccupation || profile.siblings) ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Family Details</Text>
-            {!!profile.familyStatus && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Family Status</Text>
-                <Text style={styles.infoValue}>{profile.familyStatus}</Text>
-              </View>
-            )}
-            {!!profile.familyType && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Family Type</Text>
-                <Text style={styles.infoValue}>{profile.familyType}</Text>
-              </View>
-            )}
-            {!!profile.familyWealth && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Family Wealth</Text>
-                <Text style={styles.infoValue}>{profile.familyWealth}</Text>
-              </View>
-            )}
-            {!!profile.fatherName && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Father's Name</Text>
-                <Text style={styles.infoValue}>{profile.fatherName}</Text>
-              </View>
-            )}
-            {!!profile.fatherOccupation && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Father's Occupation</Text>
-                <Text style={styles.infoValue}>{profile.fatherOccupation}</Text>
-              </View>
-            )}
-            {!!profile.motherName && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Mother's Name</Text>
-                <Text style={styles.infoValue}>{profile.motherName}</Text>
-              </View>
-            )}
-            {!!profile.motherOccupation && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Mother's Occupation</Text>
-                <Text style={styles.infoValue}>{profile.motherOccupation}</Text>
-              </View>
-            )}
-            {!!profile.siblings && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Siblings</Text>
-                <Text style={styles.infoValue}>{profile.siblings}</Text>
-              </View>
-            )}
-          </View>
-        ) : null}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Family Details</Text>
+          <InfoRow label="Family Status" value={profile.familyStatus} />
+          <InfoRow label="Family Type" value={profile.familyType} />
+          <InfoRow label="Family Wealth" value={profile.familyWealth} />
+          <InfoRow label="Father's Name" value={profile.fatherName} />
+          <InfoRow label="Father's Occupation" value={profile.fatherOccupation} />
+          <InfoRow label="Mother's Name" value={profile.motherName} />
+          <InfoRow label="Mother's Occupation" value={profile.motherOccupation} />
+          <InfoRow label="Siblings" value={profile.siblings} />
+        </View>
 
-        {/* Native Location */}
-        {(profile.nativeCity || profile.nativeVillage) ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Native Place</Text>
-            {!!profile.nativeCity && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Native City</Text>
-                <Text style={styles.infoValue}>{profile.nativeCity}</Text>
-              </View>
-            )}
-            {!!profile.nativeVillage && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Native Village</Text>
-                <Text style={styles.infoValue}>{profile.nativeVillage}</Text>
-              </View>
-            )}
-          </View>
-        ) : null}
+        {/* Lifestyle */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Lifestyle</Text>
+          <InfoRow label="Eating Habit" value={profile.eatingHabit} />
+          <InfoRow label="Hobbies" value={profile.hobbies?.join(', ')} />
+          <InfoRow label="Music" value={profile.music?.join(', ')} />
+          <InfoRow label="Sports" value={profile.sports?.join(', ')} />
+        </View>
+
+        {/* Horoscope Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Horoscope Details</Text>
+          <InfoRow label="Time of Birth" value={profile.horoscopeTime} />
+          <InfoRow label="Place of Birth" value={profile.horoscopePlace} />
+        </View>
+
+        {/* Partner Preferences */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Partner Preferences</Text>
+          <InfoRow label="Preferred Location" value={profile.preferredLocation} />
+          <InfoRow label="Preferred Education" value={profile.preferredEducation} />
+          <InfoRow label="Preferred Occupation" value={profile.preferredOccupation} />
+        </View>
 
         {/* Interest Status */}
         {profile.interestStatus !== 'none' && (
@@ -572,9 +585,9 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#E53935',
+      backgroundColor: palette.primary,
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     interestButtonText: {
@@ -587,9 +600,9 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#4CAF50',
+      backgroundColor: '#16a34a',
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     phoneButtonText: {
@@ -604,7 +617,7 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
       backgroundColor: palette.border,
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     phoneButtonTextDisabled: {
@@ -617,9 +630,9 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#2196F3',
+      backgroundColor: '#0284c7',
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     messageButtonText: {
@@ -634,7 +647,7 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
       backgroundColor: palette.primarySoft,
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     pendingText: {
@@ -647,9 +660,9 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#4CAF50',
+      backgroundColor: '#16a34a',
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     respondButtonText: {
@@ -666,7 +679,7 @@ function createStyles(palette: ThemePalette) {
       borderWidth: 1,
       borderColor: palette.danger,
       paddingVertical: 14,
-      borderRadius: 28,
+      borderRadius: 14,
       gap: 8,
     },
     declineButtonText: {

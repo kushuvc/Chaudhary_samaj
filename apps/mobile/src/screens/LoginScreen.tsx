@@ -9,9 +9,10 @@ import { BrandArtwork } from '../components/BrandArtwork';
 
 interface LoginScreenProps {
   onPhoneLogin?: () => void;
+  onSignup?: () => void;
 }
 
-export function LoginScreen({ onPhoneLogin }: LoginScreenProps) {
+export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
   const { login, signup } = useAuth();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -114,7 +115,7 @@ export function LoginScreen({ onPhoneLogin }: LoginScreenProps) {
 
           <View style={styles.signupLink}>
             <Text style={styles.signupLinkText}>Don't have an account? </Text>
-            <Pressable onPress={() => { setMode('signup'); setEmail(''); setPassword(''); setPhone(''); }}>
+            <Pressable onPress={() => onSignup ? onSignup() : setMode('signup')}>
               <Text style={styles.signupLinkButton}>Sign up</Text>
             </Pressable>
           </View>
@@ -253,31 +254,38 @@ function createStyles(palette: ThemePalette) {
     },
     primaryButton: {
       backgroundColor: palette.primary,
-      borderRadius: 10,
-      padding: 12,
-      marginTop: 8,
-      alignItems: 'center'
+      borderRadius: 14,
+      paddingVertical: 15,
+      marginTop: 10,
+      alignItems: 'center',
+      shadowColor: palette.primary,
+      shadowOpacity: 0.35,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 4 },
+      elevation: 4,
     },
     primaryButtonText: {
-      color: palette.surface,
-      fontWeight: '700'
+      color: '#ffffff',
+      fontWeight: '700',
+      fontSize: 16,
+      letterSpacing: 0.3,
     },
     secondaryButton: {
-      borderRadius: 10,
-      padding: 12,
-      borderWidth: 1,
+      borderRadius: 14,
+      paddingVertical: 15,
+      borderWidth: 1.5,
       borderColor: palette.primary,
-      alignItems: 'center'
+      alignItems: 'center',
     },
     secondaryButtonText: {
       color: palette.primary,
-      fontWeight: '700'
+      fontWeight: '700',
     },
     signupLink: {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
-      marginTop: 16,
+      marginTop: 20,
     },
     signupLinkText: {
       color: palette.muted,
@@ -303,19 +311,23 @@ function createStyles(palette: ThemePalette) {
       marginHorizontal: 12,
       fontSize: 12,
       fontWeight: '600',
+      letterSpacing: 1,
     },
     phoneButton: {
-      backgroundColor: palette.cardBg,
-      borderRadius: 10,
-      padding: 14,
-      borderWidth: 2,
+      backgroundColor: palette.accentSoft,
+      borderRadius: 14,
+      paddingVertical: 15,
+      borderWidth: 1.5,
       borderColor: palette.primary,
       alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 8,
     },
     phoneButtonText: {
       color: palette.primary,
       fontWeight: '700',
-      fontSize: 16,
+      fontSize: 15,
     },
   });
 }

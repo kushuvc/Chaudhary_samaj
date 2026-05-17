@@ -5,67 +5,45 @@ import {
   StyleSheet,
   Text,
   View,
+  Pressable,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Ellipse } from 'react-native-svg';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
-import { useAppLanguage } from '../context/LanguageContext';
-import { InlineError, ScreenLoader } from '../components/AppFeedback';
-import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { api } from '../services/api';
-import { radius, spacing, type } from '../theme';
-import type { CommunityFeedStats, EventSummaryStats, HelpNeedRequest } from '../types';
-import { BrandArtwork } from '../components/BrandArtwork';
 import type { ThemePalette } from '../context/ThemeContext';
-
-const defaultEventStats: EventSummaryStats = {
-  totalCreated: 0,
-  upcomingCount: 0,
-  pastCount: 0,
-  pendingCount: 0,
-  fullyCollectedCount: 0,
-};
-
-const defaultCommunityStats: CommunityFeedStats = {
-  totalPosts: 0,
-  pinnedPosts: 0,
-  upcomingMeetings: 0,
-  byCategory: {},
-};
+import type { MatrimonyProfile } from '../types';
 
 export function DashboardScreen() {
   const { palette } = useAppTheme();
-  const { t } = useAppLanguage();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [eventStats, setEventStats] = useState<EventSummaryStats>(defaultEventStats);
-  const [communityStats, setCommunityStats] = useState<CommunityFeedStats>(defaultCommunityStats);
-  const [businessCount, setBusinessCount] = useState(0);
-  const [helpOpenCount, setHelpOpenCount] = useState(0);
-  const [matrimonyCount, setMatrimonyCount] = useState(0);
+  const [totalProfiles, setTotalProfiles] = useState(0);
+  const [recentProfiles, setRecentProfiles] = useState<MatrimonyProfile[]>([]);
+  const [sentInterests, setSentInterests] = useState(0);
+  const [receivedInterests, setReceivedInterests] = useState(0);
+  const [acceptedInterests, setAcceptedInterests] = useState(0);
+  const [myProfile, setMyProfile] = useState<any>(null);
 
   const loadDashboard = useCallback(async () => {
     try {
       setError(null);
-
-      const [eventsRes, communityRes, businessRes, helpRes, matrimonyRes] = await Promise.all([
-        api.getEventSummary(),
-        api.getCommunityFeedStats(),
-        api.getBusinessListings(),
-        api.getHelpAndNeed({ status: 'open' }),
+      const [matrimonyRes, interestsRes, myProfileRes] = await Promise.all([
         api.getMatrimonyProfiles({ tab: 'all' }),
+        api.getMyInterests().catch(() => ({ sent: [], received: [] })),
+        api.getMyMatrimonyProfile().catch(() => null),
       ]);
-
-      setEventStats(eventsRes);
-      setCommunityStats(communityRes);
-      setBusinessCount(businessRes.listings.length);
-      setHelpOpenCount(
-        helpRes.requests.filter((item: HelpNeedRequest) => item.status === 'open').length
-      );
-      setMatrimonyCount(matrimonyRes.profiles.length);
+      setTotalProfiles(matrimonyRes.profiles.length);
+      setRecentProfiles(matrimonyRes.profiles.slice(0, 4));
+      setSentInterests(interestsRes.sent.length);
+      setReceivedInterests(interestsRes.received.length);
+      setAcceptedInterests(interestsRes.sent.filter((i: any) => i.status === 'accepted').length);
+      setMyProfile(myProfileRes);
     } catch (err) {
       setError((err as Error).message || 'Unable to load dashboard');
     } finally {
@@ -84,149 +62,253 @@ export function DashboardScreen() {
   };
 
   if (loading) {
-    return <ScreenLoader message={t('loadingDashboard')} />;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5efe7' }}>
+        <Ionicons name="heart" size={40} color="#ea580c" />
+        <Text style={{ marginTop: 12, color: '#ea580c', fontWeight: '600', fontSize: 15 }}>Finding your matches...</Text>
+      </View>
+    );
   }
+
+  const userName = session?.user?.name || 'Member';
+  const greeting = new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 17 ? 'Good Afternoon' : 'Good Evening';
+  const profileComplete = myProfile && myProfile.age && myProfile.location;
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
     >
-      <View style={styles.heroWrap}>
-        <BrandArtwork compact />
-        <View style={styles.heroOverlay}>
-          <Text style={styles.heroBadge}>{t('premiumCommunityLane')}</Text>
-          <Text style={styles.heroTitle}>{t('communitySnapshot')}</Text>
+      {/* Hero Banner */}
+      <View style={styles.heroCard}>
+        <Svg style={StyleSheet.absoluteFill as any} width="100%" height="100%" viewBox="0 0 380 200" preserveAspectRatio="xMidYMid slice">
+          <Defs>
+            <LinearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor="#ea580c" />
+              <Stop offset="0.55" stopColor="#c2410c" />
+              <Stop offset="1" stopColor="#7c2d12" />
+            </LinearGradient>
+            <LinearGradient id="shineH" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#ffffff" stopOpacity="0.14" />
+              <Stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="380" height="200" fill="url(#heroGrad)" />
+          <Rect x="0" y="0" width="380" height="100" fill="url(#shineH)" />
+          <Circle cx="340" cy="30" r="70" fill="#ffffff" fillOpacity="0.06" />
+          <Circle cx="350" cy="160" r="45" fill="#ffffff" fillOpacity="0.05" />
+          <Circle cx="15" cy="170" r="55" fill="#ffffff" fillOpacity="0.05" />
+          <Ellipse cx="100" cy="210" rx="120" ry="40" fill="#ffffff" fillOpacity="0.04" />
+          <Path d="M0 140 C 80 115, 160 155, 240 130 C 300 112, 345 135, 380 120 L380 200 L0 200 Z" fill="#ffffff" fillOpacity="0.07" />
+          <Circle cx="60" cy="60" r="4" fill="#ffffff" fillOpacity="0.3" />
+          <Circle cx="85" cy="45" r="2.5" fill="#ffffff" fillOpacity="0.25" />
+          <Circle cx="260" cy="150" r="5" fill="#ffffff" fillOpacity="0.2" />
+        </Svg>
+        <View style={styles.heroContent}>
+          <View style={styles.heroPill}>
+            <Text style={styles.heroPillText}>💍 Chaudhary Matrimony</Text>
+          </View>
+          <Text style={styles.heroGreeting}>{greeting},</Text>
+          <Text style={styles.heroName}>{userName} 👋</Text>
+          <Text style={styles.heroSub}>Find your perfect life partner</Text>
         </View>
       </View>
 
-      <SectionCard>
-        <ScreenTitle title={`${t('welcome')}, ${session?.user?.name || 'Member'}`} subtitle={t('discoveryShellActive')} />
-      </SectionCard>
-
-      {error ? <InlineError message={error} /> : null}
-
-      <View style={styles.gridRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('matrimonyMatches')}</Text>
-          <Text style={styles.metricValue}>{matrimonyCount}</Text>
+      {/* Error */}
+      {!!error && (
+        <View style={styles.errorBanner}>
+          <Ionicons name="warning-outline" size={16} color="#b45309" />
+          <Text style={styles.errorText}>{error}</Text>
         </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('businessListings')}</Text>
-          <Text style={styles.metricValue}>{businessCount}</Text>
+      )}
+
+      {/* Profile Incomplete Banner */}
+      {!profileComplete && (
+        <View style={styles.incompleteBanner}>
+          <View style={styles.incompleteBannerLeft}>
+            <Ionicons name="person-circle-outline" size={32} color={palette.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.incompleteBannerTitle}>Complete Your Profile</Text>
+              <Text style={styles.incompleteBannerSub}>Add details to get better matches</Text>
+            </View>
+          </View>
+          <View style={styles.incompleteBannerBadge}>
+            <Text style={styles.incompleteBannerBadgeText}>→</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Interests Stats */}
+      <Text style={styles.sectionTitle}>My Activity</Text>
+      <View style={styles.statsRow}>
+        <View style={[styles.statPill, { backgroundColor: '#fff1f2' }]}>
+          <Ionicons name="paper-plane" size={18} color="#f43f5e" />
+          <Text style={[styles.statPillValue, { color: '#f43f5e' }]}>{sentInterests}</Text>
+          <Text style={styles.statPillLabel}>Interests{'\n'}Sent</Text>
+        </View>
+        <View style={[styles.statPill, { backgroundColor: '#fef9ec' }]}>
+          <Ionicons name="mail" size={18} color="#f59e0b" />
+          <Text style={[styles.statPillValue, { color: '#f59e0b' }]}>{receivedInterests}</Text>
+          <Text style={styles.statPillLabel}>Interests{'\n'}Received</Text>
+        </View>
+        <View style={[styles.statPill, { backgroundColor: '#ecfdf5' }]}>
+          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+          <Text style={[styles.statPillValue, { color: '#10b981' }]}>{acceptedInterests}</Text>
+          <Text style={styles.statPillLabel}>Interests{'\n'}Accepted</Text>
+        </View>
+        <View style={[styles.statPill, { backgroundColor: '#fff7ed' }]}>
+          <Ionicons name="people" size={18} color={palette.primary} />
+          <Text style={[styles.statPillValue, { color: palette.primary }]}>{totalProfiles}</Text>
+          <Text style={styles.statPillLabel}>Total{'\n'}Profiles</Text>
         </View>
       </View>
 
-      <View style={styles.gridRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('openHelpRequests')}</Text>
-          <Text style={styles.metricValue}>{helpOpenCount}</Text>
-        </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>{t('communityPosts')}</Text>
-          <Text style={styles.metricValue}>{communityStats.totalPosts}</Text>
+      {/* Recent Profiles */}
+      {recentProfiles.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>Recent Profiles</Text>
+          <View style={styles.profilesGrid}>
+            {recentProfiles.map((profile) => (
+              <View key={profile.id} style={styles.profileCard}>
+                <View style={styles.profileAvatar}>
+                  <Ionicons name="person" size={28} color={palette.primary} />
+                </View>
+                <Text style={styles.profileName} numberOfLines={1}>
+                  {profile.name || 'Member'}
+                </Text>
+                <Text style={styles.profileMeta} numberOfLines={1}>
+                  {[profile.age ? `${profile.age}y` : null, profile.location].filter(Boolean).join(' • ') || 'Chaudhary'}
+                </Text>
+                <View style={[styles.profileBadge, profile.gender === 'female' ? styles.profileBadgeFemale : styles.profileBadgeMale]}>
+                  <Text style={styles.profileBadgeText}>{profile.gender === 'female' ? '♀' : '♂'}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* My Profile Card */}
+      <Text style={styles.sectionTitle}>My Profile</Text>
+      <View style={styles.myProfileCard}>
+        <View style={styles.myProfileLeft}>
+          <View style={styles.myProfileAvatar}>
+            <Ionicons name="person" size={36} color="#ffffff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.myProfileName}>{userName}</Text>
+            <Text style={styles.myProfileMeta}>
+              {myProfile?.age ? `${myProfile.age} yrs` : 'Age not set'} • {myProfile?.location || 'Location not set'}
+            </Text>
+            <View style={styles.myProfileStatus}>
+              <View style={[styles.myProfileDot, { backgroundColor: profileComplete ? '#10b981' : '#f59e0b' }]} />
+              <Text style={styles.myProfileStatusText}>{profileComplete ? 'Profile Complete' : 'Incomplete Profile'}</Text>
+            </View>
+          </View>
         </View>
       </View>
 
-      <SectionCard>
-        <Text style={styles.cardTitle}>{t('eventsSummary')}</Text>
-        <Text style={styles.cardText}>{t('created')}: {eventStats.totalCreated}</Text>
-        <Text style={styles.cardText}>{t('upcoming')}: {eventStats.upcomingCount}</Text>
-        <Text style={styles.cardText}>{t('past')}: {eventStats.pastCount}</Text>
-        <Text style={styles.cardText}>{t('pendingCollection')}: {eventStats.pendingCount}</Text>
-      </SectionCard>
-
-      <SectionCard>
-        <Text style={styles.cardTitle}>{t('communitySummary')}</Text>
-        <Text style={styles.cardText}>{t('pinnedAnnouncements')}: {communityStats.pinnedPosts}</Text>
-        <Text style={styles.cardText}>{t('upcomingMeetings')}: {communityStats.upcomingMeetings}</Text>
-      </SectionCard>
-
-      <PrimaryButton label={t('refreshDashboard')} onPress={onRefresh} />
-
-      <SectionCard>
-        <Text style={styles.noteTitle}>{t('mobileMigrationProgress')}</Text>
-        <Text style={styles.noteText}>{t('migrationNote')}</Text>
-      </SectionCard>
+      <View style={{ height: 30 }} />
     </ScrollView>
   );
 }
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.bg,
-  },
-  content: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  heroWrap: {
-    marginBottom: spacing.xs,
-    position: 'relative',
-  },
-  heroOverlay: {
-    position: 'absolute',
-    left: spacing.md,
-    top: spacing.sm,
-    right: spacing.md,
-  },
-  heroBadge: {
-    color: palette.primarySoft,
-    fontWeight: '700',
-    fontSize: 11,
-    textTransform: 'uppercase',
-  },
-  heroTitle: {
-    marginTop: 4,
-    color: palette.surface,
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  gridRow: {
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: palette.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: spacing.sm,
-    shadowColor: palette.text,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
-  },
-  metricLabel: {
-    ...type.caption,
-  },
-  metricValue: {
-    marginTop: spacing.xs,
-    fontSize: 22,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  cardTitle: {
-    fontWeight: '700',
-    color: palette.text,
-    marginBottom: spacing.xs,
-  },
-  cardText: {
-    color: palette.muted,
-    marginBottom: 2,
-  },
-  noteTitle: {
-    fontWeight: '700',
-    color: palette.text,
-  },
-  noteText: {
-    marginTop: spacing.xs,
-    color: palette.primary,
-  },
+    container: { flex: 1, backgroundColor: palette.bg },
+    content: { paddingBottom: 32 },
+    heroCard: { height: 200, marginBottom: 20, overflow: 'hidden', position: 'relative' },
+    heroContent: { flex: 1, padding: 24, paddingTop: 28, justifyContent: 'flex-end' },
+    heroPill: {
+      position: 'absolute', top: 20, left: 24,
+      backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20,
+      paddingHorizontal: 12, paddingVertical: 5,
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    },
+    heroPillText: { color: '#ffffff', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
+    heroGreeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500', marginBottom: 2 },
+    heroName: { color: '#ffffff', fontSize: 26, fontWeight: '800', letterSpacing: -0.3 },
+    heroSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 3 },
+    errorBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: '#fffbeb', borderRadius: 10, padding: 12,
+      marginHorizontal: 16, marginBottom: 12,
+      borderWidth: 1, borderColor: '#fde68a',
+    },
+    errorText: { color: '#92400e', fontSize: 13, flex: 1 },
+    incompleteBanner: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      backgroundColor: palette.surface, borderRadius: 14, padding: 14,
+      marginHorizontal: 16, marginBottom: 16,
+      borderWidth: 1.5, borderColor: palette.primary,
+      shadowColor: palette.primary, shadowOpacity: 0.1,
+      shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+    },
+    incompleteBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+    incompleteBannerTitle: { fontSize: 14, fontWeight: '700', color: palette.text },
+    incompleteBannerSub: { fontSize: 12, color: palette.muted, marginTop: 2 },
+    incompleteBannerBadge: {
+      width: 30, height: 30, borderRadius: 15,
+      backgroundColor: palette.primary, justifyContent: 'center', alignItems: 'center',
+    },
+    incompleteBannerBadgeText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    sectionTitle: {
+      fontSize: 17, fontWeight: '700', color: palette.text,
+      marginBottom: 10, marginTop: 4, paddingHorizontal: 16,
+    },
+    statsRow: {
+      flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 8,
+    },
+    statPill: {
+      flex: 1, borderRadius: 16, padding: 12, alignItems: 'center', gap: 4,
+      shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 }, elevation: 1,
+    },
+    statPillValue: { fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+    statPillLabel: { fontSize: 10, color: palette.muted, fontWeight: '600', textAlign: 'center', lineHeight: 13 },
+    profilesGrid: {
+      flexDirection: 'row', flexWrap: 'wrap',
+      paddingHorizontal: 12, gap: 10, marginBottom: 8,
+    },
+    profileCard: {
+      flex: 1, minWidth: '44%', backgroundColor: palette.surface,
+      borderRadius: 16, padding: 14, alignItems: 'center',
+      shadowColor: '#000', shadowOpacity: 0.06,
+      shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+      position: 'relative',
+    },
+    profileAvatar: {
+      width: 60, height: 60, borderRadius: 30,
+      backgroundColor: palette.primarySoft, justifyContent: 'center', alignItems: 'center',
+      marginBottom: 8, borderWidth: 2, borderColor: palette.border,
+    },
+    profileName: { fontSize: 13, fontWeight: '700', color: palette.text, textAlign: 'center' },
+    profileMeta: { fontSize: 11, color: palette.muted, marginTop: 3, textAlign: 'center' },
+    profileBadge: {
+      position: 'absolute', top: 10, right: 10,
+      width: 22, height: 22, borderRadius: 11,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    profileBadgeFemale: { backgroundColor: '#fce7f3' },
+    profileBadgeMale: { backgroundColor: '#eff6ff' },
+    profileBadgeText: { fontSize: 12, fontWeight: '700' },
+    myProfileCard: {
+      backgroundColor: palette.surface, borderRadius: 16,
+      padding: 16, marginHorizontal: 16, marginBottom: 8,
+      shadowColor: '#000', shadowOpacity: 0.05,
+      shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+    },
+    myProfileLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    myProfileAvatar: {
+      width: 64, height: 64, borderRadius: 32,
+      backgroundColor: palette.primary, justifyContent: 'center', alignItems: 'center',
+    },
+    myProfileName: { fontSize: 17, fontWeight: '800', color: palette.text },
+    myProfileMeta: { fontSize: 13, color: palette.muted, marginTop: 3 },
+    myProfileStatus: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+    myProfileDot: { width: 8, height: 8, borderRadius: 4 },
+    myProfileStatusText: { fontSize: 12, color: palette.muted, fontWeight: '600' },
   });
 }

@@ -6,7 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { LoginScreen } from '../screens/LoginScreen';
+import { PhoneLoginScreen } from '../screens/PhoneLoginScreen';
 import { LoadingScreen } from '../screens/LoadingScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MatrimonyScreen } from '../screens/MatrimonyScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
@@ -83,6 +85,7 @@ function AuthFlow() {
   const [authMode, setAuthMode] = useState<
     | 'welcome'
     | 'login'
+    | 'phone-login'
     | 'signup-profile-type'
     | 'signup-personal'
     | 'signup-religious'
@@ -239,7 +242,18 @@ function AuthFlow() {
         />
       );
     case 'login':
-      return <LoginScreen />;
+      return <LoginScreen onPhoneLogin={() => setAuthMode('phone-login')} />;
+    case 'phone-login':
+      return (
+        <PhoneLoginScreen
+          onLoginSuccess={async (token, userId) => {
+            await AsyncStorage.setItem('auth_token', token);
+            await AsyncStorage.setItem('user_id', userId);
+            window.location.reload();
+          }}
+          onBack={() => setAuthMode('login')}
+        />
+      );
     case 'signup-profile-type':
       return (
         <SignupProfileTypeScreen

@@ -7,7 +7,11 @@ import type { ThemePalette } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { BrandArtwork } from '../components/BrandArtwork';
 
-export function LoginScreen() {
+interface LoginScreenProps {
+  onPhoneLogin?: () => void;
+}
+
+export function LoginScreen({ onPhoneLogin }: LoginScreenProps) {
   const { login, signup } = useAuth();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -114,6 +118,16 @@ export function LoginScreen() {
               <Text style={styles.signupLinkButton}>Sign up</Text>
             </Pressable>
           </View>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Pressable style={styles.phoneButton} onPress={onPhoneLogin}>
+            <Text style={styles.phoneButtonText}>📱 Login with Phone Number</Text>
+          </Pressable>
         </>
       ) : (
         <>
@@ -273,6 +287,35 @@ function createStyles(palette: ThemePalette) {
       color: palette.primary,
       fontWeight: '700',
       fontSize: 14,
-    }
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginVertical: 20,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: palette.border,
+    },
+    dividerText: {
+      color: palette.muted,
+      marginHorizontal: 12,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    phoneButton: {
+      backgroundColor: palette.cardBg,
+      borderRadius: 10,
+      padding: 14,
+      borderWidth: 2,
+      borderColor: palette.primary,
+      alignItems: 'center',
+    },
+    phoneButtonText: {
+      color: palette.primary,
+      fontWeight: '700',
+      fontSize: 16,
+    },
   });
 }

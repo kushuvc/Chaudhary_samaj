@@ -573,4 +573,21 @@ export const api = {
     });
     return response.data;
   },
+
+  // Phone OTP APIs
+  requestPhoneOtp: async (phone: string): Promise<{ message: string; mockOtp?: string }> => {
+    const response = await request<{ message: string; mockOtp?: string }>('/auth/phone/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+    return response;
+  },
+
+  verifyPhoneOtp: async (phone: string, otp: string): Promise<{ token: string; userId: string; message: string }> => {
+    const response = await request<{ token: string; userId: string; message: string }>('/auth/phone/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
+    });
+    return response;
+  },
 };

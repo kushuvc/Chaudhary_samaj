@@ -419,6 +419,147 @@ app.get('/api/health', (_request, response) => {
   })
 })
 
+// Phone OTP Authentication
+const phoneOtpStore = new Map() // Store OTPs temporarily (in production, use Redis)
+
+app.post('/api/auth/phone/send-otp', async (request, response) => {
+  const { phone } = request.body || {}
+  const normalizedPhone = String(phone || '').trim().replace(/\D/g, '')
+
+  if (!normalizedPhone || normalizedPhone.length !== 10) {
+    response.status(400).json({ success: false, error: 'Please provide a valid 10-digit phone number' })
+    return
+  }
+
+  // Generate 6-digit OTP
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
+  const expiresAt = Date.now() + 5 * 60 * 1000 // 5 minutes
+
+  // Store OTP
+  phoneOtpStore.set(normalizedPhone, { otp: otpCode, expiresAt, attempts: 0 })
+
+  console.log(`[phone-otp] Phone: +91${normalizedPhone}, OTP: ${otpCode}`)
+
+  // In production, send SMS via Twilio, MSG91, etc.
+  // For testing, return OTP in response
+  if (process.env.NODE_ENV !== 'production') {
+    response.json({
+      success: true,
+      message: 'OTP sent successfully (test mode)',
+      mockOtp: otpCode,
+    })
+    return
+  }
+
+  // TODO: Integrate SMS provider (Twilio, MSG91, AWS SNS)
+  // Example: await sendSms(`+91${normalizedPhone}`, `Your OTP is: ${otpCode}`)
+
+  response.json({
+    success: true,
+    message: 'OTP sent successfully',
+  })
+})
+
+app.post('/api/auth/phone/verify-otp', async (request, response) => {
+  const { phone, otp } = request.body || {}
+  const normalizedPhone = String(phone || '').trim().replace(/\D/g, '')
+  const normalizedOtp = String(otp || '').trim()
+
+  if (!normalizedPhone || !normalizedOtp) {
+    response.status(400).json({ success: false, error: 'Phone and OTP are required' })
+    return
+  }
+
+  const stored = phoneOtpStore.get(normalizedPhone)
+
+  if (!stored) {
+    response.status(400).json({ success: false, error: 'OTP not found or expired. Please request new OTP.' })
+    return
+  }
+
+  if (Date.now() > stored.expiresAt) {
+    phoneOtpStore.delete(normalizedPhone)
+    response.status(400).json({ success: false, error: 'OTP expired. Please request new OTP.' })
+    return
+  }
+
+  if (stored.otp !== normalizedOtp) {
+    stored.attempts += 1
+    if (stored.attempts >= 3) {
+      phoneOtpStore.delete(normalizedPhone)
+      response.status(400).json({ success: false, error: 'Too many failed attempts. Please request new OTP.' })
+      return
+    }
+    response.status(400).json({ success: false, error: 'Invalid OTP. Please try again.' })
+    return
+  }
+
+  // OTP verified - create/find user
+  const fullPhone = `+91${normalizedPhone}`
+  let userId = null
+  let isNewUser = false
+
+  try {
+    // Check if user exists
+    const existingUser = await pgQuery('SELECT id FROM users WHERE phone = $1 LIMIT 1', [fullPhone])
+
+    if (existingUser.rows.length > 0) {
+      userId = existingUser.rows[0].id
+    } else {
+      // Create new user
+      isNewUser = true
+      userId = crypto.randomUUID()
+      const createdAt = new Date().toISOString()
+      const profileId = crypto.randomUUID()
+
+      // Create user
+      await pgQuery(
+        `INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+        [userId, null, `User_${normalizedPhone.slice(-4)}`, fullPhone, null, createdAt]
+      )
+
+      // Create auth account (no password for phone auth)
+      await pgQuery(
+        'INSERT INTO auth_accounts (user_id, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $3)',
+        [userId, 'PHONE_AUTH_NO_PASSWORD', createdAt]
+      )
+
+      // Create matrimony profile
+      await pgQuery(
+        `INSERT INTO matrimony_profiles
+          (id, user_id, date_of_birth, age, gender, location, community, education, occupation, bio,
+           marital_status, height, income, language, compatibility_score, is_unlocked, is_shortlisted, is_viewed,
+           created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19)`,
+        [
+          profileId, userId, null, null, 'unspecified', null, 'Chaudhary', null, null,
+          'New member. Please update your profile.',
+          'Never Married', null, null, 'Hindi',
+          0, 1, 0, 0,
+          createdAt
+        ]
+      )
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ userId, phone: fullPhone }, JWT_SECRET, { expiresIn: '7d' })
+
+    // Clear OTP
+    phoneOtpStore.delete(normalizedPhone)
+
+    response.json({
+      success: true,
+      token,
+      userId,
+      message: isNewUser ? 'Account created successfully' : 'Login successful',
+    })
+  } catch (err) {
+    console.error('[phone-otp] Verification error:', err)
+    response.status(500).json({ success: false, error: 'Failed to process login. Please try again.' })
+  }
+})
+
 app.get('/api/community/posts', async (request, response) => {
   const { category, search, pinned } = request.query
   const pinnedOnly = String(pinned || '').toLowerCase() === 'true'

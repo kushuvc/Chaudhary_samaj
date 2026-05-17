@@ -19,4 +19,17 @@ config.resolver.extraNodeModules = {
 	'react-native': path.resolve(projectRoot, 'node_modules/react-native')
 };
 
+// Fix: Disable Hermes transform for web compatibility
+config.transformer = {
+  ...config.transformer,
+  hermesParser: false,
+  minifierConfig: {
+    ...config.transformer?.minifierConfig,
+    keep_fnames: true,
+    mangle: {
+      keep_fnames: true,
+    },
+  },
+};
+
 module.exports = config;

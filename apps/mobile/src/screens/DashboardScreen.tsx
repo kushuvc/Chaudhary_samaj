@@ -11,12 +11,14 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Ellipse } from 'react-native-svg';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 import { api } from '../services/api';
 import type { ThemePalette } from '../context/ThemeContext';
 import type { MatrimonyProfile } from '../types';
 
 export function DashboardScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -65,13 +67,14 @@ export function DashboardScreen() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5efe7' }}>
         <Ionicons name="heart" size={40} color="#ea580c" />
-        <Text style={{ marginTop: 12, color: '#ea580c', fontWeight: '600', fontSize: 15 }}>Finding your matches...</Text>
+        <Text style={{ marginTop: 12, color: '#ea580c', fontWeight: '600', fontSize: 15 }}>{t('dashboardFindingMatches')}</Text>
       </View>
     );
   }
 
   const userName = session?.user?.name || 'Member';
-  const greeting = new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 17 ? 'Good Afternoon' : 'Good Evening';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? t('greetingMorning') : hour < 17 ? t('greetingAfternoon') : t('greetingEvening');
   const profileComplete = myProfile && myProfile.age && myProfile.location;
 
   return (
@@ -112,7 +115,7 @@ export function DashboardScreen() {
           </View>
           <Text style={styles.heroGreeting}>{greeting},</Text>
           <Text style={styles.heroName}>{userName} 👋</Text>
-          <Text style={styles.heroSub}>Find your perfect life partner</Text>
+          <Text style={styles.heroSub}>{t('dashboardFindMatches')}</Text>
         </View>
       </View>
 
@@ -130,8 +133,8 @@ export function DashboardScreen() {
           <View style={styles.incompleteBannerLeft}>
             <Ionicons name="person-circle-outline" size={32} color={palette.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.incompleteBannerTitle}>Complete Your Profile</Text>
-              <Text style={styles.incompleteBannerSub}>Add details to get better matches</Text>
+              <Text style={styles.incompleteBannerTitle}>{t('dashboardCompleteProfile')}</Text>
+              <Text style={styles.incompleteBannerSub}>{t('dashboardCompleteProfileSub')}</Text>
             </View>
           </View>
           <View style={styles.incompleteBannerBadge}>
@@ -141,34 +144,34 @@ export function DashboardScreen() {
       )}
 
       {/* Interests Stats */}
-      <Text style={styles.sectionTitle}>My Activity</Text>
+      <Text style={styles.sectionTitle}>{t('dashboardMyActivity')}</Text>
       <View style={styles.statsRow}>
         <View style={[styles.statPill, { backgroundColor: '#fff1f2' }]}>
           <Ionicons name="paper-plane" size={18} color="#f43f5e" />
           <Text style={[styles.statPillValue, { color: '#f43f5e' }]}>{sentInterests}</Text>
-          <Text style={styles.statPillLabel}>Interests{'\n'}Sent</Text>
+          <Text style={styles.statPillLabel}>{t('dashboardInterestsSent')}</Text>
         </View>
         <View style={[styles.statPill, { backgroundColor: '#fef9ec' }]}>
           <Ionicons name="mail" size={18} color="#f59e0b" />
           <Text style={[styles.statPillValue, { color: '#f59e0b' }]}>{receivedInterests}</Text>
-          <Text style={styles.statPillLabel}>Interests{'\n'}Received</Text>
+          <Text style={styles.statPillLabel}>{t('dashboardInterestsReceived')}</Text>
         </View>
         <View style={[styles.statPill, { backgroundColor: '#ecfdf5' }]}>
           <Ionicons name="checkmark-circle" size={18} color="#10b981" />
           <Text style={[styles.statPillValue, { color: '#10b981' }]}>{acceptedInterests}</Text>
-          <Text style={styles.statPillLabel}>Interests{'\n'}Accepted</Text>
+          <Text style={styles.statPillLabel}>{t('dashboardInterestsAccepted')}</Text>
         </View>
         <View style={[styles.statPill, { backgroundColor: '#fff7ed' }]}>
           <Ionicons name="people" size={18} color={palette.primary} />
           <Text style={[styles.statPillValue, { color: palette.primary }]}>{totalProfiles}</Text>
-          <Text style={styles.statPillLabel}>Total{'\n'}Profiles</Text>
+          <Text style={styles.statPillLabel}>{t('dashboardTotalProfiles')}</Text>
         </View>
       </View>
 
       {/* Recent Profiles */}
       {recentProfiles.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>Recent Profiles</Text>
+          <Text style={styles.sectionTitle}>{t('dashboardRecentProfiles')}</Text>
           <View style={styles.profilesGrid}>
             {recentProfiles.map((profile) => (
               <View key={profile.id} style={styles.profileCard}>
@@ -191,7 +194,7 @@ export function DashboardScreen() {
       )}
 
       {/* My Profile Card */}
-      <Text style={styles.sectionTitle}>My Profile</Text>
+      <Text style={styles.sectionTitle}>{t('dashboardMyProfile')}</Text>
       <View style={styles.myProfileCard}>
         <View style={styles.myProfileLeft}>
           <View style={styles.myProfileAvatar}>

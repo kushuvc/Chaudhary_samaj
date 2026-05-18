@@ -4,6 +4,7 @@ import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, Rect, Stop } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 
 interface WelcomeScreenProps {
   onCreateProfile: () => void;
@@ -12,6 +13,7 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
@@ -61,24 +63,22 @@ export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) 
           </View>
 
           {/* Headline */}
-          <Text style={styles.heroTitle}>Find Your{'\n'}Perfect Match</Text>
-          <Text style={styles.heroSubtitle}>
-            Trusted matrimony service for{'\n'}the Chaudhary community
-          </Text>
+          <Text style={styles.heroTitle}>{t('welcomeHeroTitle')}</Text>
+          <Text style={styles.heroSubtitle}>{t('welcomeHeroSubtitle')}</Text>
 
           {/* Feature pills */}
           <View style={styles.pillsRow}>
             <View style={styles.pill}>
               <Ionicons name="shield-checkmark" size={14} color="#ffffff" />
-              <Text style={styles.pillText}>Verified Profiles</Text>
+              <Text style={styles.pillText}>{t('welcomePillVerified')}</Text>
             </View>
             <View style={styles.pill}>
               <Ionicons name="people" size={14} color="#ffffff" />
-              <Text style={styles.pillText}>Same Community</Text>
+              <Text style={styles.pillText}>{t('welcomePillCommunity')}</Text>
             </View>
             <View style={styles.pill}>
               <Ionicons name="lock-closed" size={14} color="#ffffff" />
-              <Text style={styles.pillText}>100% Private</Text>
+              <Text style={styles.pillText}>{t('welcomePillPrivate')}</Text>
             </View>
           </View>
         </View>
@@ -90,25 +90,25 @@ export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) 
       {/* Bottom Card */}
       <View style={styles.bottomCard}>
         {/* Brand name */}
-        <Text style={styles.brandName}>Chaudhary Samaj</Text>
-        <Text style={styles.brandTagline}>No. 1 matrimony platform for Chaudhary families</Text>
+        <Text style={styles.brandName}>{t('welcomeBrandName')}</Text>
+        <Text style={styles.brandTagline}>{t('welcomeBrandTagline')}</Text>
 
         {/* CTA */}
         <Pressable style={styles.primaryButton} onPress={onCreateProfile}>
           <Ionicons name="person-add" size={20} color="#ffffff" />
-          <Text style={styles.primaryButtonText}>Create Free Profile</Text>
+          <Text style={styles.primaryButtonText}>{t('welcomeCreateProfile')}</Text>
         </Pressable>
 
         {/* Divider */}
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>Already have an account?</Text>
+          <Text style={styles.dividerText}>{t('welcomeAlreadyAccount')}</Text>
           <View style={styles.dividerLine} />
         </View>
 
         {/* Login */}
         <Pressable style={styles.loginButton} onPress={onLogin}>
-          <Text style={styles.loginButtonText}>Log In</Text>
+          <Text style={styles.loginButtonText}>{t('welcomeLogin')}</Text>
         </Pressable>
       </View>
     </View>

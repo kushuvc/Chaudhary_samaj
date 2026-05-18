@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,6 +9,8 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import type { AppLanguage } from '../context/LanguageContext';
 import { InlineError } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { loadJson, saveJson } from '../services/localData';
@@ -46,6 +49,12 @@ const defaultPrivacy: MobilePrivacySettings = {
   twoFactorEnabled: false,
 };
 
+const LANGUAGE_OPTIONS: Array<{ key: AppLanguage; label: string; nativeLabel: string }> = [
+  { key: 'en-IN', label: 'English', nativeLabel: 'English' },
+  { key: 'hi-IN', label: 'Hindi', nativeLabel: 'हिन्दी' },
+  { key: 'gu-IN', label: 'Gujarati', nativeLabel: 'ગુજરાતી' },
+];
+
 export function SettingsScreen() {
   const { palette, themeMode, setThemeMode } = useAppTheme();
   const { language, setLanguage, t } = useAppLanguage();
@@ -57,6 +66,9 @@ export function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string>('');
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+
+  const currentLangOption = LANGUAGE_OPTIONS.find((o) => o.key === (language ?? 'en-IN'));
 
   const persistSettings = async (state: MobileSettingsState) => {
     await Promise.race([
@@ -146,12 +158,10 @@ export function SettingsScreen() {
     }
   };
 
-  const cycleLanguage = () => {
-    const values = ['en-IN', 'hi-IN', 'gu-IN'];
-    const index = values.indexOf(account.language);
-    const next = values[(index + 1) % values.length];
-    void setLanguage(next as 'en-IN' | 'hi-IN' | 'gu-IN');
-    setAccount((prev) => ({ ...prev, language: next }));
+  const selectLanguage = (lang: AppLanguage) => {
+    void setLanguage(lang);
+    setAccount((prev) => ({ ...prev, language: lang }));
+    setShowLangPicker(false);
   };
 
   const cycleTimezone = () => {
@@ -189,10 +199,41 @@ export function SettingsScreen() {
       <SectionCard>
         <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('accountPreferences')}</Text>
 
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={cycleLanguage}>
+        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => setShowLangPicker(true)}>
           <Text style={[styles.rowLabel, { color: palette.text }]}>{t('languageFieldLabel')}</Text>
-          <Text style={[styles.rowValue, { color: palette.text }]}>{account.language}</Text>
+          <View style={styles.rowRight}>
+            <Text style={[styles.rowValue, { color: palette.primary }]}>
+              {currentLangOption ? `${currentLangOption.nativeLabel} (${currentLangOption.label})` : language}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={palette.muted} />
+          </View>
         </Pressable>
+
+        {/* Language Picker Modal */}
+        <Modal visible={showLangPicker} transparent animationType="slide" onRequestClose={() => setShowLangPicker(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setShowLangPicker(false)}>
+            <View style={[styles.modalSheet, { backgroundColor: palette.cardBg }]}>
+              <View style={styles.modalHandle} />
+              <Text style={[styles.modalTitle, { color: palette.text }]}>{t('languageFieldLabel')}</Text>
+              {LANGUAGE_OPTIONS.map((opt) => {
+                const active = (language ?? 'en-IN') === opt.key;
+                return (
+                  <Pressable
+                    key={opt.key}
+                    style={[styles.langOption, { borderColor: active ? palette.primary : palette.border, backgroundColor: active ? palette.primarySoft : palette.surface }]}
+                    onPress={() => selectLanguage(opt.key)}
+                  >
+                    <View style={styles.langOptionLeft}>
+                      <Text style={[styles.langNative, { color: active ? palette.primary : palette.text }]}>{opt.nativeLabel}</Text>
+                      <Text style={[styles.langEnglish, { color: palette.muted }]}>{opt.label}</Text>
+                    </View>
+                    {active && <Ionicons name="checkmark-circle" size={22} color={palette.primary} />}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Modal>
 
         <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={cycleTimezone}>
           <Text style={[styles.rowLabel, { color: palette.text }]}>{t('timezoneLabel')}</Text>
@@ -406,6 +447,53 @@ function createStyles(palette: ThemePalette) {
     noteText: {
       marginTop: spacing.sm,
       ...type.caption,
+    },
+    rowRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'flex-end',
+    },
+    modalSheet: {
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 24,
+      gap: 10,
+    },
+    modalHandle: {
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: '#ccc',
+      alignSelf: 'center',
+      marginBottom: 8,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      marginBottom: 8,
+    },
+    langOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderWidth: 2,
+      borderRadius: 14,
+      padding: 16,
+    },
+    langOptionLeft: {
+      gap: 2,
+    },
+    langNative: {
+      fontSize: 18,
+      fontWeight: '700',
+    },
+    langEnglish: {
+      fontSize: 13,
     },
   });
 }

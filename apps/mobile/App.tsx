@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { Component } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -31,40 +31,33 @@ function AppRoot() {
   );
 }
 
-function ErrorDisplay({ error }: { error: Error }) {
-  return (
-    <View style={styles.errorContainer}>
-      <Text style={styles.errorTitle}>App Error</Text>
-      <Text style={styles.errorMessage}>{error.message}</Text>
-      <Text style={styles.errorStack}>{error.stack}</Text>
-    </View>
-  );
+interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
+
+class ErrorBoundary extends Component<{ children: React.ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError && this.state.error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>App Error</Text>
+          <Text style={styles.errorMessage}>{this.state.error.message}</Text>
+          <Text style={styles.errorStack}>{this.state.error.stack}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default function App() {
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    const handleError = (err: Error) => {
-      console.error('Caught error:', err);
-      setError(err);
-    };
-    
-    // @ts-ignore
-    if (window && window.addEventListener) {
-      // @ts-ignore
-      window.addEventListener('error', (e) => handleError(e.error));
-      // @ts-ignore
-      window.addEventListener('unhandledrejection', (e) => handleError(e.reason));
-    }
-  }, []);
-
-  if (error) {
-    return <ErrorDisplay error={error} />;
-  }
-
-  try {
-    return (
+  return (
+    <ErrorBoundary>
       <SafeAreaProvider>
         <ThemeProvider>
           <LanguageProvider>
@@ -74,10 +67,8 @@ export default function App() {
           </LanguageProvider>
         </ThemeProvider>
       </SafeAreaProvider>
-    );
-  } catch (err) {
-    return <ErrorDisplay error={err as Error} />;
-  }
+    </ErrorBoundary>
+  );
 }
 
 const styles = StyleSheet.create({

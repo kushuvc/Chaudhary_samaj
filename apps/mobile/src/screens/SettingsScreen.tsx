@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ import type {
 } from '../types';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import type { ThemePalette } from '../context/ThemeContext';
 
 const STORAGE_KEY = 'chaudhary_mobile_settings_state';
@@ -58,6 +60,7 @@ const LANGUAGE_OPTIONS: Array<{ key: AppLanguage; label: string; nativeLabel: st
 export function SettingsScreen() {
   const { palette, themeMode, setThemeMode } = useAppTheme();
   const { language, setLanguage, t } = useAppLanguage();
+  const { logout } = useAuth();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [account, setAccount] = useState<MobileAccountSettings>(defaultAccount);
   const [notifications, setNotifications] = useState<MobileNotificationSettings>(defaultNotifications);
@@ -67,6 +70,10 @@ export function SettingsScreen() {
   const [savedAt, setSavedAt] = useState<string>('');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const currentLangOption = LANGUAGE_OPTIONS.find((o) => o.key === (language ?? 'en-IN'));
 
@@ -240,14 +247,6 @@ export function SettingsScreen() {
           <Text style={[styles.rowValue, { color: palette.text }]}>{account.timezone}</Text>
         </Pressable>
 
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => setAccount((prev) => ({ ...prev, publicProfile: !prev.publicProfile }))}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('publicProfileVisibility')}</Text>
-          <Switch
-            value={account.publicProfile}
-            onValueChange={() => setAccount((prev) => ({ ...prev, publicProfile: !prev.publicProfile }))}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
       </SectionCard>
 
       <SectionCard>
@@ -330,6 +329,18 @@ export function SettingsScreen() {
         </Pressable>
       </SectionCard>
 
+      {/* Danger Zone */}
+      <SectionCard>
+        <Text style={[styles.sectionTitle, { color: palette.danger ?? '#dc2626' }]}>{t('dangerZone')}</Text>
+        <Text style={[styles.noteText, { color: palette.muted, marginTop: 4 }]}>{t('dangerZoneSubtitle')}</Text>
+        <Pressable
+          style={[styles.deleteBtn, { borderColor: palette.danger ?? '#dc2626' }]}
+          onPress={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError(null); }}
+        >
+          <Text style={[styles.deleteBtnText, { color: palette.danger ?? '#dc2626' }]}>{t('deleteMyAccount')}</Text>
+        </Pressable>
+      </SectionCard>
+
       <SectionCard>
         <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('appearanceLabel')}</Text>
         <View style={styles.themeRow}>
@@ -349,6 +360,53 @@ export function SettingsScreen() {
         </View>
         <Text style={[styles.noteText, { color: palette.muted }]}>{t('themeAppliedNote')}</Text>
       </SectionCard>
+      {/* Delete Account Modal */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteModal(false)}>
+          <View style={[styles.deleteModalSheet, { backgroundColor: palette.cardBg }]}>
+            <Text style={[styles.deleteModalTitle, { color: palette.danger ?? '#dc2626' }]}>{t('deleteAccountTitle')}</Text>
+            <Text style={[styles.deleteModalWarning, { color: palette.text }]}>{t('deleteAccountWarning')}</Text>
+            <Text style={[styles.deleteModalLabel, { color: palette.text }]}>{t('typeDeleteToConfirm')}</Text>
+            <TextInput
+              style={[styles.deleteInput, { borderColor: palette.border, color: palette.text, backgroundColor: palette.surface }]}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder={t('typeDeletePlaceholder')}
+              placeholderTextColor={palette.muted}
+              autoCapitalize="characters"
+            />
+            {deleteError ? <Text style={styles.deleteErrorText}>{deleteError}</Text> : null}
+            <View style={styles.deleteModalButtons}>
+              <Pressable
+                style={[styles.deleteCancelBtn, { borderColor: palette.border, backgroundColor: palette.surface }]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={deleting}
+              >
+                <Text style={[styles.deleteCancelText, { color: palette.text }]}>{t('cancel')}</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deleteConfirmBtn, { backgroundColor: deleteConfirmText === 'DELETE' && !deleting ? (palette.danger ?? '#dc2626') : palette.border }]}
+                onPress={async () => {
+                  if (deleteConfirmText !== 'DELETE' || deleting) return;
+                  setDeleting(true);
+                  setDeleteError(null);
+                  try {
+                    await logout();
+                    setShowDeleteModal(false);
+                  } catch {
+                    setDeleteError('Failed to delete account. Please try again.');
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleteConfirmText !== 'DELETE' || deleting}
+              >
+                <Text style={styles.deleteConfirmText}>{deleting ? t('deleting') : t('deleteForever')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -494,6 +552,79 @@ function createStyles(palette: ThemePalette) {
     },
     langEnglish: {
       fontSize: 13,
+    },
+    deleteBtn: {
+      marginTop: spacing.sm,
+      borderWidth: 1.5,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      alignSelf: 'flex-start' as const,
+    },
+    deleteBtnText: {
+      fontWeight: '700',
+      fontSize: 14,
+    },
+    deleteModalSheet: {
+      margin: spacing.md,
+      borderRadius: 20,
+      padding: spacing.md,
+      gap: spacing.xs,
+    },
+    deleteModalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    deleteModalWarning: {
+      fontSize: 14,
+      lineHeight: 20,
+      marginBottom: 4,
+    },
+    deleteModalLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      marginTop: 4,
+    },
+    deleteInput: {
+      borderWidth: 1,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+      fontSize: 15,
+      marginTop: 4,
+    },
+    deleteErrorText: {
+      color: '#dc2626',
+      fontSize: 13,
+      marginTop: 4,
+    },
+    deleteModalButtons: {
+      flexDirection: 'row' as const,
+      gap: spacing.xs,
+      marginTop: spacing.sm,
+    },
+    deleteCancelBtn: {
+      flex: 1,
+      borderWidth: 1,
+      borderRadius: radius.sm,
+      paddingVertical: spacing.sm,
+      alignItems: 'center' as const,
+    },
+    deleteCancelText: {
+      fontWeight: '600',
+      fontSize: 14,
+    },
+    deleteConfirmBtn: {
+      flex: 1,
+      borderRadius: radius.sm,
+      paddingVertical: spacing.sm,
+      alignItems: 'center' as const,
+    },
+    deleteConfirmText: {
+      fontWeight: '700',
+      fontSize: 14,
+      color: '#ffffff',
     },
   });
 }

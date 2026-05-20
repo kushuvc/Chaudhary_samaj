@@ -19,6 +19,8 @@ import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { MatrimonyFilterOptions, MatrimonyProfile } from '../types';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type MatchTab = 'all' | 'newlyJoined' | 'more';
 
@@ -128,6 +130,9 @@ export function MatrimonyScreen() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [shownNumbers, setShownNumbers] = useState<Record<string, string | null>>({});
   const [sendingInterest, setSendingInterest] = useState<string | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const FREE_PROFILE_LIMIT = 2;
 
   const appliedFilterCount = useMemo(
     () => Object.values(filters).filter((value) => String(value).trim() !== '').length,
@@ -177,6 +182,10 @@ export function MatrimonyScreen() {
   useEffect(() => {
     loadProfiles();
   }, [loadProfiles]);
+
+  useEffect(() => {
+    api.getSubscriptionStatus().then((s) => setIsSubscribed(s.hasSubscription)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const loadOptions = async () => {
@@ -296,12 +305,43 @@ export function MatrimonyScreen() {
           />
         ) : null}
 
-        {profiles.map((profile) => {
+        {profiles.map((profile, index) => {
           const interestStatus = interestsMap[profile.id];
+          const isLocked = !isSubscribed && index >= FREE_PROFILE_LIMIT;
           // Get primary photo or first available photo
           const primaryPhoto = profile.photos?.find(p => p.status === 'done' && p.isPrimary)
             || profile.photos?.find(p => p.status === 'done')
             || null;
+          if (isLocked) {
+            return (
+              <View key={profile.id} style={[styles.newCard, { overflow: 'hidden' }]}>
+                {/* Blurred locked overlay */}
+                <View style={styles.lockedOverlay}>
+                  <Ionicons name="lock-closed" size={36} color="#FFFFFF" />
+                  <Text style={styles.lockedTitle}>Subscribe to View</Text>
+                  <Text style={styles.lockedSubtitle}>₹200/month — Unlimited profiles</Text>
+                  <Pressable
+                    style={styles.lockedButton}
+                    onPress={() => navigation.navigate('Subscriptions')}
+                  >
+                    <Text style={styles.lockedButtonText}>Get Full Access</Text>
+                  </Pressable>
+                </View>
+                {/* Blurred background content */}
+                <View style={{ opacity: 0.15, pointerEvents: 'none' }}>
+                  <View style={[styles.imageContainer, { height: 120 }]}>
+                    <View style={styles.profileImagePlaceholder}>
+                      <Ionicons name="person" size={60} color="#ccc" />
+                    </View>
+                  </View>
+                  <View style={[styles.infoSection, { gap: 4 }]}>
+                    <Text style={styles.newName}>{'••••••••••'}</Text>
+                    <Text style={styles.details}>{'•• Yrs • ••••• • ••••••'}</Text>
+                  </View>
+                </View>
+              </View>
+            );
+          }
           return (
             <View key={profile.id} style={styles.newCard}>
               {/* Profile Image Area */}
@@ -900,6 +940,43 @@ function createStyles(palette: ThemePalette) {
     fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  lockedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(30,30,30,0.82)',
+    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    padding: 20,
+    borderRadius: 12,
+  },
+  lockedTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  lockedSubtitle: {
+    fontSize: 13,
+    color: '#e0e0e0',
+    textAlign: 'center',
+  },
+  lockedButton: {
+    marginTop: 6,
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 24,
+  },
+  lockedButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   });
 }

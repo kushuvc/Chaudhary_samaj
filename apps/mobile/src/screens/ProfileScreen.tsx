@@ -180,10 +180,12 @@ function LabeledInput({
 }
 
 export function ProfileScreen() {
-  const { palette } = useAppTheme();
-  const { t } = useAppLanguage();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  console.log('[ProfileScreen] Component mounted');
   const { session, logout } = useAuth();
+  console.log('[ProfileScreen] Session:', session ? 'Authenticated' : 'Not authenticated');
+  const { t } = useAppLanguage();
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,8 +218,10 @@ export function ProfileScreen() {
 
     const loadProfile = async () => {
       try {
+        console.log('[ProfileScreen] Loading profile data...');
         setError(null);
         const data = await api.getMyMatrimonyProfile();
+        console.log('[ProfileScreen] Profile data received:', data);
         if (!mounted) {
           return;
         }
@@ -248,7 +252,7 @@ export function ProfileScreen() {
           horoscopePlace: normalizeValue(data.profile.horoscopePlace),
           photos: data.profile.photos || [],
         });
-        setMatrimony({
+        const profileData = {
           age: normalizeValue(data.matrimony.age),
           maritalStatus: normalizeValue(data.matrimony.maritalStatus),
           height: normalizeValue(data.matrimony.height),
@@ -271,7 +275,9 @@ export function ProfileScreen() {
           hobbies: data.matrimony.hobbies || [],
           music: data.matrimony.music || [],
           sports: data.matrimony.sports || [],
-        });
+        };
+        console.log('[ProfileScreen] Matrimony data set:', profileData);
+        setMatrimony(profileData);
       } catch (err) {
         if (mounted) {
           setError((err as Error).message || t('unableLoadProfile'));
@@ -455,14 +461,6 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Date of Birth"
-          value={profile.dateOfBirth || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, dateOfBirth: value }))}
-          editable={isEditing}
-          placeholder="Not set"
-          styles={styles}
-        />
-        <LabeledInput
           label="Physical Status"
           value={profile.physicalStatus || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, physicalStatus: value }))}
@@ -558,6 +556,69 @@ export function ProfileScreen() {
           onChangeText={(value) => setProfile((prev) => ({ ...prev, nativeVillage: value }))}
           editable={isEditing}
           placeholder="Not set"
+          styles={styles}
+        />
+      </SectionCard>
+
+      {/* Matrimony Details from Signup */}
+      <SectionCard>
+        <Text style={styles.sectionTitle}>Matrimony Details</Text>
+        <LabeledInput
+          label="Age"
+          value={matrimony.age || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, age: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <OptionSelect
+          label="Marital Status"
+          value={matrimony.maritalStatus || ''}
+          options={MARITAL_STATUS_OPTIONS}
+          editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, maritalStatus: value }))}
+          styles={styles}
+        />
+        <LabeledInput
+          label="Height"
+          value={matrimony.height || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, height: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <LabeledInput
+          label="Income"
+          value={matrimony.income || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, income: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          styles={styles}
+        />
+        <OptionSelect
+          label="Community"
+          value={matrimony.community || ''}
+          options={COMMUNITY_OPTIONS}
+          editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, community: value }))}
+          styles={styles}
+        />
+        <OptionSelect
+          label="Language"
+          value={matrimony.language || ''}
+          options={LANGUAGE_OPTIONS}
+          editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, language: value }))}
+          styles={styles}
+        />
+        <LabeledInput
+          label="Profile Bio"
+          value={matrimony.profileBio || ''}
+          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, profileBio: value }))}
+          editable={isEditing}
+          placeholder="Not set"
+          multiline
+          numberOfLines={3}
           styles={styles}
         />
       </SectionCard>

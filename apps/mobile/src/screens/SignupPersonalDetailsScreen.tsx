@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +21,23 @@ interface SignupPersonalDetailsScreenProps {
   onNext: (data: PersonalDetailsData) => void;
 }
 
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NUMS: Record<string, number> = { Jan:1, Feb:2, Mar:3, Apr:4, May:5, Jun:6, Jul:7, Aug:8, Sep:9, Oct:10, Nov:11, Dec:12 };
+
+const currentYear = new Date().getFullYear();
+const YEARS = Array.from({ length: currentYear - 1940 + 1 }, (_, i) => String(currentYear - i));
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+
+function calcAge(day: string, month: string, year: string): number | null {
+  if (!day || !month || !year || year.length < 4) return null;
+  const dob = new Date(Number(year), MONTH_NUMS[month] - 1, Number(day));
+  if (isNaN(dob.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return age;
+}
 
 const heights = [
   '4 ft 0 in (122 cm)',
@@ -75,12 +91,18 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
     maritalStatus: null,
   });
   const [showHeightPicker, setShowHeightPicker] = useState(false);
+  const [showDayPicker, setShowDayPicker] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
 
-  const isValid = 
+  const age = calcAge(data.dateOfBirth.day, data.dateOfBirth.month, data.dateOfBirth.year);
+  const dobUnderAge = age !== null && age < 18;
+  const dobComplete = data.dateOfBirth.day && data.dateOfBirth.month && data.dateOfBirth.year;
+
+  const isValid =
     data.gender &&
-    data.dateOfBirth.day &&
-    data.dateOfBirth.year &&
+    dobComplete &&
+    !dobUnderAge &&
     data.height &&
     data.physicalStatus &&
     data.maritalStatus;
@@ -131,27 +153,34 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
         <View style={styles.section}>
           <Text style={styles.label}>Date of birth</Text>
           <View style={styles.dobRow}>
-            <TextInput
-              style={[styles.dobInput, styles.dayInput]}
-              placeholder="DD"
-              value={data.dateOfBirth.day}
-              onChangeText={(text) => setData({ ...data, dateOfBirth: { ...data.dateOfBirth, day: text } })}
-              keyboardType="number-pad"
-              maxLength={2}
-            />
-            <Pressable style={styles.monthPicker} onPress={() => setShowMonthPicker(true)}>
-              <Text style={styles.monthText}>{data.dateOfBirth.month}</Text>
-              <Ionicons name="chevron-down" size={16} color={palette.text} />
+            {/* Day */}
+            <Pressable style={[styles.dobDropdown, styles.dobDay]} onPress={() => setShowDayPicker(true)}>
+              <Text style={data.dateOfBirth.day ? styles.dobDropdownText : styles.dobDropdownPlaceholder}>
+                {data.dateOfBirth.day || 'DD'}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={palette.muted} />
             </Pressable>
-            <TextInput
-              style={[styles.dobInput, styles.yearInput]}
-              placeholder="YYYY"
-              value={data.dateOfBirth.year}
-              onChangeText={(text) => setData({ ...data, dateOfBirth: { ...data.dateOfBirth, year: text } })}
-              keyboardType="number-pad"
-              maxLength={4}
-            />
+            {/* Month */}
+            <Pressable style={[styles.dobDropdown, styles.dobMonth]} onPress={() => setShowMonthPicker(true)}>
+              <Text style={data.dateOfBirth.month ? styles.dobDropdownText : styles.dobDropdownPlaceholder}>
+                {data.dateOfBirth.month || 'MMM'}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={palette.muted} />
+            </Pressable>
+            {/* Year */}
+            <Pressable style={[styles.dobDropdown, styles.dobYear]} onPress={() => setShowYearPicker(true)}>
+              <Text style={data.dateOfBirth.year ? styles.dobDropdownText : styles.dobDropdownPlaceholder}>
+                {data.dateOfBirth.year || 'YYYY'}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={palette.muted} />
+            </Pressable>
           </View>
+          {dobUnderAge && (
+            <Text style={styles.dobError}>⚠ You must be at least 18 years old to register.</Text>
+          )}
+          {dobComplete && !dobUnderAge && age !== null && (
+            <Text style={styles.dobAge}>Age: {age} years</Text>
+          )}
         </View>
 
         {/* Height */}
@@ -250,37 +279,80 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
         </View>
       )}
 
-      {/* Month Picker Modal */}
-      {showMonthPicker && (
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.backdrop} onPress={() => setShowMonthPicker(false)} />
-          <View style={styles.pickerContainer}>
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Select Month</Text>
-              <Pressable onPress={() => setShowMonthPicker(false)}>
-                <Ionicons name="close" size={24} color={palette.text} />
-              </Pressable>
-            </View>
-            <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={true}>
-              {months.map((month) => (
-                <Pressable
-                  key={month}
-                  style={[styles.pickerItem, data.dateOfBirth.month === month && styles.pickerItemActive]}
-                  onPress={() => {
-                    setData({ ...data, dateOfBirth: { ...data.dateOfBirth, month } });
-                    setShowMonthPicker(false);
-                  }}
-                >
-                  <Text style={[styles.pickerItemText, data.dateOfBirth.month === month && styles.pickerItemTextActive]}>
-                    {month}
-                  </Text>
-                  {data.dateOfBirth.month === month && <Ionicons name="checkmark" size={20} color="#E53935" />}
-                </Pressable>
-              ))}
-            </ScrollView>
+      {/* Day Picker Modal */}
+      <Modal visible={showDayPicker} transparent animationType="slide" onRequestClose={() => setShowDayPicker(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setShowDayPicker(false)} />
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Select Day</Text>
+            <Pressable onPress={() => setShowDayPicker(false)}>
+              <Ionicons name="close" size={24} color={palette.text} />
+            </Pressable>
           </View>
+          <ScrollView style={styles.pickerList} showsVerticalScrollIndicator>
+            {DAYS.map((day) => (
+              <Pressable
+                key={day}
+                style={[styles.pickerItem, data.dateOfBirth.day === day && styles.pickerItemActive]}
+                onPress={() => { setData({ ...data, dateOfBirth: { ...data.dateOfBirth, day } }); setShowDayPicker(false); }}
+              >
+                <Text style={[styles.pickerItemText, data.dateOfBirth.day === day && styles.pickerItemTextActive]}>{day}</Text>
+                {data.dateOfBirth.day === day && <Ionicons name="checkmark" size={20} color="#E53935" />}
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
-      )}
+      </Modal>
+
+      {/* Month Picker Modal */}
+      <Modal visible={showMonthPicker} transparent animationType="slide" onRequestClose={() => setShowMonthPicker(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setShowMonthPicker(false)} />
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Select Month</Text>
+            <Pressable onPress={() => setShowMonthPicker(false)}>
+              <Ionicons name="close" size={24} color={palette.text} />
+            </Pressable>
+          </View>
+          <ScrollView style={styles.pickerList} showsVerticalScrollIndicator>
+            {MONTHS.map((month) => (
+              <Pressable
+                key={month}
+                style={[styles.pickerItem, data.dateOfBirth.month === month && styles.pickerItemActive]}
+                onPress={() => { setData({ ...data, dateOfBirth: { ...data.dateOfBirth, month } }); setShowMonthPicker(false); }}
+              >
+                <Text style={[styles.pickerItemText, data.dateOfBirth.month === month && styles.pickerItemTextActive]}>{month}</Text>
+                {data.dateOfBirth.month === month && <Ionicons name="checkmark" size={20} color="#E53935" />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Year Picker Modal */}
+      <Modal visible={showYearPicker} transparent animationType="slide" onRequestClose={() => setShowYearPicker(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setShowYearPicker(false)} />
+        <View style={styles.pickerContainer}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Select Year</Text>
+            <Pressable onPress={() => setShowYearPicker(false)}>
+              <Ionicons name="close" size={24} color={palette.text} />
+            </Pressable>
+          </View>
+          <ScrollView style={styles.pickerList} showsVerticalScrollIndicator>
+            {YEARS.map((year) => (
+              <Pressable
+                key={year}
+                style={[styles.pickerItem, data.dateOfBirth.year === year && styles.pickerItemActive]}
+                onPress={() => { setData({ ...data, dateOfBirth: { ...data.dateOfBirth, year } }); setShowYearPicker(false); }}
+              >
+                <Text style={[styles.pickerItemText, data.dateOfBirth.year === year && styles.pickerItemTextActive]}>{year}</Text>
+                {data.dateOfBirth.year === year && <Ionicons name="checkmark" size={20} color="#E53935" />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
 
       {/* Footer */}
       <View style={styles.footer}>
@@ -383,42 +455,44 @@ function createStyles(palette: ThemePalette) {
       color: '#FFFFFF',
     },
     dobRow: {
-      flexDirection: 'row',
-      gap: 12,
-      alignItems: 'center',
+      flexDirection: 'row' as const,
+      gap: 10,
+      alignItems: 'center' as const,
     },
-    dobInput: {
+    dobDropdown: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
       borderWidth: 1,
       borderColor: palette.border,
       borderRadius: 8,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      fontSize: 16,
-      color: palette.text,
+      paddingVertical: 13,
+      paddingHorizontal: 12,
       backgroundColor: palette.cardBg,
-      textAlign: 'center',
     },
-    dayInput: {
-      width: 60,
-    },
-    yearInput: {
-      width: 80,
-    },
-    monthPicker: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      borderWidth: 1,
-      borderColor: palette.border,
-      borderRadius: 8,
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      backgroundColor: palette.cardBg,
-      minWidth: 80,
-    },
-    monthText: {
-      fontSize: 16,
+    dobDay: { width: 68 },
+    dobMonth: { flex: 1 },
+    dobYear: { width: 90 },
+    dobDropdownText: {
+      fontSize: 15,
       color: palette.text,
+      fontWeight: '500' as const,
+    },
+    dobDropdownPlaceholder: {
+      fontSize: 15,
+      color: palette.muted,
+    },
+    dobError: {
+      marginTop: 8,
+      fontSize: 13,
+      color: '#E53935',
+      fontWeight: '600' as const,
+    },
+    dobAge: {
+      marginTop: 6,
+      fontSize: 13,
+      color: '#10b981',
+      fontWeight: '600' as const,
     },
     heightSelector: {
       flexDirection: 'row',
@@ -466,11 +540,7 @@ function createStyles(palette: ThemePalette) {
       zIndex: 1000,
     },
     backdrop: {
-      position: 'absolute',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      flex: 1,
       backgroundColor: 'rgba(0,0,0,0.5)',
     },
     pickerContainer: {

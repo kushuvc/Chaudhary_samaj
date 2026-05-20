@@ -177,12 +177,6 @@ export function SignupReligiousDetailsScreen({ onBack, onNext }: SignupReligious
           <Text style={styles.nextButtonText}>Next</Text>
         </Pressable>
         
-        <View style={styles.helpRow}>
-          <Text style={styles.helpText}>Need help? Call</Text>
-          <Pressable>
-            <Text style={styles.helpPhone}>📞 8144-77-88-66</Text>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -375,21 +369,6 @@ function createStyles(palette: ThemePalette) {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '700',
-    },
-    helpRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    helpText: {
-      fontSize: 13,
-      color: palette.muted,
-    },
-    helpPhone: {
-      fontSize: 13,
-      color: '#E53935',
-      fontWeight: '600',
     },
   });
 }

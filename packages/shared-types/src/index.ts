@@ -51,6 +51,7 @@ export interface SignupPayload {
   hobbies?: string[];
   music?: string[];
   sports?: string[];
+  createAccount?: boolean;
 }
 
 export type OtpPurpose = 'signup' | 'login';

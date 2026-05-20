@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import pkg from 'pg'
+import { LRUCache } from 'lru-cache'
 
 const { Pool } = pkg
 
@@ -9,32 +10,34 @@ const pool = hasPostgres
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
+      max: 50,
+      min: 5,
+      idleTimeoutMillis: 300000,
+      connectionTimeoutMillis: 8000,
+      keepAlive: true,
+      statement_timeout: 30000,
     })
   : null
 
-const cache = new Map()
-const CACHE_TTL_MS = 5000
+if (pool) {
+  pool.on('error', (err) => {
+    console.error('[FastQueryPool] idle client error:', err.message)
+  })
+}
+
+// Bounded LRU cache — max 5000 entries with 5s TTL, prevents unbounded memory growth
+const cache = new LRUCache({ max: 5000, ttl: 5000, ttlAutopurge: false })
 
 function cacheKey(name, payload) {
   return `${name}:${JSON.stringify(payload || {})}`
 }
 
 function getCached(name, payload) {
-  const key = cacheKey(name, payload)
-  const hit = cache.get(key)
-  if (!hit) return null
-  if (Date.now() > hit.expiresAt) {
-    cache.delete(key)
-    return null
-  }
-  return hit.value
+  return cache.get(cacheKey(name, payload)) ?? null
 }
 
 function setCached(name, payload, value) {
-  cache.set(cacheKey(name, payload), {
-    value,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-  })
+  cache.set(cacheKey(name, payload), value)
 }
 
 function mapCommunityPostRow(row) {
@@ -126,7 +129,8 @@ export function mapPublicProfile(row) {
     isShortlisted: Boolean(row.is_shortlisted),
     isViewed: Boolean(row.is_viewed),
     createdAt: row.created_at,
-    gender: row.gender,
+    gender: row.gender ? String(row.gender).toLowerCase() : row.gender,
+    isNew: row.created_at ? (Date.now() - new Date(row.created_at).getTime()) < 7 * 24 * 60 * 60 * 1000 : false,
     dateOfBirth: row.date_of_birth,
     familyStatus: row.family_status,
     familyType: row.family_type,
@@ -143,6 +147,43 @@ export function mapPublicProfile(row) {
       if (Array.isArray(row.photos)) return row.photos
       try {
         const parsed = JSON.parse(row.photos)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    })(),
+    physicalStatus: row.physical_status,
+    religion: row.religion,
+    dosh: row.dosh,
+    eatingHabit: row.eating_habit,
+    horoscopeTime: row.horoscope_time,
+    horoscopePlace: row.horoscope_place,
+    village: row.village,
+    hobbies: (() => {
+      if (!row.hobbies) return []
+      if (Array.isArray(row.hobbies)) return row.hobbies
+      try {
+        const parsed = JSON.parse(row.hobbies)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    })(),
+    music: (() => {
+      if (!row.music) return []
+      if (Array.isArray(row.music)) return row.music
+      try {
+        const parsed = JSON.parse(row.music)
+        return Array.isArray(parsed) ? parsed : []
+      } catch {
+        return []
+      }
+    })(),
+    sports: (() => {
+      if (!row.sports) return []
+      if (Array.isArray(row.sports)) return row.sports
+      try {
+        const parsed = JSON.parse(row.sports)
         return Array.isArray(parsed) ? parsed : []
       } catch {
         return []
@@ -590,8 +631,11 @@ export async function getCurrentMemberPayloadFast(userId) {
              p.id AS profile_id, p.date_of_birth, p.age, p.gender, p.location, p.community,
              p.sub_community, p.education, p.occupation, p.bio, p.marital_status, p.height, p.income, p.language,
              p.compatibility_score, p.is_unlocked, p.is_shortlisted, p.is_viewed,
-             p.family_status, p.family_type, p.family_wealth, p.father_name, p.mother_name, p.father_occupation, p.mother_occupation, p.siblings,
-             p.native_city, p.native_village, p.photos,
+             p.photos, p.physical_status, p.religion, p.caste, p.dosh, p.eating_habit, p.horoscope_time, p.horoscope_place,
+             p.country, p.state, p.village, p.native_city, p.native_village,
+             p.family_status, p.family_type, p.family_wealth,
+             p.father_name, p.mother_name, p.father_occupation, p.mother_occupation, p.siblings,
+             p.hobbies, p.music, p.sports,
              p.created_at, p.updated_at
       FROM users u
       JOIN matrimony_profiles p ON p.user_id = u.id
@@ -625,8 +669,20 @@ export async function getCurrentMemberPayloadFast(userId) {
       bio: record.bio,
       gender: record.gender,
       dateOfBirth: record.date_of_birth,
-      nativeCity: record.native_city,
-      nativeVillage: record.native_village,
+      physicalStatus: record.physical_status || '',
+      religion: record.religion || '',
+      caste: record.caste || '',
+      subCaste: record.sub_community || '',
+      dosh: record.dosh || '',
+      country: record.country || '',
+      state: record.state || '',
+      city: record.location || '',
+      village: record.village || '',
+      nativeCity: record.native_city || '',
+      nativeVillage: record.native_village || '',
+      eatingHabit: record.eating_habit || '',
+      horoscopeTime: record.horoscope_time || '',
+      horoscopePlace: record.horoscope_place || '',
       photos: (() => {
         if (!record.photos) return []
         if (Array.isArray(record.photos)) return record.photos
@@ -658,6 +714,9 @@ export async function getCurrentMemberPayloadFast(userId) {
       fatherOccupation: record.father_occupation || '',
       motherOccupation: record.mother_occupation || '',
       siblings: record.siblings || '',
+      hobbies: Array.isArray(record.hobbies) ? record.hobbies : (record.hobbies ? JSON.parse(record.hobbies) : []),
+      music: Array.isArray(record.music) ? record.music : (record.music ? JSON.parse(record.music) : []),
+      sports: Array.isArray(record.sports) ? record.sports : (record.sports ? JSON.parse(record.sports) : []),
     },
     preferences: preference
       ? {
@@ -694,6 +753,16 @@ export async function getMatrimonyFilterOptionsFast(userId) {
     const normalized = String(value).trim().toLowerCase()
     return normalized.length > 0 && normalized !== 'not set'
   }
+  const byStringNormalized = (items, key) => {
+    const seen = new Map()
+    items.forEach((item) => {
+      const raw = item[key]
+      if (!keepValue(raw)) return
+      const normalized = String(raw).trim().toLowerCase()
+      if (!seen.has(normalized)) seen.set(normalized, normalized)
+    })
+    return Array.from(seen.values()).sort((a, b) => String(a).localeCompare(String(b)))
+  }
   const byString = (items, key) =>
     Array.from(new Set(items.map((item) => item[key]).filter(keepValue))).sort((a, b) =>
       String(a).localeCompare(String(b))
@@ -702,7 +771,7 @@ export async function getMatrimonyFilterOptionsFast(userId) {
   const ages = rows.map((item) => item.age).filter((value) => Number.isFinite(value))
   const result = {
     locations: byString(rows, 'location'),
-    genders: byString(rows, 'gender'),
+    genders: byStringNormalized(rows, 'gender'),
     communities: byString(rows, 'community'),
     subCommunities: byString(rows, 'subCommunity'),
     educations: byString(rows, 'education'),

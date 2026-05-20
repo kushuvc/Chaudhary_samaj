@@ -1,13 +1,16 @@
-import { useState } from 'react'
-import { Bell, Globe2, LockKeyhole, MoonStar, Save, ShieldCheck, Sun, UserCog } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { AlertTriangle, Bell, CheckCircle, Globe2, LockKeyhole, MoonStar, Save, ShieldCheck, Sun, Trash2, UserCog, XCircle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import apiService from '../services/api'
+import authService from '../services/auth'
 
 type ThemeMode = 'light' | 'dark' | 'system'
 
 export default function Settings() {
+  const navigate = useNavigate()
   const [account, setAccount] = useState({
     language: 'en-IN',
     timezone: 'Asia/Kolkata',
-    publicProfile: true,
   })
 
   const [notifications, setNotifications] = useState({
@@ -26,9 +29,81 @@ export default function Settings() {
   })
 
   const [theme, setTheme] = useState<ThemeMode>('light')
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [saveError, setSaveError] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
-  const saveSettings = () => {
-    window.alert('Settings saved locally (frontend placeholder).')
+  useEffect(() => {
+    apiService.get<any>('/settings').then((res) => {
+      if (res.success && res.data) {
+        const d = res.data
+        setAccount({
+          language: d.language ?? 'en-IN',
+          timezone: d.timezone ?? 'Asia/Kolkata',
+        })
+        if (d.notifications) setNotifications((prev) => ({ ...prev, ...d.notifications }))
+        if (d.privacy) setPrivacy((prev) => ({ ...prev, ...d.privacy }))
+      }
+    }).catch(() => {})
+  }, [])
+
+  const saveSettings = async () => {
+    setSaving(true)
+    setSaveStatus('idle')
+    setSaveError('')
+    try {
+      const res = await apiService.put<any>('/settings', {
+        language: account.language,
+        timezone: account.timezone,
+        notifications: {
+          communityAnnouncements: notifications.communityAnnouncements,
+          matrimonyMatches: notifications.matrimonyMatches,
+          eventReminders: notifications.eventReminders,
+          securityAlerts: notifications.securityAlerts,
+          marketingUpdates: notifications.marketingUpdates,
+        },
+        privacy: {
+          showPhoneToConnections: privacy.showPhoneToConnections,
+          showLocationPublicly: privacy.showLocationPublicly,
+          profileSearchable: privacy.profileSearchable,
+        },
+      })
+      if (res.success) {
+        setSaveStatus('success')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+      } else {
+        setSaveStatus('error')
+        setSaveError(res.error ?? 'Failed to save settings')
+      }
+    } catch (err) {
+      setSaveStatus('error')
+      setSaveError('Network error. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      const res = await apiService.delete<any>('/auth/account')
+      if (res.success) {
+        authService.logout()
+        navigate('/login')
+      } else {
+        setDeleteError(res.error ?? 'Failed to delete account')
+      }
+    } catch {
+      setDeleteError('Network error. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   return (
@@ -40,12 +115,25 @@ export default function Settings() {
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-slate-950">Settings</h1>
             <p className="mt-3 max-w-2xl text-sm text-slate-600">Control account preferences, privacy rules, and notifications.</p>
           </div>
-          <button
-            onClick={saveSettings}
-            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 hover:-translate-y-0.5"
-          >
-            <Save size={16} /> Save Changes
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button
+              onClick={saveSettings}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-950/10 hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Save size={16} /> {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            {saveStatus === 'success' && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600">
+                <CheckCircle size={15} /> Settings saved successfully
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-500">
+                <XCircle size={15} /> {saveError}
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
@@ -78,14 +166,6 @@ export default function Settings() {
                 <option value="Asia/Dubai">Asia/Dubai</option>
                 <option value="Europe/London">Europe/London</option>
               </select>
-            </label>
-            <label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={account.publicProfile}
-                onChange={(event) => setAccount((prev) => ({ ...prev, publicProfile: event.target.checked }))}
-              />
-              Public profile visibility
             </label>
           </div>
         </section>
@@ -219,6 +299,62 @@ export default function Settings() {
           <p className="mt-4 text-xs text-slate-500">Theme persistence and server sync will be connected when backend preferences API is added.</p>
         </section>
       </div>
+
+      {/* Danger Zone */}
+      <section className="rounded-2xl border border-red-200 bg-red-50/50 p-5 shadow-sm">
+        <h2 className="mb-1 inline-flex items-center gap-2 text-lg font-bold text-red-700">
+          <Trash2 size={18} /> Danger Zone
+        </h2>
+        <p className="mb-4 text-sm text-red-600">Permanently delete your account and all associated data. This cannot be undone.</p>
+        <button
+          onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError('') }}
+          className="inline-flex items-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 transition-colors"
+        >
+          <Trash2 size={15} /> Delete My Account
+        </button>
+      </section>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100">
+                <AlertTriangle size={20} className="text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">Delete Account</h3>
+            </div>
+            <p className="mb-2 text-sm text-slate-600">This will permanently delete your account, profile, matches, and all data. <strong>This action cannot be reversed.</strong></p>
+            <p className="mb-3 text-sm font-medium text-slate-700">Type <span className="font-mono font-bold text-red-600">DELETE</span> to confirm:</p>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE here"
+              className="mb-4 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-red-400"
+            />
+            {deleteError && (
+              <p className="mb-3 flex items-center gap-1.5 text-sm text-red-500"><XCircle size={14} /> {deleteError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteConfirmText !== 'DELETE' || deleting}
+                className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete Forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

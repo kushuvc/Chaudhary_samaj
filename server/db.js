@@ -23,14 +23,17 @@ export function getPgPool() {
     _pgPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 10,
-      min: 2,
-      idleTimeoutMillis: 600000,
-      connectionTimeoutMillis: 5000,
+      max: 50,
+      min: 5,
+      idleTimeoutMillis: 300000,
+      connectionTimeoutMillis: 8000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
+      statement_timeout: 30000,
     })
-    _pgPool.on('error', () => {})
+    _pgPool.on('error', (err) => {
+      console.error('[PgPool] idle client error:', err.message)
+    })
   }
   return _pgPool
 }
@@ -201,6 +204,10 @@ if (preferPostgres) {
     databaseEngine = 'postgres'
     // Tables already exist in Supabase via migrate.js - skip schema execution on startup
   } catch (error) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[DB] FATAL: Postgres required in production but failed to connect:', error.message)
+      process.exit(1)
+    }
     console.warn(`Postgres initialization failed, falling back to SQLite: ${error instanceof Error ? error.message : String(error)}`)
     initializeSqliteDatabase()
   }
@@ -1380,6 +1387,8 @@ function getCurrentMemberPayload(userId = 'user-1') {
              p.id AS profile_id, p.date_of_birth, p.age, p.gender, p.location, p.community,
               p.sub_community, p.education, p.occupation, p.bio, p.marital_status, p.height, p.income, p.language,
              p.compatibility_score, p.is_unlocked, p.is_shortlisted, p.is_viewed,
+             p.photos, p.physical_status, p.religion, p.dosh, p.eating_habit, p.horoscope_time, p.horoscope_place,
+             p.village, p.hobbies, p.music, p.sports,
              p.created_at, p.updated_at
       FROM users u
       JOIN matrimony_profiles p ON p.user_id = u.id
@@ -1412,6 +1421,20 @@ function getCurrentMemberPayload(userId = 'user-1') {
       occupation: record.occupation,
       education: record.education,
       bio: record.bio,
+      gender: record.gender,
+      dateOfBirth: record.date_of_birth,
+      nativeCity: record.native_city || '',
+      nativeVillage: record.native_village || '',
+      photos: (() => {
+        if (!record.photos) return []
+        if (Array.isArray(record.photos)) return record.photos
+        try {
+          const parsed = JSON.parse(record.photos)
+          return Array.isArray(parsed) ? parsed : []
+        } catch {
+          return []
+        }
+      })(),
     },
     matrimony: {
       age: String(record.age),
@@ -1425,6 +1448,14 @@ function getCurrentMemberPayload(userId = 'user-1') {
       preferredEducation: preference?.preferred_education || '',
       preferredOccupation: preference?.preferred_occupation || '',
       subCommunity: record.sub_community || '',
+      familyStatus: '', // Field not in database schema yet
+      familyType: '', // Field not in database schema yet
+      familyWealth: '', // Field not in database schema yet
+      fatherName: '', // Field not in database schema yet
+      motherName: '', // Field not in database schema yet
+      fatherOccupation: '', // Field not in database schema yet
+      motherOccupation: '', // Field not in database schema yet
+      siblings: '', // Field not in database schema yet
     },
     preferences: preference
       ? {
@@ -1960,12 +1991,22 @@ function getMatrimonyFilterOptions(userId) {
     Array.from(new Set(items.map((item) => item[key]).filter(keepValue))).sort((a, b) =>
       String(a).localeCompare(String(b))
     )
+  const byStringNormalized = (items, key) => {
+    const seen = new Map()
+    items.forEach((item) => {
+      const raw = item[key]
+      if (!keepValue(raw)) return
+      const normalized = String(raw).trim().toLowerCase()
+      if (!seen.has(normalized)) seen.set(normalized, normalized)
+    })
+    return Array.from(seen.values()).sort((a, b) => String(a).localeCompare(String(b)))
+  }
 
   const ages = rows.map((item) => item.age).filter((value) => Number.isFinite(value))
 
   return {
     locations: byString(rows, 'location'),
-    genders: byString(rows, 'gender'),
+    genders: byStringNormalized(rows, 'gender'),
     communities: byString(rows, 'community'),
     subCommunities: byString(rows, 'subCommunity'),
     educations: byString(rows, 'education'),

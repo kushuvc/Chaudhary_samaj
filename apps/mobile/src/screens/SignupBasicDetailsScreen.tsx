@@ -62,8 +62,8 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
     try {
       // Verify OTP first (verifyOnly = true, don't create user yet)
       await api.verifyPhoneOtp(data.phone, otp, true);
-      // OTP verified, proceed with full signup
-      await onSubmit(data);
+      // OTP verified, proceed with full signup (createAccount = true)
+      await onSubmit({ ...data, createAccount: true });
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -71,7 +71,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
     }
   };
 
-  const validateEmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email);
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
   
   const isValid = 
     data.fullName.trim().length > 0 &&
@@ -170,16 +170,23 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
         {/* Email */}
         <View style={styles.inputGroup}>
           <TextInput
-            style={styles.input}
-            placeholder="Email"
+            style={[
+              styles.input,
+              data.email.length > 0 && !validateEmail(data.email) && styles.inputError,
+            ]}
+            placeholder="Email address"
             value={data.email}
             onChangeText={(text) => setData({ ...data, email: text })}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
             placeholderTextColor={palette.muted}
           />
           {data.email.length > 0 && !validateEmail(data.email) && (
-            <Text style={styles.errorText}>Only Gmail addresses are allowed</Text>
+            <Text style={styles.errorText}>⚠ Please enter a valid email address (e.g. name@example.com)</Text>
+          )}
+          {data.email.length > 0 && validateEmail(data.email) && (
+            <Text style={styles.validText}>✓ Valid email</Text>
           )}
         </View>
 
@@ -369,10 +376,19 @@ function createStyles(palette: ThemePalette) {
       color: palette.muted,
       marginTop: 6,
     },
+    inputError: {
+      borderColor: '#E53935',
+    },
     errorText: {
       fontSize: 12,
       color: '#E53935',
       marginTop: 6,
+    },
+    validText: {
+      fontSize: 12,
+      color: '#10b981',
+      marginTop: 6,
+      fontWeight: '600',
     },
     termsRow: {
       flexDirection: 'row',

@@ -48,6 +48,16 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS idx_matrimony_messages_match_id ON matrimony_messages(match_id)`,
   `CREATE INDEX IF NOT EXISTS idx_matrimony_messages_sender_id ON matrimony_messages(sender_id)`,
   `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS photos JSONB`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS physical_status TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS religion TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS dosh TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS eating_habit TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS horoscope_time TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS horoscope_place TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS village TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS hobbies JSONB`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS music JSONB`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS sports JSONB`,
   `CREATE TABLE IF NOT EXISTS user_subscriptions (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL UNIQUE,
@@ -62,6 +72,21 @@ const migrations = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(status)`,
+  `CREATE TABLE IF NOT EXISTS user_settings (
+    user_id TEXT PRIMARY KEY,
+    language TEXT NOT NULL DEFAULT 'en-IN',
+    timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+    public_profile BOOLEAN NOT NULL DEFAULT true,
+    notif_community_announcements BOOLEAN NOT NULL DEFAULT true,
+    notif_matrimony_matches BOOLEAN NOT NULL DEFAULT true,
+    notif_event_reminders BOOLEAN NOT NULL DEFAULT true,
+    notif_security_alerts BOOLEAN NOT NULL DEFAULT true,
+    notif_marketing_updates BOOLEAN NOT NULL DEFAULT false,
+    privacy_show_phone BOOLEAN NOT NULL DEFAULT false,
+    privacy_show_location BOOLEAN NOT NULL DEFAULT true,
+    privacy_searchable BOOLEAN NOT NULL DEFAULT true,
+    updated_at TEXT
+  )`,
 ]
 
 for (const sql of migrations) {

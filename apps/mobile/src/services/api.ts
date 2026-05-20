@@ -45,12 +45,32 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set('x-user-id', userId);
   }
 
+  // Debug logging for authentication
+  if (path.includes('/matrimony/me')) {
+    console.log('[API] Requesting matrimony profile with auth:', {
+      path,
+      hasAuthToken: !!authToken,
+      hasUserId: !!userId,
+      headers: {
+        Authorization: authToken ? `Bearer ${authToken.substring(0, 10)}...` : 'none',
+        'x-user-id': userId || 'none'
+      }
+    });
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers
   });
 
   const data = await response.json().catch(() => ({}));
+
+  // Debug logging for API response
+  console.log('[API] Response:', {
+    status: response.status,
+    ok: response.ok,
+    data: data
+  });
 
   if (!response.ok) {
     throw new Error(data.error || `Request failed (${response.status})`);
@@ -123,6 +143,7 @@ export const api = {
         hobbies: payload.hobbies,
         music: payload.music,
         sports: payload.sports,
+        createAccount: payload.createAccount,
       })
     });
 
@@ -567,9 +588,27 @@ export const api = {
   },
 
   createPaymentLink: async (plan: string, amount: number): Promise<{ id: string; short_url: string }> => {
+    console.log('[api] Creating payment link with plan:', plan, 'amount:', amount);
     const response = await request<{ data: { id: string; short_url: string } }>('/payments/create-link', {
       method: 'POST',
       body: JSON.stringify({ plan, amount }),
+    });
+    console.log('[api] Payment link response:', response.data);
+    return response.data;
+  },
+
+  verifyPaymentLink: async (params: {
+    razorpay_payment_id: string;
+    razorpay_payment_link_id: string;
+    razorpay_payment_link_reference_id: string;
+    razorpay_payment_link_status: string;
+    razorpay_signature: string;
+    plan: string;
+    amount: number;
+  }): Promise<{ verified: boolean; plan: string; startedAt: string; expiresAt: string }> => {
+    const response = await request<{ data: { verified: boolean; plan: string; startedAt: string; expiresAt: string } }>('/payments/verify-link', {
+      method: 'POST',
+      body: JSON.stringify(params),
     });
     return response.data;
   },

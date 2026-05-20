@@ -8,9 +8,9 @@ export interface LocationDetailsData {
   country: string;
   state: string;
   city: string;
-  village?: string;
-  nativeCity?: string;
-  nativeVillage?: string;
+  village: string;
+  nativeCity: string;
+  nativeVillage: string;
 }
 
 interface SignupLocationDetailsScreenProps {
@@ -79,15 +79,21 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
   
   const [data, setData] = useState<LocationDetailsData>({
     country: 'India',
-    state: 'Goa',
-    city: 'Calangute',
+    state: '',
+    city: '',
     village: '',
     nativeCity: '',
     nativeVillage: '',
   });
   const [activePicker, setActivePicker] = useState<'country' | 'state' | 'city' | null>(null);
 
-  const isValid = data.country && data.state && data.city;
+  const isValid =
+    data.country &&
+    data.state &&
+    data.city &&
+    data.village.trim() &&
+    data.nativeCity.trim() &&
+    data.nativeVillage.trim();
 
   const availableStates = states[data.country] || ['Other'];
   const availableCities = cities[data.state] || ['Other'];
@@ -147,9 +153,9 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
           </Pressable>
         </View>
 
-        {/* Village (Optional) */}
+        {/* Village */}
         <View style={styles.section}>
-          <Text style={styles.label}>Village <Text style={styles.optional}>(Optional)</Text></Text>
+          <Text style={styles.label}>Village <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.textInput}
             placeholder="Enter your village name"
@@ -161,7 +167,7 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
 
         {/* Native City */}
         <View style={styles.section}>
-          <Text style={styles.label}>Native City <Text style={styles.optional}>(Optional)</Text></Text>
+          <Text style={styles.label}>Native City <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.textInput}
             placeholder="Enter your native city"
@@ -173,7 +179,7 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
 
         {/* Native Village */}
         <View style={styles.section}>
-          <Text style={styles.label}>Native Village <Text style={styles.optional}>(Optional)</Text></Text>
+          <Text style={styles.label}>Native Village <Text style={styles.required}>*</Text></Text>
           <TextInput
             style={styles.textInput}
             placeholder="Enter your native village"
@@ -260,12 +266,6 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
           <Text style={styles.nextButtonText}>Next</Text>
         </Pressable>
         
-        <View style={styles.helpRow}>
-          <Text style={styles.helpText}>Need help? Call</Text>
-          <Pressable>
-            <Text style={styles.helpPhone}>📞 8144-77-88-66</Text>
-          </Pressable>
-        </View>
       </View>
     </View>
   );
@@ -351,6 +351,11 @@ function createStyles(palette: ThemePalette) {
       fontWeight: '600',
       color: palette.text,
       marginBottom: 8,
+    },
+    required: {
+      fontSize: 14,
+      color: '#E53935',
+      fontWeight: '700' as const,
     },
     optional: {
       fontSize: 14,
@@ -450,21 +455,6 @@ function createStyles(palette: ThemePalette) {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '700',
-    },
-    helpRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-    },
-    helpText: {
-      fontSize: 13,
-      color: palette.muted,
-    },
-    helpPhone: {
-      fontSize: 13,
-      color: '#E53935',
-      fontWeight: '600',
     },
   });
 }

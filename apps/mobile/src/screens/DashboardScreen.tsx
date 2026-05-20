@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,10 +10,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Ellipse } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { api } from '../services/api';
+import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import type { ThemePalette } from '../context/ThemeContext';
 import type { MatrimonyProfile } from '../types';
 
@@ -21,6 +24,8 @@ export function DashboardScreen() {
   const { t } = useAppLanguage();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
+  const navigation = useNavigation<any>();
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +134,7 @@ export function DashboardScreen() {
 
       {/* Profile Incomplete Banner */}
       {!profileComplete && (
-        <View style={styles.incompleteBanner}>
+        <Pressable style={styles.incompleteBanner} onPress={() => navigation.navigate('Profile')}>
           <View style={styles.incompleteBannerLeft}>
             <Ionicons name="person-circle-outline" size={32} color={palette.primary} />
             <View style={{ flex: 1 }}>
@@ -140,7 +145,7 @@ export function DashboardScreen() {
           <View style={styles.incompleteBannerBadge}>
             <Text style={styles.incompleteBannerBadgeText}>→</Text>
           </View>
-        </View>
+        </Pressable>
       )}
 
       {/* Interests Stats */}
@@ -174,7 +179,7 @@ export function DashboardScreen() {
           <Text style={styles.sectionTitle}>{t('dashboardRecentProfiles')}</Text>
           <View style={styles.profilesGrid}>
             {recentProfiles.map((profile) => (
-              <View key={profile.id} style={styles.profileCard}>
+              <Pressable key={profile.id} style={styles.profileCard} onPress={() => setSelectedProfileId(profile.id)}>
                 <View style={styles.profileAvatar}>
                   <Ionicons name="person" size={28} color={palette.primary} />
                 </View>
@@ -187,7 +192,7 @@ export function DashboardScreen() {
                 <View style={[styles.profileBadge, profile.gender === 'female' ? styles.profileBadgeFemale : styles.profileBadgeMale]}>
                   <Text style={styles.profileBadgeText}>{profile.gender === 'female' ? '♀' : '♂'}</Text>
                 </View>
-              </View>
+              </Pressable>
             ))}
           </View>
         </>
@@ -195,7 +200,7 @@ export function DashboardScreen() {
 
       {/* My Profile Card */}
       <Text style={styles.sectionTitle}>{t('dashboardMyProfile')}</Text>
-      <View style={styles.myProfileCard}>
+      <Pressable style={styles.myProfileCard} onPress={() => navigation.navigate('Profile')}>
         <View style={styles.myProfileLeft}>
           <View style={styles.myProfileAvatar}>
             <Ionicons name="person" size={36} color="#ffffff" />
@@ -211,9 +216,19 @@ export function DashboardScreen() {
             </View>
           </View>
         </View>
-      </View>
+      </Pressable>
 
       <View style={{ height: 30 }} />
+
+      {/* Profile Detail Modal */}
+      <Modal visible={!!selectedProfileId} animationType="slide" onRequestClose={() => setSelectedProfileId(null)}>
+        {selectedProfileId && (
+          <MatrimonyProfileDetailScreen
+            profileId={selectedProfileId}
+            onBack={() => setSelectedProfileId(null)}
+          />
+        )}
+      </Modal>
     </ScrollView>
   );
 }

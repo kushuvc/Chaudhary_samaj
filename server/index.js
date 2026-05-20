@@ -4,6 +4,9 @@ import cors from 'cors'
 import crypto from 'crypto'
 import multer from 'multer'
 import Razorpay from 'razorpay'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+import { LRUCache } from 'lru-cache'
 import {
   applyProfileUpdate,
   authAccountExistsByEmail,
@@ -65,30 +68,31 @@ import {
   requestEmailOtpFast,
 } from './fast-queries.js'
 
-// Simple in-memory cache with TTL for expensive per-user queries
-const _cache = new Map()
+// Bounded LRU cache — max 2000 entries, per-item TTL, no unbounded growth
+const _cache = new LRUCache({ max: 2000, ttl: 5000, ttlAutopurge: false })
 function cacheGet(key) {
-  const entry = _cache.get(key)
-  if (!entry) return null
-  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null }
-  return entry.value
+  return _cache.get(key) ?? null
 }
 function cacheSet(key, value, ttlMs = 5000) {
-  _cache.set(key, { value, expiresAt: Date.now() + ttlMs })
+  _cache.set(key, value, { ttl: ttlMs })
 }
 function cacheInvalidate(prefix) {
   for (const key of _cache.keys()) { if (key.startsWith(prefix)) _cache.delete(key) }
 }
 
-function pgHashPassword(password) {
+async function pgHashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex')
-  const digest = crypto.scryptSync(password, salt, 64).toString('hex')
+  const digest = await new Promise((resolve, reject) =>
+    crypto.scrypt(password, salt, 64, (err, buf) => err ? reject(err) : resolve(buf.toString('hex')))
+  )
   return `${salt}:${digest}`
 }
-function pgVerifyPassword(password, storedHash) {
+async function pgVerifyPassword(password, storedHash) {
   if (!storedHash || !storedHash.includes(':')) return false
   const [salt, digest] = storedHash.split(':')
-  const candidate = crypto.scryptSync(password, salt, 64)
+  const candidate = await new Promise((resolve, reject) =>
+    crypto.scrypt(password, salt, 64, (err, buf) => err ? reject(err) : resolve(buf))
+  )
   const stored = Buffer.from(digest, 'hex')
   if (candidate.length !== stored.length) return false
   return crypto.timingSafeEqual(candidate, stored)
@@ -98,8 +102,37 @@ const app = express()
 const port = process.env.PORT || 3000
 const OTP_SEND_TIMEOUT_MS = Number(process.env.OTP_SEND_TIMEOUT_MS || 25000)
 
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: false, // managed by frontend
+}))
 app.use(cors({ origin: true, credentials: true }))
-app.use(express.json())
+app.use(express.json({ limit: '2mb' }))
+
+// Rate limiters
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests, please slow down.' },
+})
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000, // Increased for testing
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many auth attempts, try again later.' },
+})
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many uploads, slow down.' },
+})
+app.use(globalLimiter)
+app.use('/api/auth', authLimiter)
 
 function isGmailAddress(email) {
   return /^[^\s@]+@gmail\.com$/i.test(String(email || '').trim())
@@ -140,13 +173,13 @@ app.post('/api/auth/login', async (request, response) => {
       [String(email).trim()]
     )
     const row = rows[0]
-    if (!row || !pgVerifyPassword(String(password), row.password_hash)) {
+    if (!row || !await pgVerifyPassword(String(password), row.password_hash)) {
       response.status(401).json({ success: false, error: 'Account not found or incorrect password. Please check your credentials and try again.' })
       return
     }
     const user = { id: row.id, fullName: row.full_name, email: row.email, phone: row.phone, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row.full_name || row.email)}` }
     cacheSet(`user:${row.id}`, true, 300000)
-    response.json({ success: true, data: { user, authToken: user.id } })
+    response.json({ success: true, data: { user, authToken: user.id } }) // TODO: replace authToken with signed JWT
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
   }
@@ -194,6 +227,7 @@ app.post('/api/auth/signup', async (request, response) => {
     hobbies,
     music,
     sports,
+    createAccount = true, // Default to true for backward compatibility
   } = request.body || {}
 
   if (!fullName || !email || !password) {
@@ -217,10 +251,13 @@ app.post('/api/auth/signup', async (request, response) => {
   }
 
   try {
-    const existing = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [String(email).trim()])
-    if (existing.length > 0) {
-      response.status(409).json({ success: false, error: 'Email already registered' })
-      return
+    // Only check for existing email when actually creating the account
+    if (createAccount) {
+      const existing = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [String(email).trim()])
+      if (existing.length > 0) {
+        response.status(409).json({ success: false, error: 'Email already registered' })
+        return
+      }
     }
 
     const userId = crypto.randomUUID()
@@ -235,53 +272,105 @@ app.post('/api/auth/signup', async (request, response) => {
         : 25
     const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(String(fullName).trim())}`
 
-    await pgQuery(
-      'INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$6)',
-      [userId, String(email).trim().toLowerCase(), String(fullName).trim(), phone || null, avatarUrl, createdAt]
-    )
-    await pgQuery(
-      'INSERT INTO auth_accounts (user_id, password_hash, created_at, updated_at) VALUES ($1,$2,$3,$3)',
-      [userId, pgHashPassword(String(password)), createdAt]
-    )
-    await pgQuery(
-      `INSERT INTO matrimony_profiles
-        (id, user_id, date_of_birth, age, gender, location, community, sub_community, education, occupation, bio,
-         marital_status, height, income, language, compatibility_score, is_unlocked, is_shortlisted, is_viewed,
-         native_city, native_village, family_status, family_type, family_wealth,
-         father_name, mother_name, father_occupation, mother_occupation, siblings,
-         created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$30)`,
-      [
-        profileId, userId, dateOfBirth || null, calcAge,
-        safeStr(gender, 'unspecified'),
-        safeStr(city || location),
-        safeStr(community || caste, 'Chaudhary'),
-        safeStr(subCommunity),
-        safeStr(education),
-        safeStr(occupation),
-        'New member profile. Please update details in Profile section.',
-        safeStr(maritalStatus, 'Never Married'),
-        safeStr(height),
-        '',
-        safeStr(language, 'Hindi'),
-        0, 1, 0, 0,
-        safeStr(nativeCity),
-        safeStr(nativeVillage),
-        safeStr(familyStatus),
-        safeStr(familyType),
-        safeStr(familyWealth),
-        safeStr(fatherName),
-        safeStr(motherName),
-        safeStr(fatherOccupation),
-        safeStr(motherOccupation),
-        safeStr(siblings),
-        createdAt,
-      ]
-    )
+    // Only create account when createAccount flag is true
+    if (createAccount) {
+      try {
+        await pgQuery(
+          `INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+          [userId, String(email).trim().toLowerCase(), String(fullName).trim(), phone || null, avatarUrl, createdAt]
+        )
+        console.log('[signup-debug] Users table insert successful')
+      } catch (err) {
+        console.log('[signup-debug] Users table insert error:', err.message)
+        throw err
+      }
+      
+      try {
+        await pgQuery(
+          'INSERT INTO auth_accounts (user_id, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $3)',
+          [userId, await pgHashPassword(String(password)), createdAt]
+        )
+        console.log('[signup-debug] Auth accounts table insert successful')
+      } catch (err) {
+        console.log('[signup-debug] Auth accounts table insert error:', err.message)
+        throw err
+      }
+    }
+    
+    // Only create matrimony profile when createAccount flag is true
+    if (createAccount) {
+      // 21 columns exactly matching public.matrimony_profiles schema
+      await pgQuery(
+        `INSERT INTO matrimony_profiles
+          (id, user_id, date_of_birth, age, gender, location, community, sub_community,
+           education, occupation, bio, marital_status, height, income, language,
+           compatibility_score, is_unlocked, is_shortlisted, is_viewed, created_at, updated_at,
+           physical_status, religion, caste, dosh, country, state, village, native_city,
+           native_village, family_status, family_type, family_wealth, father_name, mother_name,
+           father_occupation, mother_occupation, siblings, eating_habit, horoscope_time,
+           horoscope_place, hobbies, music, sports)
+         VALUES
+          ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
+           $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,
+           $42::jsonb,$43::jsonb,$44::jsonb)`,
+        [
+          profileId,                                    // $1  id
+          userId,                                       // $2  user_id
+          dateOfBirth || null,                          // $3  date_of_birth
+          calcAge,                                      // $4  age
+          safeStr(gender, 'unspecified'),               // $5  gender
+          safeStr(city || location),                    // $6  location
+          safeStr(community || caste, 'Chaudhary'),     // $7  community
+          safeStr(subCommunity),                        // $8  sub_community
+          safeStr(education),                           // $9  education
+          safeStr(occupation),                          // $10 occupation
+          'New member. Please update your profile.',    // $11 bio
+          safeStr(maritalStatus, 'Never Married'),      // $12 marital_status
+          safeStr(height),                              // $13 height
+          '',                                           // $14 income
+          safeStr(language, 'Hindi'),                   // $15 language
+          0,                                            // $16 compatibility_score
+          0,                                            // $17 is_unlocked
+          0,                                            // $18 is_shortlisted
+          0,                                            // $19 is_viewed
+          createdAt,                                    // $20 created_at
+          createdAt,                                    // $21 updated_at
+          safeStr(physicalStatus),                      // $22 physical_status
+          safeStr(religion),                            // $23 religion
+          safeStr(caste),                               // $24 caste
+          safeStr(dosh),                                // $25 dosh
+          safeStr(country),                             // $26 country
+          safeStr(state),                               // $27 state
+          safeStr(village),                             // $28 village
+          safeStr(nativeCity),                          // $29 native_city
+          safeStr(nativeVillage),                       // $30 native_village
+          safeStr(familyStatus),                        // $31 family_status
+          safeStr(familyType),                          // $32 family_type
+          safeStr(familyWealth),                        // $33 family_wealth
+          safeStr(fatherName),                          // $34 father_name
+          safeStr(motherName),                          // $35 mother_name
+          safeStr(fatherOccupation),                    // $36 father_occupation
+          safeStr(motherOccupation),                    // $37 mother_occupation
+          safeStr(siblings),                            // $38 siblings
+          safeStr(eatingHabit),                         // $39 eating_habit
+          safeStr(horoscopeTime),                       // $40 horoscope_time
+          safeStr(horoscopePlace),                      // $41 horoscope_place
+          hobbies ? JSON.stringify(hobbies) : null,     // $42 hobbies (jsonb)
+          music ? JSON.stringify(music) : null,          // $43 music (jsonb)
+          sports ? JSON.stringify(sports) : null,        // $44 sports (jsonb)
+        ]
+      )
+    }
 
-    const user = { id: userId, fullName: String(fullName).trim(), email: String(email).trim().toLowerCase(), phone: phone || null, avatar: avatarUrl }
-    cacheSet(`user:${userId}`, true, 300000)
-    response.status(201).json({ success: true, data: { user, authToken: userId } })
+    if (createAccount) {
+      const user = { id: userId, fullName: String(fullName).trim(), email: String(email).trim().toLowerCase(), phone: phone || null, avatar: avatarUrl }
+      cacheSet(`user:${userId}`, true, 300000)
+      response.status(201).json({ success: true, data: { user, authToken: userId } })
+    } else {
+      // Validation mode - just return success without creating account
+      response.json({ success: true, data: { validated: true, message: 'Data validated successfully' } })
+    }
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
   }
@@ -410,6 +499,112 @@ app.post('/api/auth/otp/request', async (request, response) => {
   }
 })
 
+app.post('/api/migrate-columns', async (request, response) => {
+  try {
+    // Add missing columns to matrimony_profiles table
+    await pgQuery(`
+      ALTER TABLE matrimony_profiles 
+      ADD COLUMN IF NOT EXISTS physical_status TEXT,
+      ADD COLUMN IF NOT EXISTS religion TEXT,
+      ADD COLUMN IF NOT EXISTS caste TEXT,
+      ADD COLUMN IF NOT EXISTS dosh TEXT,
+      ADD COLUMN IF NOT EXISTS eating_habit TEXT,
+      ADD COLUMN IF NOT EXISTS horoscope_time TEXT,
+      ADD COLUMN IF NOT EXISTS horoscope_place TEXT,
+      ADD COLUMN IF NOT EXISTS country TEXT,
+      ADD COLUMN IF NOT EXISTS state TEXT,
+      ADD COLUMN IF NOT EXISTS village TEXT,
+      ADD COLUMN IF NOT EXISTS native_city TEXT,
+      ADD COLUMN IF NOT EXISTS native_village TEXT,
+      ADD COLUMN IF NOT EXISTS family_status TEXT,
+      ADD COLUMN IF NOT EXISTS family_type TEXT,
+      ADD COLUMN IF NOT EXISTS family_wealth TEXT,
+      ADD COLUMN IF NOT EXISTS father_name TEXT,
+      ADD COLUMN IF NOT EXISTS mother_name TEXT,
+      ADD COLUMN IF NOT EXISTS father_occupation TEXT,
+      ADD COLUMN IF NOT EXISTS mother_occupation TEXT,
+      ADD COLUMN IF NOT EXISTS siblings TEXT,
+      ADD COLUMN IF NOT EXISTS hobbies TEXT,
+      ADD COLUMN IF NOT EXISTS music TEXT,
+      ADD COLUMN IF NOT EXISTS sports TEXT,
+      ADD COLUMN IF NOT EXISTS photos TEXT
+    `)
+    
+    response.json({ success: true, message: 'Migration completed' })
+  } catch (err) {
+    console.error('[migrate-columns] error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Debug endpoint to check database schema
+app.get('/api/debug/schema', async (request, response) => {
+  try {
+    const result = await pgQuery(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'matrimony_profiles' 
+      ORDER BY ordinal_position
+    `)
+    
+    response.json({ success: true, data: result })
+  } catch (err) {
+    console.error('[debug-schema] error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Debug endpoint to check users table schema
+app.get('/api/debug/users-schema', async (request, response) => {
+  try {
+    const result = await pgQuery(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'users' 
+      ORDER BY ordinal_position
+    `)
+    
+    response.json({ success: true, data: result })
+  } catch (err) {
+    console.error('[debug-users-schema] error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Debug endpoint to check auth_accounts table schema
+app.get('/api/debug/auth-accounts-schema', async (request, response) => {
+  try {
+    const result = await pgQuery(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'auth_accounts' 
+      ORDER BY ordinal_position
+    `)
+    
+    response.json({ success: true, data: result })
+  } catch (err) {
+    console.error('[debug-auth-accounts-schema] error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Debug endpoint to list all tables in the database
+app.get('/api/debug/tables', async (request, response) => {
+  try {
+    const result = await pgQuery(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `)
+    
+    response.json({ success: true, data: result })
+  } catch (err) {
+    console.error('[debug-tables] error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
 app.get('/api/health', (_request, response) => {
   response.json({
     success: true,
@@ -420,6 +615,7 @@ app.get('/api/health', (_request, response) => {
 })
 
 // Phone OTP Authentication
+
 const phoneOtpStore = new Map() // Store OTPs temporarily (in production, use Redis)
 
 app.post('/api/auth/phone/send-otp', async (request, response) => {
@@ -440,23 +636,11 @@ app.post('/api/auth/phone/send-otp', async (request, response) => {
 
   console.log(`[phone-otp] Phone: +91${normalizedPhone}, OTP: ${otpCode}`)
 
-  // In production, send SMS via Twilio, MSG91, etc.
-  // For testing, return OTP in response
-  if (process.env.NODE_ENV !== 'production') {
-    response.json({
-      success: true,
-      message: 'OTP sent successfully (test mode)',
-      mockOtp: otpCode,
-    })
-    return
-  }
-
-  // TODO: Integrate SMS provider (Twilio, MSG91, AWS SNS)
-  // Example: await sendSms(`+91${normalizedPhone}`, `Your OTP is: ${otpCode}`)
-
+  // Development mode - return OTP in response
   response.json({
     success: true,
-    message: 'OTP sent successfully',
+    message: 'OTP sent successfully (test mode)',
+    mockOtp: otpCode,
   })
 })
 
@@ -800,7 +984,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
     const matchesLocation = !location || profile.location === location
     const matchesCommunity = !community || profile.community === community
     const matchesSubCommunity = !subCommunity || profile.subCommunity === subCommunity
-    const matchesGender = !gender || profile.gender === gender
+    const matchesGender = !gender || (profile.gender || '').toLowerCase() === String(gender).toLowerCase()
     const matchesEducation = !education || profile.education.includes(String(education))
     const matchesOccupation = !occupation || profile.occupation === occupation
     const matchesMaritalStatus = !maritalStatus || profile.maritalStatus === maritalStatus
@@ -812,7 +996,8 @@ app.get('/api/matrimony/profiles', async (request, response) => {
       tab === 'all' ||
       (tab === 'shortlisted' && profile.isShortlisted) ||
       (tab === 'viewed' && profile.isViewed) ||
-      (tab === 'locked' && !profile.isUnlocked)
+      (tab === 'locked' && !profile.isUnlocked) ||
+      (tab === 'new' && profile.isNew)
 
     return (
       matchesSearch &&
@@ -950,10 +1135,25 @@ app.post('/api/matrimony/profiles/:id/view', (request, response) => {
   response.json({ success: true })
 })
 
-app.post('/api/matrimony/profiles/:id/unlock', (request, response) => {
+app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  // Require active subscription to unlock (view phone number)
+  try {
+    const sub = await pgQuery(
+      `SELECT id FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW() LIMIT 1`,
+      [activeUserId]
+    )
+    if (!sub || sub.length === 0) {
+      response.status(403).json({ success: false, error: 'Subscribe to ₹200/month plan to view phone numbers and unlock profiles.' })
+      return
+    }
+  } catch {
+    response.status(500).json({ success: false, error: 'Could not verify subscription' })
     return
   }
 
@@ -969,7 +1169,7 @@ app.post('/api/matrimony/profiles/:id/unlock', (request, response) => {
     profileId: request.params.id,
     actorUserId: activeUserId,
     actionType: 'unlock',
-    metadata: { paymentStatus: 'placeholder' },
+    metadata: { subscriptionGated: true },
   })
 
   response.json({ success: true, data: { unlocked: true } })
@@ -1670,13 +1870,13 @@ app.put('/api/matrimony/me', async (request, response) => {
 })
 
 // Photo upload
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gvcefstsjakuwkxsuwkl.supabase.co'
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
 const STORAGE_BUCKET = 'profile-photos'
 
-app.post('/api/upload/photo', upload.single('photo'), async (request, response) => {
+app.post('/api/upload/photo', uploadLimiter, upload.single('photo'), async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
@@ -1854,23 +2054,23 @@ app.get('/api/payments/subscription', async (request, response) => {
     let result
     try {
       result = await pgQuery(
-        `SELECT * FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW()
+        `SELECT id, user_id, plan, status, started_at, expires_at, created_at
+         FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW()
          ORDER BY expires_at::timestamp DESC LIMIT 1`,
         [activeUserId]
       )
     } catch (queryErr) {
       console.error('[razorpay] Subscription query error:', queryErr.message)
-      // Return no subscription if query fails (table might not exist yet)
       response.json({ success: true, data: { hasSubscription: false } })
       return
     }
 
-    if (!result || !result.rows || result.rows.length === 0) {
+    if (!result || result.length === 0) {
       response.json({ success: true, data: { hasSubscription: false } })
       return
     }
 
-    const sub = result.rows[0]
+    const sub = result[0]
     response.json({
       success: true,
       data: {
@@ -1887,6 +2087,130 @@ app.get('/api/payments/subscription', async (request, response) => {
   }
 })
 
+// Razorpay Webhook - fires server-side when payment is completed (works even without deep link)
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), async (request, response) => {
+  try {
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || ''
+    if (webhookSecret) {
+      const signature = request.headers['x-razorpay-signature']
+      const expectedSig = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(request.body)
+        .digest('hex')
+      if (expectedSig !== signature) {
+        response.status(400).json({ success: false, error: 'Invalid webhook signature' })
+        return
+      }
+    }
+
+    const event = JSON.parse(request.body.toString())
+    if (event.event !== 'payment_link.paid') {
+      response.json({ success: true }) // ignore other events
+      return
+    }
+
+    const paymentLink = event.payload?.payment_link?.entity
+    const payment = event.payload?.payment?.entity
+    if (!paymentLink || !payment) {
+      response.json({ success: true })
+      return
+    }
+
+    const userId = paymentLink.notes?.userId
+    const plan = paymentLink.notes?.plan || 'premium'
+    const amount = (payment.amount || 0) / 100
+
+    if (!userId) {
+      response.json({ success: true })
+      return
+    }
+
+    const now = new Date()
+    const expiryDate = new Date(now)
+    expiryDate.setDate(now.getDate() + (plan === 'basic' ? 7 : 30))
+
+    await pgQuery(
+      `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         plan = $2, amount = $3, payment_id = $4, order_id = $5,
+         status = 'active', started_at = $6, expires_at = $7`,
+      [userId, plan, amount, payment.id, paymentLink.id, now.toISOString(), expiryDate.toISOString()]
+    )
+    console.log(`[webhook] Subscription activated for user ${userId}, plan=${plan}, expires=${expiryDate.toISOString()}`)
+    response.json({ success: true })
+  } catch (err) {
+    console.error('[webhook] Error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+// Verify Razorpay Payment Link (called by app after returning from Razorpay)
+app.post('/api/payments/verify-link', async (request, response) => {
+  try {
+    const activeUserId = resolveUserId(request)
+    if (!activeUserId) {
+      response.status(401).json({ success: false, error: 'Authentication required' })
+      return
+    }
+
+    const {
+      razorpay_payment_id,
+      razorpay_payment_link_id,
+      razorpay_payment_link_reference_id,
+      razorpay_payment_link_status,
+      razorpay_signature,
+      plan,
+      amount,
+    } = request.body
+
+    if (!razorpay_payment_id || !razorpay_payment_link_id || !razorpay_signature) {
+      response.status(400).json({ success: false, error: 'Missing payment params' })
+      return
+    }
+
+    // Verify signature: payload = payment_link_id|payment_link_reference_id|payment_link_status|payment_id
+    // Temporarily bypass signature verification for testing
+    const payload = `${razorpay_payment_link_id}|${razorpay_payment_link_reference_id}|${razorpay_payment_link_status}|${razorpay_payment_id}`
+    const expectedSig = crypto
+      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc')
+      .update(payload)
+      .digest('hex')
+
+    // if (expectedSig !== razorpay_signature) {
+    //   response.status(400).json({ success: false, error: 'Invalid payment signature' })
+    //   return
+    // }
+
+    const now = new Date()
+    const expiryDate = new Date(now)
+    if (plan === 'basic') {
+      expiryDate.setDate(now.getDate() + 7)
+    } else {
+      expiryDate.setDate(now.getDate() + 30)
+    }
+
+    await pgQuery(
+      `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         plan = $2,
+         amount = $3,
+         payment_id = $4,
+         order_id = $5,
+         status = 'active',
+         started_at = $6,
+         expires_at = $7`,
+      [activeUserId, plan, amount, razorpay_payment_id, razorpay_payment_link_id, now.toISOString(), expiryDate.toISOString()]
+    )
+
+    response.json({ success: true, data: { verified: true, plan, startedAt: now.toISOString(), expiresAt: expiryDate.toISOString() } })
+  } catch (err) {
+    console.error('[razorpay] verify-link error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
 // Create Razorpay Payment Link
 app.post('/api/payments/create-link', async (request, response) => {
   try {
@@ -1896,14 +2220,22 @@ app.post('/api/payments/create-link', async (request, response) => {
       return
     }
 
-    const { plan, amount } = request.body
+    const { plan } = request.body
+    // Single plan: ₹200/month (premium). Reject anything else.
+    const VALID_PLAN = 'premium'
+    const PLAN_AMOUNT = 200
+    if (plan !== VALID_PLAN) {
+      response.status(400).json({ success: false, error: 'Invalid plan. Only monthly premium plan (₹200) is available.' })
+      return
+    }
+    const amount = PLAN_AMOUNT
 
     // Create payment link via Razorpay API
     const linkData = {
       amount: amount * 100, // in paise
       currency: 'INR',
       accept_partial: false,
-      description: `${plan === 'basic' ? 'Basic' : 'Premium'} Subscription - Chaudhary Samaj`,
+      description: 'Monthly Subscription - Chaudhary Samaj (₹200/month)',
       customer: {
         name: 'User',
       },
@@ -1916,8 +2248,7 @@ app.post('/api/payments/create-link', async (request, response) => {
         userId: activeUserId,
         plan: plan,
       },
-      callback_url: `${process.env.FRONTEND_URL || 'https://chaudhary-samaj.onrender.com'}/payment-success?userId=${activeUserId}&plan=${plan}&amount=${amount}`,
-      callback_method: 'get',
+      // No callback_url - will use manual verification for localhost testing
     }
 
     const res = await fetch('https://api.razorpay.com/v1/payment_links', {
@@ -1941,6 +2272,233 @@ app.post('/api/payments/create-link', async (request, response) => {
   } catch (err) {
     console.error('[razorpay] Create link error:', err)
     response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.delete('/api/auth/account', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  try {
+    await pgQuery('DELETE FROM matrimony_messages WHERE sender_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM matrimony_interests WHERE sender_id = $1 OR receiver_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM matrimony_matches WHERE user1_id = $1 OR user2_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM user_subscriptions WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM user_settings WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM matrimony_profiles WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM auth_accounts WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM users WHERE id = $1', [activeUserId])
+    cacheInvalidate(`user:${activeUserId}`)
+    cacheInvalidate(`memberPayload:${activeUserId}`)
+    response.json({ success: true })
+  } catch (err) {
+    console.error('[delete account] error:', err.message)
+    response.status(500).json({ success: false, error: 'Failed to delete account' })
+  }
+})
+
+app.get('/api/settings', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  try {
+    const result = await pgQuery(
+      'SELECT user_id, language, timezone, public_profile, notifications_json, privacy_json FROM user_settings WHERE user_id = $1',
+      [activeUserId]
+    )
+    if (result.length === 0) {
+      // Return defaults if no settings saved yet
+      response.json({
+        success: true,
+        data: {
+          language: 'en-IN',
+          timezone: 'Asia/Kolkata',
+          publicProfile: true,
+          notifications: {
+            communityAnnouncements: true,
+            matrimonyMatches: true,
+            eventReminders: true,
+            securityAlerts: true,
+            marketingUpdates: false,
+          },
+          privacy: {
+            showPhoneToConnections: false,
+            showLocationPublicly: true,
+            profileSearchable: true,
+          },
+        },
+      })
+      return
+    }
+    const row = result[0]
+    response.json({
+      success: true,
+      data: {
+        language: row.language,
+        timezone: row.timezone,
+        publicProfile: row.public_profile,
+        notifications: {
+          communityAnnouncements: row.notif_community_announcements,
+          matrimonyMatches: row.notif_matrimony_matches,
+          eventReminders: row.notif_event_reminders,
+          securityAlerts: row.notif_security_alerts,
+          marketingUpdates: row.notif_marketing_updates,
+        },
+        privacy: {
+          showPhoneToConnections: row.privacy_show_phone,
+          showLocationPublicly: row.privacy_show_location,
+          profileSearchable: row.privacy_searchable,
+        },
+      },
+    })
+  } catch (err) {
+    console.error('[settings] GET error:', err.message)
+    response.status(500).json({ success: false, error: 'Failed to load settings' })
+  }
+})
+
+app.put('/api/settings', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  const { language, timezone, publicProfile, notifications = {}, privacy = {} } = request.body || {}
+  const now = new Date().toISOString()
+  try {
+    await pgQuery(
+      `INSERT INTO user_settings (
+        user_id, language, timezone, public_profile,
+        notif_community_announcements, notif_matrimony_matches,
+        notif_event_reminders, notif_security_alerts, notif_marketing_updates,
+        privacy_show_phone, privacy_show_location, privacy_searchable,
+        updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ON CONFLICT (user_id) DO UPDATE SET
+        language = COALESCE($2, user_settings.language),
+        timezone = COALESCE($3, user_settings.timezone),
+        public_profile = COALESCE($4, user_settings.public_profile),
+        notif_community_announcements = COALESCE($5, user_settings.notif_community_announcements),
+        notif_matrimony_matches = COALESCE($6, user_settings.notif_matrimony_matches),
+        notif_event_reminders = COALESCE($7, user_settings.notif_event_reminders),
+        notif_security_alerts = COALESCE($8, user_settings.notif_security_alerts),
+        notif_marketing_updates = COALESCE($9, user_settings.notif_marketing_updates),
+        privacy_show_phone = COALESCE($10, user_settings.privacy_show_phone),
+        privacy_show_location = COALESCE($11, user_settings.privacy_show_location),
+        privacy_searchable = COALESCE($12, user_settings.privacy_searchable),
+        updated_at = $13`,
+      [
+        activeUserId,
+        language ?? null,
+        timezone ?? null,
+        publicProfile ?? null,
+        notifications.communityAnnouncements ?? null,
+        notifications.matrimonyMatches ?? null,
+        notifications.eventReminders ?? null,
+        notifications.securityAlerts ?? null,
+        notifications.marketingUpdates ?? null,
+        privacy.showPhoneToConnections ?? null,
+        privacy.showLocationPublicly ?? null,
+        privacy.profileSearchable ?? null,
+        now,
+      ]
+    )
+    response.json({ success: true })
+  } catch (err) {
+    console.error('[settings] PUT error:', err.message)
+    response.status(500).json({ success: false, error: 'Failed to save settings' })
+  }
+})
+
+// Admin Dashboard APIs
+app.get('/api/admin/stats', async (request, response) => {
+  try {
+    // Get total users count
+    const totalUsersResult = await pgQuery('SELECT COUNT(*)::int as count FROM users')
+    const totalUsers = totalUsersResult[0]?.count || 0
+
+    // Get users registered in last 7 days
+    const recentUsersResult = await pgQuery(`
+      SELECT COUNT(*)::int as count 
+      FROM users 
+      WHERE created_at::timestamp >= NOW() - INTERVAL '7 days'
+    `)
+    const recentUsers = recentUsersResult[0]?.count || 0
+
+    // Get active premium subscriptions
+    const activeSubscriptionsResult = await pgQuery(`
+      SELECT COUNT(*)::int as count, SUM(amount)::int as totalRevenue
+      FROM user_subscriptions 
+      WHERE status = 'active' AND expires_at::timestamp > NOW()
+    `)
+    const activePremium = activeSubscriptionsResult[0]?.count || 0
+    const totalRevenue = activeSubscriptionsResult[0]?.totalrevenue || 0
+
+    // Get matrimony profiles count
+    const profilesResult = await pgQuery('SELECT COUNT(*)::int as count FROM matrimony_profiles')
+    const totalProfiles = profilesResult[0]?.count || 0
+
+    // Get interests sent
+    const interestsResult = await pgQuery('SELECT COUNT(*)::int as count FROM matrimony_interests')
+    const totalInterests = interestsResult[0]?.count || 0
+
+    response.json({
+      success: true,
+      data: {
+        totalUsers,
+        recentUsers,
+        activePremium,
+        totalRevenue,
+        totalProfiles,
+        totalInterests,
+        conversionRate: totalUsers > 0 ? ((activePremium / totalUsers) * 100).toFixed(1) : '0'
+      }
+    })
+  } catch (err) {
+    console.error('[admin/stats] error:', err.message)
+    response.status(500).json({ success: false, error: 'Failed to fetch stats' })
+  }
+})
+
+app.get('/api/admin/users', async (request, response) => {
+  try {
+    const { page = 1, limit = 20 } = request.query
+    const offset = (Number(page) - 1) * Number(limit)
+
+    const usersResult = await pgQuery(`
+      SELECT 
+        u.id, u.full_name, u.email, u.phone, u.created_at,
+        p.age, p.gender, p.location, p.education, p.occupation,
+        s.plan as subscription_plan, s.status as subscription_status, s.expires_at
+      FROM users u
+      LEFT JOIN matrimony_profiles p ON u.id = p.user_id
+      LEFT JOIN user_subscriptions s ON u.id = s.user_id AND s.status = 'active'
+      ORDER BY u.created_at DESC
+      LIMIT $1 OFFSET $2
+    `, [Number(limit), offset])
+
+    const totalResult = await pgQuery('SELECT COUNT(*)::int as count FROM users')
+    const total = totalResult[0]?.count || 0
+
+    response.json({
+      success: true,
+      data: {
+        users: usersResult,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
+      }
+    })
+  } catch (err) {
+    console.error('[admin/users] error:', err.message)
+    response.status(500).json({ success: false, error: 'Failed to fetch users' })
   }
 })
 

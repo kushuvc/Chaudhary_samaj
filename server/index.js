@@ -1965,6 +1965,22 @@ if (!useSupabaseStorage) {
 // Serve locally stored photos. Harmless when Supabase is configured (dir is empty).
 app.use('/uploads', express.static(localUploadDir, { maxAge: '7d' }))
 
+/**
+ * Auth headers for the Supabase Storage REST API.
+ *
+ * Supabase has two key formats. Legacy service_role keys are JWTs and go in
+ * Authorization: Bearer. Newer keys (sb_secret_...) are not JWTs — sending one
+ * as a Bearer token fails with "Invalid Compact JWS" — and must go in apikey.
+ * Sending apikey always, and Bearer only for a JWT, supports both.
+ */
+function supabaseStorageHeaders(extra = {}) {
+  const headers = { apikey: SUPABASE_SERVICE_KEY, ...extra }
+  if (SUPABASE_SERVICE_KEY.startsWith('eyJ')) {
+    headers.Authorization = `Bearer ${SUPABASE_SERVICE_KEY}`
+  }
+  return headers
+}
+
 /** Absolute base URL for this request, so returned photo URLs work from a phone. */
 function publicBaseUrl(request) {
   const configured = String(process.env.PUBLIC_API_BASE_URL || '').trim().replace(/\/+$/, '')
@@ -2002,11 +2018,10 @@ app.post('/api/upload/photo', uploadLimiter, upload.single('photo'), async (requ
     const storageUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`
     const uploadRes = await fetch(storageUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+      headers: supabaseStorageHeaders({
         'Content-Type': request.file.mimetype,
         'x-upsert': 'false',
-      },
+      }),
       body: request.file.buffer,
     })
 
@@ -2062,7 +2077,7 @@ app.delete('/api/upload/photo', async (request, response) => {
 
     const deleteRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${filePath}`, {
       method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+      headers: supabaseStorageHeaders(),
     })
 
     if (!deleteRes.ok && deleteRes.status !== 404) {

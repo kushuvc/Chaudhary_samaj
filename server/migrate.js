@@ -97,6 +97,16 @@ const migrations = [
     privacy_searchable BOOLEAN NOT NULL DEFAULT true,
     updated_at TEXT
   )`,
+  // One phone number per account. A functional unique index rather than a
+  // plain UNIQUE(phone) so it normalizes formatting differences (with/without
+  // +91, spaces, dashes) before comparing, and so NULL/blank phones (accounts
+  // created by email only) never collide with each other.
+  // Run server/dedupe-phones.js --apply BEFORE this on a database that
+  // predates the constraint, or existing duplicate phone numbers will make
+  // this index creation fail.
+  `CREATE UNIQUE INDEX IF NOT EXISTS users_phone_normalized_key
+     ON users (right(regexp_replace(phone, '\\D', '', 'g'), 10))
+     WHERE coalesce(phone, '') <> ''`,
 ]
 
 for (const sql of migrations) {

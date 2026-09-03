@@ -140,6 +140,23 @@ function isGmailAddress(email) {
   return /^[^\s@]+@gmail\.com$/i.test(String(email || '').trim())
 }
 
+/**
+ * True if some account is already using this phone number. Numbers are
+ * stored inconsistently across signup paths (raw 10-digit vs +91-prefixed),
+ * so this compares on the last 10 digits rather than an exact string —
+ * matching the unique index on users (users_phone_normalized_key) and the
+ * lookup in phone/verify-otp.
+ */
+async function phoneAlreadyRegistered(rawPhone) {
+  const normalizedPhone = String(rawPhone || '').replace(/\D/g, '').slice(-10)
+  if (normalizedPhone.length !== 10) return false
+  const rows = await pgQuery(
+    `SELECT id FROM users WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1 LIMIT 1`,
+    [normalizedPhone]
+  )
+  return rows.length > 0
+}
+
 function resolveUserId(request) {
   const headerUserId = request.header('x-user-id')
   if (!headerUserId) return null
@@ -269,6 +286,19 @@ app.post('/api/auth/signup', async (request, response) => {
       const existing = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [String(email).trim()])
       if (existing.length > 0) {
         response.status(409).json({ success: false, error: 'Email already registered' })
+        return
+      }
+
+      // Belt-and-suspenders: the signup screen already blocks this at the
+      // phone-entry step, but re-check here in case that step was bypassed —
+      // e.g. an older app build, or the number being claimed by someone else
+      // in the gap between that check and this request.
+      if (phone && (await phoneAlreadyRegistered(phone))) {
+        response.status(409).json({
+          success: false,
+          error: 'This phone number is already registered. Please log in instead.',
+          code: 'PHONE_ALREADY_REGISTERED',
+        })
         return
       }
     }
@@ -655,12 +685,30 @@ app.get('/api/health', (_request, response) => {
 const phoneOtpStore = new Map() // Store OTPs temporarily (in production, use Redis)
 
 app.post('/api/auth/phone/send-otp', async (request, response) => {
-  const { phone } = request.body || {}
+  const { phone, purpose } = request.body || {}
   const normalizedPhone = String(phone || '').trim().replace(/\D/g, '')
 
   if (!normalizedPhone || normalizedPhone.length !== 10) {
     response.status(400).json({ success: false, error: 'Please provide a valid 10-digit phone number' })
     return
+  }
+
+  // Only the signup flow blocks here — phone login is expected to match an
+  // existing account (or create one), so it must not be gated the same way.
+  if (purpose === 'signup') {
+    try {
+      if (await phoneAlreadyRegistered(normalizedPhone)) {
+        response.status(409).json({
+          success: false,
+          error: 'This phone number is already registered. Please log in instead.',
+          code: 'PHONE_ALREADY_REGISTERED',
+        })
+        return
+      }
+    } catch (err) {
+      response.status(500).json({ success: false, error: err.message })
+      return
+    }
   }
 
   // Generate 6-digit OTP

@@ -216,6 +216,7 @@ function AuthFlow() {
             patch({ basicDetails: data });
             setAuthMode('signup-personal');
           }}
+          onExistingAccount={() => setAuthMode('login')}
         />
       );
     case 'signup-personal':

@@ -16,6 +16,8 @@ export interface BasicDetailsData {
 interface SignupBasicDetailsScreenProps {
   onBack: () => void;
   onSubmit: (data: BasicDetailsData) => Promise<void> | void;
+  /** Called when the entered phone already belongs to an account. */
+  onExistingAccount?: () => void;
 }
 
 const PASSWORD_MIN = 8;
@@ -25,7 +27,7 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 }
 
-export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetailsScreenProps) {
+export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }: SignupBasicDetailsScreenProps) {
   const { palette } = useAppTheme();
   const styles = createStyles(palette);
 
@@ -53,13 +55,24 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit }: SignupBasicDetail
     setSending(true);
     setError(null);
     try {
-      const response = await api.requestPhoneOtp(phone);
+      const response = await api.requestPhoneOtp(phone, 'signup');
       if (response.mockOtp) {
         setMockOtpHint(response.mockOtp);
         Alert.alert('Test mode OTP', `Your OTP is: ${response.mockOtp}`);
       }
       setStage('otp');
     } catch (err: any) {
+      if (err?.code === 'PHONE_ALREADY_REGISTERED') {
+        Alert.alert(
+          'Number already registered',
+          'An account already exists with this phone number. Would you like to log in instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Log in', onPress: () => onExistingAccount?.() },
+          ]
+        );
+        return;
+      }
       setError(err?.message || 'Could not send the OTP. Please try again.');
     } finally {
       setSending(false);

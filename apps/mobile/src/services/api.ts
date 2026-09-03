@@ -34,6 +34,12 @@ export const setApiSession = (session: AuthSession | null) => {
   userId = session?.user?.id || null;
 };
 
+export interface ApiError extends Error {
+  status?: number;
+  /** Machine-readable error code from the server, e.g. PHONE_ALREADY_REGISTERED. */
+  code?: string;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers || {});
   headers.set('Content-Type', 'application/json');
@@ -73,7 +79,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(data.error || `Request failed (${response.status})`);
+    const error = new Error(data.error || `Request failed (${response.status})`) as ApiError;
+    error.status = response.status;
+    error.code = data.code;
+    throw error;
   }
 
   return data as T;
@@ -622,11 +631,15 @@ export const api = {
     return response.data;
   },
 
-  // Phone OTP APIs
-  requestPhoneOtp: async (phone: string): Promise<{ message: string; mockOtp?: string }> => {
+  // Phone OTP APIs. Pass purpose 'signup' so the server can reject a number
+  // that already belongs to an account; omit it for login.
+  requestPhoneOtp: async (
+    phone: string,
+    purpose?: 'signup' | 'login'
+  ): Promise<{ message: string; mockOtp?: string }> => {
     const response = await request<{ message: string; mockOtp?: string }>('/auth/phone/send-otp', {
       method: 'POST',
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, purpose }),
     });
     return response;
   },

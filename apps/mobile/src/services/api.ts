@@ -597,6 +597,15 @@ export const api = {
     return response.data;
   },
 
+  getPaymentLinkStatus: async (
+    linkId: string
+  ): Promise<{ status: string; activated: boolean; plan?: string; startedAt?: string; expiresAt?: string }> => {
+    const response = await request<{
+      data: { status: string; activated: boolean; plan?: string; startedAt?: string; expiresAt?: string };
+    }>(`/payments/link-status/${encodeURIComponent(linkId)}`);
+    return response.data;
+  },
+
   verifyPaymentLink: async (params: {
     razorpay_payment_id: string;
     razorpay_payment_link_id: string;

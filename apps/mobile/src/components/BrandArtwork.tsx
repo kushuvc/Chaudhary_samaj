@@ -14,9 +14,9 @@ export function BrandArtwork({ compact = false }: BrandArtworkProps) {
       <Svg width="100%" height="100%" viewBox="0 0 360 150" preserveAspectRatio="xMidYMid slice">
         <Defs>
           <LinearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
-            <Stop offset="0" stopColor="#ea580c" />
-            <Stop offset="0.5" stopColor="#c2410c" />
-            <Stop offset="1" stopColor="#7c2d12" />
+            <Stop offset="0" stopColor="#5B5BD6" />
+            <Stop offset="0.5" stopColor="#7C4DDA" />
+            <Stop offset="1" stopColor="#3D3B9E" />
           </LinearGradient>
           <LinearGradient id="shineGrad" x1="0" y1="0" x2="0" y2="1">
             <Stop offset="0" stopColor="#ffffff" stopOpacity="0.15" />

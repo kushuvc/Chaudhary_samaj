@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useAppTheme } from '../context/ThemeContext';
-import type { ThemePalette } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
+import { PrimaryButton, SectionHeading, StepScaffold, TextButton } from '../components/ui';
 import { api } from '../services/api';
 
 export interface Photo {
@@ -19,13 +19,22 @@ interface SignupManagePhotosScreenProps {
   onComplete: (photos: Photo[]) => void;
 }
 
+const MAX_PHOTOS = 6;
+
+const benefits = [
+  { icon: 'eye-outline' as const, text: 'Profiles with photos get far more responses' },
+  { icon: 'lock-closed-outline' as const, text: 'You choose who can see them at any time' },
+];
+
 export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePhotosScreenProps) {
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [photos, setPhotos] = useState<Photo[]>([]);
 
   const pickAndUpload = async () => {
-    if (photos.length >= 6) return;
+    if (photos.length >= MAX_PHOTOS) {
+      return;
+    }
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -41,43 +50,43 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
       aspect: [3, 4],
     });
 
-    if (result.canceled || !result.assets?.[0]) return;
+    if (result.canceled || !result.assets?.[0]) {
+      return;
+    }
 
     const asset = result.assets[0];
     const tempId = Date.now().toString();
-    const newPhoto: Photo = {
-      id: tempId,
-      uri: '',
-      localUri: asset.uri,
-      isPrimary: photos.length === 0,
-      status: 'uploading',
-    };
-    setPhotos((prev) => [...prev, newPhoto]);
+    setPhotos((prev) => [
+      ...prev,
+      { id: tempId, uri: '', localUri: asset.uri, isPrimary: prev.length === 0, status: 'uploading' },
+    ]);
 
     try {
       const remoteUrl = await api.uploadPhoto(asset.uri);
-      setPhotos((prev) =>
-        prev.map((p) => p.id === tempId ? { ...p, uri: remoteUrl, status: 'done' } : p)
-      );
+      setPhotos((prev) => prev.map((p) => (p.id === tempId ? { ...p, uri: remoteUrl, status: 'done' } : p)));
     } catch (err: any) {
-      Alert.alert('Upload failed', err.message || 'Could not upload photo');
+      Alert.alert('Upload failed', err?.message || 'Could not upload photo');
       setPhotos((prev) => prev.filter((p) => p.id !== tempId));
     }
   };
 
   const removePhoto = async (id: string) => {
     const photo = photos.find((p) => p.id === id);
-    if (!photo) return;
-    setPhotos((prev) => prev.filter((p) => p.id !== id));
-    // Ensure another photo becomes primary
+    if (!photo) {
+      return;
+    }
     setPhotos((prev) => {
-      if (prev.length > 0 && !prev.some((p) => p.isPrimary)) {
-        return prev.map((p, i) => i === 0 ? { ...p, isPrimary: true } : p);
+      const next = prev.filter((p) => p.id !== id);
+      // Keep exactly one primary photo after a removal.
+      if (next.length > 0 && !next.some((p) => p.isPrimary)) {
+        return next.map((p, index) => (index === 0 ? { ...p, isPrimary: true } : p));
       }
-      return prev;
+      return next;
     });
     if (photo.uri) {
-      try { await api.deletePhoto(photo.uri); } catch {}
+      try {
+        await api.deletePhoto(photo.uri);
+      } catch {}
     }
   };
 
@@ -85,276 +94,179 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
     setPhotos((prev) => prev.map((p) => ({ ...p, isPrimary: p.id === id })));
   };
 
-  const hasUploadedPhotos = photos.some((p) => p.status === 'done');
+  const uploaded = photos.filter((p) => p.status === 'done');
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={onBack}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Manage Photos</Text>
-        <View style={styles.backButton} />
+    <StepScaffold
+      onBack={onBack}
+      eyebrow="Photos"
+      title="Add a photo"
+      subtitle="Profiles with a clear photo get noticed first. You can add up to six."
+      footer={
+        <>
+          <PrimaryButton
+            label={uploaded.length > 0 ? `Continue with ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'}` : 'Add a photo'}
+            onPress={uploaded.length > 0 ? () => onComplete(uploaded) : pickAndUpload}
+          />
+          <TextButton label="I'll do this later" onPress={() => onComplete(uploaded)} />
+        </>
+      }
+    >
+      <View style={styles.benefits}>
+        {benefits.map((item) => (
+          <View key={item.text} style={styles.benefitRow}>
+            <View style={styles.benefitIcon}>
+              <Ionicons name={item.icon} size={16} color={palette.primary} />
+            </View>
+            <Text style={styles.benefitText}>{item.text}</Text>
+          </View>
+        ))}
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
-        <Text style={styles.subtitle}>
-          Tap + to add photos. First photo will be your profile photo. Up to 6 photos.
-        </Text>
+      <SectionHeading
+        title="Your photos"
+        caption={photos.length > 0 ? 'Tap a photo to make it your main one.' : undefined}
+      />
 
-        {/* Photos Grid */}
-        <View style={styles.photosGrid}>
-          {photos.map((photo) => {
-            const displayUri = photo.localUri || photo.uri;
-            return (
-              <View key={photo.id} style={styles.photoContainer}>
-                {photo.isPrimary && (
-                  <View style={styles.primaryBadge}>
-                    <Text style={styles.primaryText}>Profile Photo</Text>
-                  </View>
-                )}
+      <View style={styles.grid}>
+        {photos.map((photo) => (
+          <Pressable
+            key={photo.id}
+            style={[styles.tile, photo.isPrimary && styles.tilePrimary]}
+            onPress={() => photo.status === 'done' && setPrimary(photo.id)}
+          >
+            <Image source={{ uri: photo.uri || photo.localUri }} style={styles.tileImage} />
 
-                <View style={[styles.photoBox, photo.status === 'done' && styles.photoBoxDone]}>
-                  {displayUri ? (
-                    <Image source={{ uri: displayUri }} style={styles.photoImage} resizeMode="cover" />
-                  ) : (
-                    <View style={styles.placeholderContent}>
-                      <Ionicons name="person" size={40} color="#CCCCCC" />
-                    </View>
-                  )}
-                  {photo.status === 'uploading' && (
-                    <View style={styles.uploadOverlay}>
-                      <ActivityIndicator size="large" color="#FFFFFF" />
-                      <Text style={styles.uploadingText}>Uploading...</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Remove button */}
-                <Pressable style={styles.removeButton} onPress={() => removePhoto(photo.id)}>
-                  <Ionicons name="close" size={16} color="#FFFFFF" />
-                </Pressable>
-
-                {/* Set primary button */}
-                {!photo.isPrimary && photo.status === 'done' && (
-                  <Pressable style={styles.setPrimaryButton} onPress={() => setPrimary(photo.id)}>
-                    <Text style={styles.setPrimaryText}>Set as Profile</Text>
-                  </Pressable>
-                )}
+            {photo.status === 'uploading' ? (
+              <View style={styles.tileOverlay}>
+                <ActivityIndicator color="#FFFFFF" />
               </View>
-            );
-          })}
+            ) : null}
 
-          {/* Add Photo Button */}
-          {photos.length < 6 && (
-            <Pressable style={styles.addPhotoButton} onPress={pickAndUpload}>
-              <View style={styles.addPhotoIcon}>
-                <Ionicons name="add" size={32} color="#E53935" />
+            {photo.isPrimary && photo.status === 'done' ? (
+              <View style={styles.primaryBadge}>
+                <Text style={styles.primaryBadgeText}>Main</Text>
               </View>
-              <Text style={styles.addPhotoText}>Add Photo</Text>
+            ) : null}
+
+            <Pressable
+              accessibilityLabel="Remove photo"
+              style={styles.removeButton}
+              onPress={() => removePhoto(photo.id)}
+              hitSlop={6}
+            >
+              <Ionicons name="close" size={14} color="#FFFFFF" />
             </Pressable>
-          )}
-        </View>
-      </ScrollView>
+          </Pressable>
+        ))}
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Pressable
-          style={[styles.completeButton, !hasUploadedPhotos && styles.completeButtonDisabled]}
-          onPress={() => hasUploadedPhotos && onComplete(photos.filter((p) => p.status === 'done'))}
-          disabled={!hasUploadedPhotos}
-        >
-          <Text style={styles.completeButtonText}>
-            {hasUploadedPhotos ? `Continue (${photos.filter(p => p.status === 'done').length} photo${photos.filter(p => p.status === 'done').length > 1 ? 's' : ''})` : 'Add at least one photo'}
-          </Text>
-        </Pressable>
-        <Pressable style={styles.skipButton} onPress={() => onComplete([])}>
-          <Text style={styles.skipText}>Skip for now</Text>
-        </Pressable>
+        {photos.length < MAX_PHOTOS ? (
+          <Pressable style={styles.addTile} onPress={pickAndUpload}>
+            <Ionicons name="add" size={26} color={palette.primary} />
+            <Text style={styles.addTileText}>Add photo</Text>
+          </Pressable>
+        ) : null}
       </View>
-    </View>
+    </StepScaffold>
   );
 }
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: palette.bg,
+    benefits: {
+      gap: 12,
+      backgroundColor: palette.surface,
+      borderRadius: 18,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
     },
-    header: {
+    benefitRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
-      paddingTop: 60,
-      paddingBottom: 16,
-      backgroundColor: '#E53935',
+      gap: 12,
     },
-    backButton: {
-      width: 40,
-      height: 40,
-      justifyContent: 'center',
+    benefitIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 11,
       alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.primarySoft,
     },
-    headerTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
-    content: {
+    benefitText: {
       flex: 1,
+      fontSize: 13.5,
+      color: palette.textSoft,
     },
-    contentInner: {
-      padding: 24,
-    },
-    subtitle: {
-      fontSize: 14,
-      color: palette.muted,
-      marginBottom: 24,
-      lineHeight: 20,
-    },
-    photosGrid: {
+    grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 16,
+      gap: 12,
     },
-    photoContainer: {
-      width: '47%',
-      aspectRatio: 0.8,
-      position: 'relative',
-    },
-    primaryBadge: {
-      position: 'absolute',
-      top: -10,
-      left: 10,
-      backgroundColor: '#E53935',
-      paddingVertical: 4,
-      paddingHorizontal: 12,
-      borderRadius: 12,
-      zIndex: 10,
-    },
-    primaryText: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
-    photoBox: {
-      flex: 1,
-      backgroundColor: '#F5F5F5',
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: '#E0E0E0',
+    tile: {
+      width: 104,
+      height: 138,
+      borderRadius: 16,
       overflow: 'hidden',
+      backgroundColor: palette.surfaceSunken,
+      borderWidth: 2,
+      borderColor: 'transparent',
     },
-    photoBoxDone: {
-      borderColor: '#E53935',
+    tilePrimary: {
+      borderColor: palette.primary,
     },
-    photoImage: {
+    tileImage: {
       width: '100%',
       height: '100%',
     },
-    placeholderContent: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    uploadOverlay: {
+    tileOverlay: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.45)',
-      justifyContent: 'center',
       alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(10,11,20,0.45)',
     },
-    uploadingText: {
-      fontSize: 13,
+    primaryBadge: {
+      position: 'absolute',
+      left: 8,
+      bottom: 8,
+      paddingHorizontal: 9,
+      paddingVertical: 4,
+      borderRadius: 8,
+      backgroundColor: palette.primary,
+    },
+    primaryBadgeText: {
+      fontSize: 11,
+      fontWeight: '800',
       color: '#FFFFFF',
-      marginTop: 8,
-      fontWeight: '600',
     },
     removeButton: {
       position: 'absolute',
-      top: 8,
-      right: 8,
+      top: 6,
+      right: 6,
       width: 24,
       height: 24,
       borderRadius: 12,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
       alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(10,11,20,0.6)',
     },
-    setPrimaryButton: {
-      position: 'absolute',
-      bottom: 8,
-      left: 8,
-      right: 8,
-      backgroundColor: 'rgba(229,57,53,0.9)',
-      paddingVertical: 6,
+    addTile: {
+      width: 104,
+      height: 138,
       borderRadius: 16,
       alignItems: 'center',
-    },
-    setPrimaryText: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: '#FFFFFF',
-    },
-    addPhotoButton: {
-      width: '47%',
-      aspectRatio: 0.8,
-      backgroundColor: '#F5F5F5',
-      borderRadius: 12,
-      borderWidth: 2,
-      borderColor: '#E0E0E0',
+      justifyContent: 'center',
+      gap: 6,
+      borderWidth: 1.5,
       borderStyle: 'dashed',
-      justifyContent: 'center',
-      alignItems: 'center',
+      borderColor: palette.borderStrong,
+      backgroundColor: palette.surface,
     },
-    addPhotoIcon: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
-      backgroundColor: '#FFFFFF',
-      justifyContent: 'center',
-      alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3,
-      marginBottom: 12,
-    },
-    addPhotoText: {
-      fontSize: 14,
-      color: palette.muted,
-      fontWeight: '500',
-    },
-    footer: {
-      padding: 24,
-      paddingBottom: 40,
-      borderTopWidth: 1,
-      borderTopColor: palette.border,
-    },
-    completeButton: {
-      backgroundColor: '#E53935',
-      borderRadius: 28,
-      paddingVertical: 16,
-      alignItems: 'center',
-    },
-    completeButtonDisabled: {
-      backgroundColor: '#E0E0E0',
-    },
-    completeButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
+    addTileText: {
+      fontSize: 12.5,
       fontWeight: '700',
-    },
-    skipButton: {
-      alignItems: 'center',
-      paddingVertical: 12,
-    },
-    skipText: {
-      fontSize: 14,
-      color: palette.muted,
+      color: palette.primary,
     },
   });
 }

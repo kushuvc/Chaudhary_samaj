@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Ellipse } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
@@ -21,6 +22,7 @@ import type { MatrimonyProfile } from '../types';
 
 export function DashboardScreen() {
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useAppLanguage();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
@@ -70,9 +72,9 @@ export function DashboardScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5efe7' }}>
-        <Ionicons name="heart" size={40} color="#ea580c" />
-        <Text style={{ marginTop: 12, color: '#ea580c', fontWeight: '600', fontSize: 15 }}>{t('dashboardFindingMatches')}</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.bg }}>
+        <Ionicons name="heart" size={40} color={palette.primary} />
+        <Text style={{ marginTop: 12, color: palette.primary, fontWeight: '600', fontSize: 15 }}>{t('dashboardFindingMatches')}</Text>
       </View>
     );
   }
@@ -90,13 +92,13 @@ export function DashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
     >
       {/* Hero Banner */}
-      <View style={styles.heroCard}>
+      <View style={[styles.heroCard, { height: 200 + insets.top }]}>
         <Svg style={StyleSheet.absoluteFill as any} width="100%" height="100%" viewBox="0 0 380 200" preserveAspectRatio="xMidYMid slice">
           <Defs>
             <LinearGradient id="heroGrad" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor="#ea580c" />
-              <Stop offset="0.55" stopColor="#c2410c" />
-              <Stop offset="1" stopColor="#7c2d12" />
+              <Stop offset="0" stopColor="#5B5BD6" />
+              <Stop offset="0.55" stopColor="#7C4DDA" />
+              <Stop offset="1" stopColor="#3D3B9E" />
             </LinearGradient>
             <LinearGradient id="shineH" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor="#ffffff" stopOpacity="0.14" />
@@ -114,7 +116,7 @@ export function DashboardScreen() {
           <Circle cx="85" cy="45" r="2.5" fill="#ffffff" fillOpacity="0.25" />
           <Circle cx="260" cy="150" r="5" fill="#ffffff" fillOpacity="0.2" />
         </Svg>
-        <View style={styles.heroContent}>
+        <View style={[styles.heroContent, { paddingTop: insets.top + 28 }]}>
           <View style={styles.heroPill}>
             <Text style={styles.heroPillText}>💍 Chaudhary Matrimony</Text>
           </View>
@@ -151,24 +153,24 @@ export function DashboardScreen() {
       {/* Interests Stats */}
       <Text style={styles.sectionTitle}>{t('dashboardMyActivity')}</Text>
       <View style={styles.statsRow}>
-        <View style={[styles.statPill, { backgroundColor: '#fff1f2' }]}>
-          <Ionicons name="paper-plane" size={18} color="#f43f5e" />
-          <Text style={[styles.statPillValue, { color: '#f43f5e' }]}>{sentInterests}</Text>
+        <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
+          <Ionicons name="paper-plane" size={18} color={palette.primary} />
+          <Text style={[styles.statPillValue, { color: palette.primary }]}>{sentInterests}</Text>
           <Text style={styles.statPillLabel}>{t('dashboardInterestsSent')}</Text>
         </View>
-        <View style={[styles.statPill, { backgroundColor: '#fef9ec' }]}>
-          <Ionicons name="mail" size={18} color="#f59e0b" />
-          <Text style={[styles.statPillValue, { color: '#f59e0b' }]}>{receivedInterests}</Text>
+        <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
+          <Ionicons name="mail" size={18} color={palette.violet} />
+          <Text style={[styles.statPillValue, { color: palette.violet }]}>{receivedInterests}</Text>
           <Text style={styles.statPillLabel}>{t('dashboardInterestsReceived')}</Text>
         </View>
-        <View style={[styles.statPill, { backgroundColor: '#ecfdf5' }]}>
-          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-          <Text style={[styles.statPillValue, { color: '#10b981' }]}>{acceptedInterests}</Text>
+        <View style={[styles.statPill, { backgroundColor: palette.accentSoft }]}>
+          <Ionicons name="checkmark-circle" size={18} color={palette.accent} />
+          <Text style={[styles.statPillValue, { color: palette.accent }]}>{acceptedInterests}</Text>
           <Text style={styles.statPillLabel}>{t('dashboardInterestsAccepted')}</Text>
         </View>
-        <View style={[styles.statPill, { backgroundColor: '#fff7ed' }]}>
-          <Ionicons name="people" size={18} color={palette.primary} />
-          <Text style={[styles.statPillValue, { color: palette.primary }]}>{totalProfiles}</Text>
+        <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
+          <Ionicons name="people" size={18} color={palette.primaryDeep} />
+          <Text style={[styles.statPillValue, { color: palette.primaryDeep }]}>{totalProfiles}</Text>
           <Text style={styles.statPillLabel}>{t('dashboardTotalProfiles')}</Text>
         </View>
       </View>
@@ -240,7 +242,7 @@ function createStyles(palette: ThemePalette) {
     heroCard: { height: 200, marginBottom: 20, overflow: 'hidden', position: 'relative' },
     heroContent: { flex: 1, padding: 24, paddingTop: 28, justifyContent: 'flex-end' },
     heroPill: {
-      position: 'absolute', top: 20, left: 24,
+      alignSelf: 'flex-start', marginBottom: 'auto',
       backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20,
       paddingHorizontal: 12, paddingVertical: 5,
       borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',

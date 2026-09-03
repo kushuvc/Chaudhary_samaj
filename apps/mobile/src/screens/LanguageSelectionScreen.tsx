@@ -34,9 +34,9 @@ export function LanguageSelectionScreen() {
         <Svg style={StyleSheet.absoluteFill as any} width="100%" height="100%" viewBox="0 0 390 340" preserveAspectRatio="xMidYMid slice">
           <Defs>
             <LinearGradient id="lgBg" x1="0" y1="0" x2="0.3" y2="1">
-              <Stop offset="0" stopColor="#f97316" />
-              <Stop offset="0.5" stopColor="#ea580c" />
-              <Stop offset="1" stopColor="#7c2d12" />
+              <Stop offset="0" stopColor="#6D6BE2" />
+              <Stop offset="0.5" stopColor="#7C4DDA" />
+              <Stop offset="1" stopColor="#3D3B9E" />
             </LinearGradient>
           </Defs>
           <Rect x="0" y="0" width="390" height="340" fill="url(#lgBg)" />
@@ -48,7 +48,7 @@ export function LanguageSelectionScreen() {
 
         <View style={styles.heroContent}>
           <View style={styles.logoBadge}>
-            <Ionicons name="heart" size={28} color="#ea580c" />
+            <Ionicons name="heart" size={28} color={palette.primary} />
           </View>
           <Text style={styles.appName}>Chaudhary Samaj</Text>
           <Text style={styles.heroGreeting}>{selectedOption.greeting}</Text>

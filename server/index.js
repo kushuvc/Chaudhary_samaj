@@ -227,6 +227,17 @@ app.post('/api/auth/signup', async (request, response) => {
     hobbies,
     music,
     sports,
+    cuisine,
+    motherTongue,
+    profileCreatedFor,
+    subcaste,
+    openToAnySubcaste,
+    employmentType,
+    incomeCurrency,
+    annualIncome,
+    nakshatra,
+    raasi,
+    bio,
     createAccount = true, // Default to true for backward compatibility
   } = request.body || {}
 
@@ -309,11 +320,14 @@ app.post('/api/auth/signup', async (request, response) => {
            physical_status, religion, caste, dosh, country, state, village, native_city,
            native_village, family_status, family_type, family_wealth, father_name, mother_name,
            father_occupation, mother_occupation, siblings, eating_habit, horoscope_time,
-           horoscope_place, hobbies, music, sports)
+           horoscope_place, hobbies, music, sports,
+           cuisine, mother_tongue, profile_created_for, subcaste, open_to_any_subcaste,
+           employment_type, income_currency, annual_income, nakshatra, raasi)
          VALUES
           ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,
            $22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,
-           $42::jsonb,$43::jsonb,$44::jsonb)`,
+           $42::jsonb,$43::jsonb,$44::jsonb,
+           $45::jsonb,$46,$47,$48,$49,$50,$51,$52,$53,$54)`,
         [
           profileId,                                    // $1  id
           userId,                                       // $2  user_id
@@ -325,10 +339,10 @@ app.post('/api/auth/signup', async (request, response) => {
           safeStr(subCommunity),                        // $8  sub_community
           safeStr(education),                           // $9  education
           safeStr(occupation),                          // $10 occupation
-          'New member. Please update your profile.',    // $11 bio
+          safeStr(bio, 'New member. Please update your profile.'), // $11 bio
           safeStr(maritalStatus, 'Never Married'),      // $12 marital_status
           safeStr(height),                              // $13 height
-          '',                                           // $14 income
+          safeStr(annualIncome),                        // $14 income
           safeStr(language, 'Hindi'),                   // $15 language
           0,                                            // $16 compatibility_score
           0,                                            // $17 is_unlocked
@@ -359,6 +373,16 @@ app.post('/api/auth/signup', async (request, response) => {
           hobbies ? JSON.stringify(hobbies) : null,     // $42 hobbies (jsonb)
           music ? JSON.stringify(music) : null,          // $43 music (jsonb)
           sports ? JSON.stringify(sports) : null,        // $44 sports (jsonb)
+          cuisine ? JSON.stringify(cuisine) : null,      // $45 cuisine (jsonb)
+          safeStr(motherTongue),                        // $46 mother_tongue
+          safeStr(profileCreatedFor),                   // $47 profile_created_for
+          safeStr(subcaste || subCommunity),            // $48 subcaste
+          Boolean(openToAnySubcaste),                   // $49 open_to_any_subcaste
+          safeStr(employmentType),                      // $50 employment_type
+          safeStr(incomeCurrency),                      // $51 income_currency
+          safeStr(annualIncome),                        // $52 annual_income
+          safeStr(nakshatra),                           // $53 nakshatra
+          safeStr(raasi),                               // $54 raasi
         ]
       )
     }
@@ -527,7 +551,17 @@ app.post('/api/migrate-columns', async (request, response) => {
       ADD COLUMN IF NOT EXISTS hobbies TEXT,
       ADD COLUMN IF NOT EXISTS music TEXT,
       ADD COLUMN IF NOT EXISTS sports TEXT,
-      ADD COLUMN IF NOT EXISTS photos TEXT
+      ADD COLUMN IF NOT EXISTS photos TEXT,
+      ADD COLUMN IF NOT EXISTS cuisine JSONB,
+      ADD COLUMN IF NOT EXISTS mother_tongue TEXT,
+      ADD COLUMN IF NOT EXISTS profile_created_for TEXT,
+      ADD COLUMN IF NOT EXISTS subcaste TEXT,
+      ADD COLUMN IF NOT EXISTS open_to_any_subcaste BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS employment_type TEXT,
+      ADD COLUMN IF NOT EXISTS income_currency TEXT,
+      ADD COLUMN IF NOT EXISTS annual_income TEXT,
+      ADD COLUMN IF NOT EXISTS nakshatra TEXT,
+      ADD COLUMN IF NOT EXISTS raasi TEXT
     `)
     
     response.json({ success: true, message: 'Migration completed' })
@@ -691,8 +725,14 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
   let isNewUser = false
 
   try {
-    // Check if user exists
-    const existingUser = await pgQuery('SELECT id FROM users WHERE phone = $1 LIMIT 1', [fullPhone])
+    // Numbers are stored inconsistently across signup paths (some raw 10-digit,
+    // some E.164), so match on the last 10 digits rather than an exact string.
+    const existingUser = await pgQuery(
+      `SELECT id FROM users
+       WHERE right(regexp_replace(phone, '\\D', '', 'g'), 10) = $1
+       LIMIT 1`,
+      [normalizedPhone]
+    )
 
     if (existingUser.length > 0) {
       userId = existingUser[0].id
@@ -703,11 +743,16 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
       const createdAt = new Date().toISOString()
       const profileId = crypto.randomUUID()
 
+      // users.email is NOT NULL, so phone-only accounts get a deterministic
+      // placeholder. It is not a routable address and cannot be used to log in
+      // via the email path, which requires a Gmail address.
+      const placeholderEmail = `phone-${normalizedPhone}@phone.local`
+
       // Create user
       await pgQuery(
         `INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-        [userId, null, `User_${normalizedPhone.slice(-4)}`, fullPhone, null, createdAt]
+        [userId, placeholderEmail, `User_${normalizedPhone.slice(-4)}`, fullPhone, null, createdAt]
       )
 
       // Create auth account (no password for phone auth)
@@ -733,8 +778,9 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
       )
     }
 
-    // Generate JWT token
-    const token = jwt.sign({ userId, phone: fullPhone }, JWT_SECRET, { expiresIn: '7d' })
+    // Same convention as the email login/signup routes: the user id is the token.
+    // TODO: replace authToken with a signed JWT across all auth routes together.
+    const token = userId
 
     // Clear OTP
     phoneOtpStore.delete(normalizedPhone)
@@ -1801,6 +1847,20 @@ app.put('/api/matrimony/me', async (request, response) => {
       profile.nativeCity || null,
       profile.nativeVillage || null,
       photosJson,  // Now a JSON string with ::jsonb cast
+      matrimony.eatingHabit || null,
+      matrimony.horoscopeTime || null,
+      matrimony.horoscopePlace || null,
+      matrimony.nakshatra || null,
+      matrimony.raasi || null,
+      matrimony.employmentType || null,
+      matrimony.incomeCurrency || null,
+      matrimony.annualIncome || null,
+      matrimony.motherTongue || null,
+      matrimony.subcaste || null,
+      Array.isArray(matrimony.hobbies) ? JSON.stringify(matrimony.hobbies) : null,
+      Array.isArray(matrimony.music) ? JSON.stringify(matrimony.music) : null,
+      Array.isArray(matrimony.sports) ? JSON.stringify(matrimony.sports) : null,
+      Array.isArray(matrimony.cuisine) ? JSON.stringify(matrimony.cuisine) : null,
       now,
       activeUserId,
     ]
@@ -1832,8 +1892,22 @@ app.put('/api/matrimony/me', async (request, response) => {
           native_city = COALESCE($21, native_city),
           native_village = COALESCE($22, native_village),
           photos = COALESCE($23::jsonb, photos),
-          updated_at = $24
-         WHERE user_id = $25`,
+          eating_habit = COALESCE($24, eating_habit),
+          horoscope_time = COALESCE($25, horoscope_time),
+          horoscope_place = COALESCE($26, horoscope_place),
+          nakshatra = COALESCE($27, nakshatra),
+          raasi = COALESCE($28, raasi),
+          employment_type = COALESCE($29, employment_type),
+          income_currency = COALESCE($30, income_currency),
+          annual_income = COALESCE($31, annual_income),
+          mother_tongue = COALESCE($32, mother_tongue),
+          subcaste = COALESCE($33, subcaste),
+          hobbies = COALESCE($34::jsonb, hobbies),
+          music = COALESCE($35::jsonb, music),
+          sports = COALESCE($36::jsonb, sports),
+          cuisine = COALESCE($37::jsonb, cuisine),
+          updated_at = $38
+         WHERE user_id = $39`,
         queryParams
       )
     } catch (dbErr) {
@@ -2146,6 +2220,109 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
 })
 
 // Verify Razorpay Payment Link (called by app after returning from Razorpay)
+const RAZORPAY_AUTH_HEADER =
+  'Basic ' +
+  Buffer.from(
+    `${process.env.RAZORPAY_KEY_ID || 'rzp_test_SoumuudukTdW0a'}:${process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc'}`
+  ).toString('base64')
+
+function planDurationDays(plan) {
+  return plan === 'basic' ? 7 : 30
+}
+
+/**
+ * Idempotently mark a subscription active. Safe to call repeatedly for the same
+ * payment: the row is keyed on user_id, so a repeat call just refreshes it.
+ */
+async function activateSubscription({ userId, plan, amount, paymentId, orderId }) {
+  const normalizedPlan = plan === 'basic' ? 'basic' : 'premium'
+  const now = new Date()
+  const expiryDate = new Date(now)
+  expiryDate.setDate(now.getDate() + planDurationDays(normalizedPlan))
+
+  await pgQuery(
+    `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
+     VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
+     ON CONFLICT (user_id) DO UPDATE SET
+       plan = $2,
+       amount = $3,
+       payment_id = $4,
+       order_id = $5,
+       status = 'active',
+       started_at = $6,
+       expires_at = $7`,
+    [userId, normalizedPlan, amount, paymentId, orderId, now.toISOString(), expiryDate.toISOString()]
+  )
+
+  return { plan: normalizedPlan, startedAt: now.toISOString(), expiresAt: expiryDate.toISOString() }
+}
+
+/**
+ * Authoritative poll used by the app after it opens a payment link.
+ *
+ * Asks Razorpay directly whether the link is paid, so activation does not depend
+ * on a webhook reaching us (webhooks cannot reach localhost) or on the deep link
+ * firing. The link's `notes.userId` must match the caller, so one user cannot
+ * activate a subscription from someone else's payment link.
+ */
+app.get('/api/payments/link-status/:linkId', async (request, response) => {
+  try {
+    const activeUserId = resolveUserId(request)
+    if (!activeUserId) {
+      response.status(401).json({ success: false, error: 'Authentication required' })
+      return
+    }
+
+    const linkId = String(request.params.linkId || '').trim()
+    if (!linkId) {
+      response.status(400).json({ success: false, error: 'Payment link id is required' })
+      return
+    }
+
+    const rzpResponse = await fetch(`https://api.razorpay.com/v1/payment_links/${encodeURIComponent(linkId)}`, {
+      headers: { Authorization: RAZORPAY_AUTH_HEADER },
+    })
+    const link = await rzpResponse.json()
+
+    if (!rzpResponse.ok) {
+      response.status(502).json({ success: false, error: link.error?.description || 'Could not read payment link' })
+      return
+    }
+
+    if (link.notes?.userId && link.notes.userId !== activeUserId) {
+      response.status(403).json({ success: false, error: 'This payment link belongs to another account' })
+      return
+    }
+
+    if (link.status !== 'paid') {
+      response.json({ success: true, data: { status: link.status, activated: false } })
+      return
+    }
+
+    const activated = await activateSubscription({
+      userId: activeUserId,
+      plan: link.notes?.plan || 'premium',
+      amount: Math.round(Number(link.amount_paid || link.amount || 0) / 100),
+      paymentId: link.id,
+      orderId: link.id,
+    })
+
+    response.json({ success: true, data: { status: 'paid', activated: true, ...activated } })
+  } catch (err) {
+    console.error('[razorpay] link-status error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+/**
+ * Razorpay redirects here after checkout; bounce the params into the app's deep
+ * link so the client can verify without the user having to come back manually.
+ */
+app.get('/api/payments/return', (request, response) => {
+  const query = new URLSearchParams(request.query).toString()
+  response.redirect(302, `chaudharysamaj://payment/razorpay${query ? `?${query}` : ''}`)
+})
+
 app.post('/api/payments/verify-link', async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
@@ -2170,41 +2347,37 @@ app.post('/api/payments/verify-link', async (request, response) => {
     }
 
     // Verify signature: payload = payment_link_id|payment_link_reference_id|payment_link_status|payment_id
-    // Temporarily bypass signature verification for testing
     const payload = `${razorpay_payment_link_id}|${razorpay_payment_link_reference_id}|${razorpay_payment_link_status}|${razorpay_payment_id}`
     const expectedSig = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc')
       .update(payload)
       .digest('hex')
 
-    // if (expectedSig !== razorpay_signature) {
-    //   response.status(400).json({ success: false, error: 'Invalid payment signature' })
-    //   return
-    // }
+    const providedSig = Buffer.from(String(razorpay_signature))
+    const computedSig = Buffer.from(expectedSig)
+    const signatureValid =
+      providedSig.length === computedSig.length && crypto.timingSafeEqual(providedSig, computedSig)
 
-    const now = new Date()
-    const expiryDate = new Date(now)
-    if (plan === 'basic') {
-      expiryDate.setDate(now.getDate() + 7)
-    } else {
-      expiryDate.setDate(now.getDate() + 30)
+    if (!signatureValid) {
+      console.warn('[razorpay] verify-link rejected: bad signature for', razorpay_payment_link_id)
+      response.status(400).json({ success: false, error: 'Invalid payment signature' })
+      return
     }
 
-    await pgQuery(
-      `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
-       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7)
-       ON CONFLICT (user_id) DO UPDATE SET
-         plan = $2,
-         amount = $3,
-         payment_id = $4,
-         order_id = $5,
-         status = 'active',
-         started_at = $6,
-         expires_at = $7`,
-      [activeUserId, plan, amount, razorpay_payment_id, razorpay_payment_link_id, now.toISOString(), expiryDate.toISOString()]
-    )
+    if (razorpay_payment_link_status !== 'paid') {
+      response.status(400).json({ success: false, error: 'Payment link is not paid' })
+      return
+    }
 
-    response.json({ success: true, data: { verified: true, plan, startedAt: now.toISOString(), expiresAt: expiryDate.toISOString() } })
+    const activated = await activateSubscription({
+      userId: activeUserId,
+      plan,
+      amount,
+      paymentId: razorpay_payment_id,
+      orderId: razorpay_payment_link_id,
+    })
+
+    response.json({ success: true, data: { verified: true, ...activated } })
   } catch (err) {
     console.error('[razorpay] verify-link error:', err.message)
     response.status(500).json({ success: false, error: err.message })
@@ -2248,7 +2421,15 @@ app.post('/api/payments/create-link', async (request, response) => {
         userId: activeUserId,
         plan: plan,
       },
-      // No callback_url - will use manual verification for localhost testing
+    }
+
+    // When the API is publicly reachable, send the user back through /payments/return,
+    // which bounces into the app deep link. On localhost this is skipped and the app
+    // falls back to polling /payments/link-status, which is authoritative either way.
+    const publicBaseUrl = String(process.env.PUBLIC_API_BASE_URL || '').trim().replace(/\/$/, '')
+    if (publicBaseUrl && !/localhost|127\.0\.0\.1/.test(publicBaseUrl)) {
+      linkData.callback_url = `${publicBaseUrl}/api/payments/return`
+      linkData.callback_method = 'get'
     }
 
     const res = await fetch('https://api.razorpay.com/v1/payment_links', {

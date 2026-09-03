@@ -16,14 +16,16 @@ import { MessagesScreen } from '../screens/MessagesScreen';
 import { SubscriptionsScreen } from '../screens/SubscriptionsScreen';
 import { LanguageSelectionScreen } from '../screens/LanguageSelectionScreen';
 import { WelcomeScreen } from '../screens/WelcomeScreen';
-import { SignupProfileTypeScreen, type ProfileType } from '../screens/SignupProfileTypeScreen';
+import { SignupProfileTypeScreen, type ProfileTypeData } from '../screens/SignupProfileTypeScreen';
 import { SignupPersonalDetailsScreen, type PersonalDetailsData } from '../screens/SignupPersonalDetailsScreen';
 import { SignupReligiousDetailsScreen, type ReligiousDetailsData } from '../screens/SignupReligiousDetailsScreen';
 import { SignupLocationDetailsScreen, type LocationDetailsData } from '../screens/SignupLocationDetailsScreen';
+import { SignupProfessionalDetailsScreen, type ProfessionalDetailsData } from '../screens/SignupProfessionalDetailsScreen';
 import { SignupInterestsScreen, type InterestsData } from '../screens/SignupInterestsScreen';
 import { SignupAdditionalDetailsScreen, type AdditionalDetailsData } from '../screens/SignupAdditionalDetailsScreen';
 import { SignupEatingHabitsScreen, type EatingHabit } from '../screens/SignupEatingHabitsScreen';
 import { SignupHoroscopeScreen, type HoroscopeData } from '../screens/SignupHoroscopeScreen';
+import { SignupStarDetailsScreen, type StarDetailsData } from '../screens/SignupStarDetailsScreen';
 import { SignupManagePhotosScreen, type Photo } from '../screens/SignupManagePhotosScreen';
 import { SignupBasicDetailsScreen, type BasicDetailsData } from '../screens/SignupBasicDetailsScreen';
 import { useAppTheme } from '../context/ThemeContext';
@@ -86,150 +88,121 @@ function AuthFlow() {
     | 'login'
     | 'phone-login'
     | 'signup-profile-type'
+    | 'signup-basic'
     | 'signup-personal'
     | 'signup-religious'
     | 'signup-location'
-    | 'signup-interests'
+    | 'signup-professional'
     | 'signup-additional'
-    | 'signup-eating-habits'
-    | 'signup-horoscope'
     | 'signup-photos'
-    | 'signup-basic'
+    | 'signup-horoscope'
+    | 'signup-star'
+    | 'signup-eating-habits'
+    | 'signup-interests'
   >(isNewSignup ? 'signup-photos' : 'welcome');
 
   const [signupData, setSignupData] = useState<{
-    profileType?: ProfileType;
+    profileTypeData?: ProfileTypeData;
+    basicDetails?: BasicDetailsData;
     personalDetails?: PersonalDetailsData;
     religiousDetails?: ReligiousDetailsData;
     locationDetails?: LocationDetailsData;
-    interests?: InterestsData;
+    professionalDetails?: ProfessionalDetailsData;
     additionalDetails?: AdditionalDetailsData;
+    interests?: InterestsData;
     eatingHabit?: EatingHabit;
     horoscope?: HoroscopeData;
+    starDetails?: StarDetailsData;
     photos?: Photo[];
   }>({});
 
-  const handleProfileTypeNext = (type: ProfileType) => {
-    setSignupData({ ...signupData, profileType: type });
-    setAuthMode('signup-personal');
-  };
+  const patch = (next: Partial<typeof signupData>) => setSignupData((prev) => ({ ...prev, ...next }));
 
-  const handlePersonalDetailsNext = (data: PersonalDetailsData) => {
-    setSignupData({ ...signupData, personalDetails: data });
-    setAuthMode('signup-religious');
-  };
+  const isoDateOfBirth = (() => {
+    const dob = signupData.personalDetails?.dateOfBirth;
+    if (!dob?.year || !dob?.month || !dob?.day) {
+      return undefined;
+    }
+    return `${dob.year}-${dob.month}-${dob.day}`;
+  })();
 
-  const handleReligiousDetailsNext = (data: ReligiousDetailsData) => {
-    setSignupData({ ...signupData, religiousDetails: data });
-    setAuthMode('signup-location');
-  };
-
-  const handleLocationDetailsNext = (data: LocationDetailsData) => {
-    setSignupData({ ...signupData, locationDetails: data });
-    setAuthMode('signup-interests');
-  };
-
-  const handleInterestsNext = (data: InterestsData) => {
-    setSignupData({ ...signupData, interests: data });
-    setAuthMode('signup-additional');
-  };
-
-  const handleInterestsSkip = () => {
-    setAuthMode('signup-additional');
-  };
-
-  const handleAdditionalDetailsSubmit = (data: AdditionalDetailsData) => {
-    setSignupData({ ...signupData, additionalDetails: data });
-    setAuthMode('signup-eating-habits');
-  };
-
-  const handleEatingHabitsNext = (habit: EatingHabit) => {
-    setSignupData({ ...signupData, eatingHabit: habit });
-    setAuthMode('signup-horoscope');
-  };
-
-  const handleEatingHabitsSkip = () => {
-    setAuthMode('signup-horoscope');
-  };
-
-  const handleHoroscopeNext = (data: HoroscopeData) => {
-    setSignupData({ ...signupData, horoscope: data });
-    setAuthMode('signup-basic');
-  };
-
-  const handleHoroscopeSkip = () => {
-    setAuthMode('signup-basic');
-  };
-
-  const handleSignupSubmit = async (basicDetails: BasicDetailsData) => {
+  /**
+   * Creates the account once the five required steps are complete. The phone
+   * OTP was already verified during the basic-details step; every screen after
+   * this point only enriches the profile that now exists.
+   */
+  const createAccount = async (additional: AdditionalDetailsData) => {
+    const basic = signupData.basicDetails;
     const pd = signupData.personalDetails;
     const rd = signupData.religiousDetails;
     const ld = signupData.locationDetails;
-    const ad = signupData.additionalDetails;
-    const intr = signupData.interests;
+    const prof = signupData.professionalDetails;
 
-    const dobYear = pd?.dateOfBirth?.year ? parseInt(pd.dateOfBirth.year) : undefined;
-    const dobMonth = pd?.dateOfBirth?.month ? parseInt(pd.dateOfBirth.month) : undefined;
-    const dobDay = pd?.dateOfBirth?.day ? parseInt(pd.dateOfBirth.day) : undefined;
-    const dobString = dobYear && dobMonth && dobDay
-      ? `${dobYear}-${String(dobMonth).padStart(2, '0')}-${String(dobDay).padStart(2, '0')}`
-      : undefined;
+    if (!basic) {
+      return;
+    }
+
+    const dobYear = pd?.dateOfBirth?.year ? Number(pd.dateOfBirth.year) : undefined;
     const age = dobYear ? new Date().getFullYear() - dobYear : undefined;
 
-    const familyStatusMap: Record<string, string> = {
+    const familyStatusLabels: Record<string, string> = {
       middle_class: 'Middle Class',
       upper_middle_class: 'Upper Middle Class',
-      rich_affluent: 'Rich',
+      rich_affluent: 'Rich / Affluent',
     };
 
     await signup({
-      name: basicDetails.fullName,
-      email: basicDetails.email,
-      password: basicDetails.password,
-      phone: basicDetails.phone,
-      gender: pd?.gender || undefined,
+      name: basic.fullName,
+      email: basic.email,
+      password: basic.password,
+      phone: basic.phone,
+      profileCreatedFor: signupData.profileTypeData?.profileType,
+      motherTongue: signupData.profileTypeData?.motherTongue,
+      language: signupData.profileTypeData?.motherTongue,
+      gender: pd?.gender,
       age,
-      dateOfBirth: dobString,
-      height: pd?.height || undefined,
-      maritalStatus: pd?.maritalStatus?.replace(/_/g, ' ') || undefined,
-      physicalStatus: pd?.physicalStatus || undefined,
-      location: ld?.city || undefined,
-      country: ld?.country || undefined,
-      state: ld?.state || undefined,
-      city: ld?.city || undefined,
-      village: ld?.village || undefined,
-      nativeCity: ld?.nativeCity || undefined,
-      nativeVillage: ld?.nativeVillage || undefined,
-      community: rd?.caste || undefined,
-      subCommunity: rd?.subcaste || undefined,
-      religion: rd?.religion || undefined,
-      caste: rd?.caste || undefined,
-      dosh: rd?.dosh || undefined,
-      eatingHabit: signupData.eatingHabit || undefined,
-      horoscopeTime: signupData.horoscope?.timeOfBirth || undefined,
-      horoscopePlace: signupData.horoscope?.placeOfBirth || undefined,
-      familyStatus: ad?.familyStatus ? familyStatusMap[ad.familyStatus] || ad.familyStatus : undefined,
-      familyType: ad?.familyType?.replace(/_/g, ' ') || undefined,
-      familyWealth: ad?.familyWealth || undefined,
-      fatherName: ad?.fatherName || undefined,
-      motherName: ad?.motherName || undefined,
-      fatherOccupation: ad?.fatherOccupation || undefined,
-      motherOccupation: ad?.motherOccupation || undefined,
-      siblings: ad?.siblings || undefined,
-      hobbies: intr?.hobbies,
-      music: intr?.music,
-      sports: intr?.sports,
+      dateOfBirth: isoDateOfBirth,
+      height: pd?.height,
+      maritalStatus: pd?.maritalStatus?.replace(/_/g, ' '),
+      physicalStatus: pd?.physicalStatus?.replace(/_/g, ' '),
+      religion: rd?.religion,
+      caste: rd?.caste,
+      community: rd?.caste,
+      subcaste: rd?.subcaste,
+      subCommunity: rd?.subcaste,
+      openToAnySubcaste: rd?.openToAnySubcaste,
+      dosh: rd?.dosh,
+      country: ld?.country,
+      state: ld?.state,
+      city: ld?.city,
+      location: ld?.city,
+      village: ld?.village,
+      nativeCity: ld?.nativeCity,
+      nativeVillage: ld?.nativeVillage,
+      education: prof?.education,
+      employmentType: prof?.employmentType,
+      occupation: prof?.occupation,
+      incomeCurrency: prof?.incomeCurrency,
+      annualIncome: prof?.annualIncome,
+      familyStatus: additional.familyStatus
+        ? familyStatusLabels[additional.familyStatus] || additional.familyStatus
+        : undefined,
+      familyType: additional.familyType?.replace(/_/g, ' '),
+      familyWealth: additional.familyWealth,
+      fatherName: additional.fatherName,
+      motherName: additional.motherName,
+      fatherOccupation: additional.fatherOccupation,
+      motherOccupation: additional.motherOccupation,
+      siblings: additional.siblings,
+      bio: additional.bio,
     });
-    setAuthMode('signup-photos');
   };
 
-  const handlePhotosComplete = async (photos: Photo[]) => {
-    if (photos.length > 0) {
-      try {
-        await api.updateMyMatrimonyProfile({ profile: { photos } } as any);
-      } catch {}
-    }
-    await completeProfileSetup();
+  /** Persists an optional post-signup enrichment step. */
+  const saveProfilePatch = async (payload: Record<string, unknown>) => {
+    try {
+      await api.updateMyMatrimonyProfile(payload as any);
+    } catch {}
   };
 
   switch (authMode) {
@@ -255,73 +228,144 @@ function AuthFlow() {
       return (
         <SignupProfileTypeScreen
           onBack={() => setAuthMode('welcome')}
-          onNext={handleProfileTypeNext}
+          onNext={(data) => {
+            patch({ profileTypeData: data });
+            setAuthMode('signup-basic');
+          }}
+        />
+      );
+    case 'signup-basic':
+      return (
+        <SignupBasicDetailsScreen
+          onBack={() => setAuthMode('signup-profile-type')}
+          onSubmit={(data) => {
+            patch({ basicDetails: data });
+            setAuthMode('signup-personal');
+          }}
         />
       );
     case 'signup-personal':
       return (
         <SignupPersonalDetailsScreen
-          onBack={() => setAuthMode('signup-profile-type')}
-          onNext={handlePersonalDetailsNext}
+          onBack={() => setAuthMode('signup-basic')}
+          onNext={(data) => {
+            patch({ personalDetails: data });
+            setAuthMode('signup-religious');
+          }}
         />
       );
     case 'signup-religious':
       return (
         <SignupReligiousDetailsScreen
           onBack={() => setAuthMode('signup-personal')}
-          onNext={handleReligiousDetailsNext}
+          onNext={(data) => {
+            patch({ religiousDetails: data });
+            setAuthMode('signup-location');
+          }}
         />
       );
     case 'signup-location':
       return (
         <SignupLocationDetailsScreen
           onBack={() => setAuthMode('signup-religious')}
-          onNext={handleLocationDetailsNext}
+          onNext={(data) => {
+            patch({ locationDetails: data });
+            setAuthMode('signup-professional');
+          }}
         />
       );
-    case 'signup-interests':
+    case 'signup-professional':
       return (
-        <SignupInterestsScreen
+        <SignupProfessionalDetailsScreen
           onBack={() => setAuthMode('signup-location')}
-          onNext={handleInterestsNext}
-          onSkip={handleInterestsSkip}
+          onNext={(data) => {
+            patch({ professionalDetails: data });
+            setAuthMode('signup-additional');
+          }}
         />
       );
     case 'signup-additional':
       return (
         <SignupAdditionalDetailsScreen
-          onBack={() => setAuthMode('signup-interests')}
-          onSubmit={handleAdditionalDetailsSubmit}
-        />
-      );
-    case 'signup-eating-habits':
-      return (
-        <SignupEatingHabitsScreen
-          onBack={() => setAuthMode('signup-additional')}
-          onNext={handleEatingHabitsNext}
-          onSkip={handleEatingHabitsSkip}
-        />
-      );
-    case 'signup-horoscope':
-      return (
-        <SignupHoroscopeScreen
-          onBack={() => setAuthMode('signup-eating-habits')}
-          onNext={handleHoroscopeNext}
-          onSkip={handleHoroscopeSkip}
-        />
-      );
-    case 'signup-basic':
-      return (
-        <SignupBasicDetailsScreen
-          onBack={() => setAuthMode('signup-horoscope')}
-          onSubmit={handleSignupSubmit}
+          onBack={() => setAuthMode('signup-professional')}
+          onSubmit={async (data) => {
+            patch({ additionalDetails: data });
+            await createAccount(data);
+            setAuthMode('signup-photos');
+          }}
         />
       );
     case 'signup-photos':
       return (
         <SignupManagePhotosScreen
-          onBack={() => setAuthMode('signup-basic')}
-          onComplete={handlePhotosComplete}
+          onBack={() => setAuthMode('signup-additional')}
+          onComplete={async (photos) => {
+            patch({ photos });
+            if (photos.length > 0) {
+              await saveProfilePatch({ profile: { photos } });
+            }
+            setAuthMode('signup-horoscope');
+          }}
+        />
+      );
+    case 'signup-horoscope':
+      return (
+        <SignupHoroscopeScreen
+          dateOfBirth={isoDateOfBirth}
+          onBack={() => setAuthMode('signup-photos')}
+          onNext={async (data) => {
+            patch({ horoscope: data });
+            await saveProfilePatch({
+              matrimony: { horoscopeTime: data.timeOfBirth, horoscopePlace: data.placeOfBirth },
+            });
+            setAuthMode('signup-star');
+          }}
+          onSkip={() => setAuthMode('signup-star')}
+        />
+      );
+    case 'signup-star':
+      return (
+        <SignupStarDetailsScreen
+          onBack={() => setAuthMode('signup-horoscope')}
+          onNext={async (data) => {
+            patch({ starDetails: data });
+            await saveProfilePatch({ matrimony: { nakshatra: data.nakshatra, raasi: data.raasi } });
+            setAuthMode('signup-eating-habits');
+          }}
+          onSkip={() => setAuthMode('signup-eating-habits')}
+        />
+      );
+    case 'signup-eating-habits':
+      return (
+        <SignupEatingHabitsScreen
+          onBack={() => setAuthMode('signup-star')}
+          onNext={async (habit) => {
+            patch({ eatingHabit: habit });
+            await saveProfilePatch({ matrimony: { eatingHabit: habit } });
+            setAuthMode('signup-interests');
+          }}
+          onSkip={() => setAuthMode('signup-interests')}
+        />
+      );
+    case 'signup-interests':
+      return (
+        <SignupInterestsScreen
+          onBack={() => setAuthMode('signup-eating-habits')}
+          onNext={async (data) => {
+            patch({ interests: data });
+            await saveProfilePatch({
+              matrimony: {
+                hobbies: data.hobbies,
+                music: data.music,
+                sports: data.sports,
+                cuisine: data.cuisine,
+              },
+            });
+            await completeProfileSetup();
+          }}
+          onSkip={async () => {
+            await completeProfileSetup();
+          }}
         />
       );
   }

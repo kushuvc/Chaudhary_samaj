@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   Pressable,
@@ -7,428 +8,287 @@ import {
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { useAppLanguage } from '../context/LanguageContext';
-import { ScreenTitle } from '../components/AppPrimitives';
+import { GradientFill, PrimaryButton } from '../components/ui';
 import { api } from '../services/api';
-import { Ionicons } from '@expo/vector-icons';
+import { radius, shadow, spacing } from '../theme';
 
 interface SubscriptionData {
   hasSubscription: boolean;
   plan?: string;
   amount?: number;
+  startedAt?: string;
   expiresAt?: string;
 }
 
-const PLAN = { name: 'Monthly Plan', amount: 200, days: 30 };
+const PLAN = {
+  name: 'Monthly',
+  amount: 200,
+  days: 30,
+  perks: [
+    'Unlimited profile views',
+    'See phone numbers on every profile',
+    'Send unlimited interests',
+    'Priority placement in search',
+  ],
+};
+
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+
+function formatDate(value?: string) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export function SubscriptionsScreen() {
   const { palette } = useAppTheme();
-  const { t } = useAppLanguage();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [awaitingReturn, setAwaitingReturn] = useState(false);
-  const pendingPlanRef = useRef<{ plan: string; amount: number } | null>(null);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [awaitingPayment, setAwaitingPayment] = useState(false);
+
+  const pendingLinkIdRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollStartedAtRef = useRef<number>(0);
 
   const loadSubscription = useCallback(async () => {
     try {
-      console.log('[loadSubscription] Loading subscription status...');
-      const data = await api.getSubscriptionStatus();
-      console.log('[loadSubscription] Subscription data received:', data);
-      setSubscription(data);
-      console.log('[loadSubscription] Subscription state updated');
+      setSubscription(await api.getSubscriptionStatus());
     } catch (err) {
-      console.error('[loadSubscription] Failed to load subscription:', err);
+      console.error('[subscriptions] status failed:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadSubscription();
-  }, [loadSubscription]);
+  // Tabs stay mounted, so a plain mount effect would leave this showing stale
+  // state after the subscription changes elsewhere (or on another device).
+  useFocusEffect(
+    useCallback(() => {
+      void loadSubscription();
+    }, [loadSubscription])
+  );
 
-  // Handle web callback from Razorpay (for localhost testing)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const razorpayPaymentId = urlParams.get('razorpay_payment_id');
-      const razorpayPaymentLinkId = urlParams.get('razorpay_payment_link_id');
-      const razorpayPaymentStatus = urlParams.get('razorpay_payment_link_status');
-      
-      if (razorpayPaymentId && razorpayPaymentStatus === 'paid') {
-        console.log('[web-callback] Razorpay payment callback detected:', {
-          razorpayPaymentId,
-          razorpayPaymentLinkId,
-          razorpayPaymentStatus
-        });
-        
-        // Process the payment verification
-        handleWebPaymentVerification({
-          razorpay_payment_id: razorpayPaymentId,
-          razorpay_payment_link_id: razorpayPaymentLinkId || '',
-          razorpay_payment_link_reference_id: urlParams.get('razorpay_payment_link_reference_id') || '',
-          razorpay_payment_link_status: razorpayPaymentStatus,
-          razorpay_signature: urlParams.get('razorpay_signature') || '',
-          plan: urlParams.get('plan') || 'premium',
-          amount: Number(urlParams.get('amount')) || 200
-        });
-        
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      }
-    }
-  }, []);
-
-  // Listen for deep link return from Razorpay
-  useEffect(() => {
-    const handleUrl = async ({ url }: { url: string }) => {
-      if (!url || !url.includes('chaudharysamaj://')) return;
-      
-      // Handle Razorpay payment callback
-      if (url.includes('payment/razorpay')) {
-        console.log('[deep-link] Payment callback received:', url);
-        const parsed = new URL(url);
-        const params = Object.fromEntries(parsed.searchParams);
-        console.log('[deep-link] Parsed params:', params);
-
-        const {
-        razorpay_payment_id,
-        razorpay_payment_link_id,
-        razorpay_payment_link_reference_id,
-        razorpay_payment_link_status,
-        razorpay_signature,
-        plan,
-        amount,
-      } = params;
-
-      if (!razorpay_payment_id || razorpay_payment_link_status !== 'paid') {
-        Alert.alert('Payment Failed', 'Your payment was not completed. Please try again.');
-        return;
-      }
-
-      setVerifying(true);
-      console.log('[payment-verify] Starting verification with params:', {
-        razorpay_payment_id,
-        razorpay_payment_link_id,
-        razorpay_payment_link_status,
-        plan,
-        amount
-      });
-      try {
-        const result = await api.verifyPaymentLink({
-          razorpay_payment_id,
-          razorpay_payment_link_id,
-          razorpay_payment_link_reference_id,
-          razorpay_payment_link_status,
-          razorpay_signature,
-          plan: plan ?? pendingPlanRef.current?.plan ?? 'premium',
-          amount: Number(amount) || pendingPlanRef.current?.amount || 0,
-        });
-        console.log('[payment-verify] Verification result:', result);
-        if (result.verified) {
-          console.log('[payment-verify] Payment verified, loading subscription...');
-          await loadSubscription();
-          console.log('[payment-verify] Subscription loaded after verification');
-        }
-      } catch (err) {
-        console.error('[payment-verify] Verification failed:', err);
-        Alert.alert('Verification Failed', 'Payment done but verification failed. Please contact support.');
-      } finally {
-        setVerifying(false);
-        setAwaitingReturn(false);
-        pendingPlanRef.current = null;
-      }
-    }
-    };
-
-    const subscription = Linking.addEventListener('url', handleUrl);
-
-    // Handle app opened via deep link (cold start)
-    Linking.getInitialURL().then((url) => {
-      if (url) void handleUrl({ url });
-    });
-
-    return () => subscription.remove();
-  }, [loadSubscription]);
-
-  // Stop polling helper
   const stopPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
     }
   }, []);
 
-  // Poll every 3s after payment link opens — works even without deep link (webhook activates subscription server-side)
+  useEffect(() => () => stopPolling(), [stopPolling]);
+
+  /**
+   * Ask the server to check the payment link with Razorpay directly. This is the
+   * authoritative path: it does not depend on a webhook reaching the API or on the
+   * deep link firing, both of which are unavailable in local development.
+   */
+  const checkPaymentLink = useCallback(async (): Promise<boolean> => {
+    const linkId = pendingLinkIdRef.current;
+    if (!linkId) return false;
+
+    const result = await api.getPaymentLinkStatus(linkId);
+    if (!result.activated) return false;
+
+    stopPolling();
+    pendingLinkIdRef.current = null;
+    setAwaitingPayment(false);
+    await loadSubscription();
+    Alert.alert('Subscription active', 'Your monthly plan is now active. Enjoy unlimited access.');
+    return true;
+  }, [loadSubscription, stopPolling]);
+
   const startPolling = useCallback(() => {
     stopPolling();
-    let attempts = 0;
-    const maxAttempts = 60; // Poll for up to 3 minutes
-    
-    pollIntervalRef.current = setInterval(async () => {
-      attempts++;
-      try {
-        console.log(`[polling] Attempt ${attempts}: Checking subscription status...`);
-        const data = await api.getSubscriptionStatus();
-        console.log(`[polling] Attempt ${attempts}: Subscription data:`, data);
-        
-        if (data.hasSubscription) {
-          console.log('[polling] Subscription detected! Stopping polling.');
-          setSubscription(data);
-          setAwaitingReturn(false);
-          stopPolling();
-          Alert.alert('Success', 'Your subscription has been activated!');
-        } else if (attempts >= maxAttempts) {
-          console.log('[polling] Max attempts reached, stopping polling');
-          setAwaitingReturn(false);
-          stopPolling();
-          Alert.alert('Timeout', 'Payment verification timed out. Please check manually.');
-        }
-      } catch (err) {
-        console.error('[polling] Error:', err);
-        if (attempts >= maxAttempts) {
-          setAwaitingReturn(false);
-          stopPolling();
-        }
-      }
-    }, 3000);
-  }, [stopPolling]);
+    pollStartedAtRef.current = Date.now();
 
-  // Cleanup on unmount
-  useEffect(() => () => stopPolling(), [stopPolling]);
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const activated = await checkPaymentLink();
+        if (activated) return;
+      } catch (err) {
+        console.error('[subscriptions] poll failed:', err);
+      }
+
+      if (Date.now() - pollStartedAtRef.current >= POLL_TIMEOUT_MS) {
+        stopPolling();
+        setAwaitingPayment(false);
+      }
+    }, POLL_INTERVAL_MS);
+  }, [checkPaymentLink, stopPolling]);
+
+  // If Razorpay redirects back into the app, confirm immediately rather than waiting
+  // for the next poll tick.
+  useEffect(() => {
+    const handleUrl = ({ url }: { url: string }) => {
+      if (!url || !url.includes('payment/razorpay')) return;
+      void checkPaymentLink().catch((err) => console.error('[subscriptions] deep link check failed:', err));
+    };
+
+    const listener = Linking.addEventListener('url', handleUrl);
+    void Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+
+    return () => listener.remove();
+  }, [checkPaymentLink]);
 
   const handlePurchase = async () => {
     if (processing) return;
     try {
       setProcessing(true);
-      console.log('[purchase] Starting payment process...');
-      pendingPlanRef.current = { plan: 'premium', amount: PLAN.amount };
-      console.log('[purchase] Creating payment link...');
-      const paymentLink = await api.createPaymentLink('premium', PLAN.amount);
-      console.log('[purchase] Payment link created:', paymentLink);
-      console.log('[purchase] Checking if URL can be opened:', paymentLink.short_url);
-      const supported = await Linking.canOpenURL(paymentLink.short_url);
-      console.log('[purchase] URL supported:', supported);
-      if (supported) {
-        console.log('[purchase] Opening URL:', paymentLink.short_url);
-        try {
-          await Linking.openURL(paymentLink.short_url);
-          console.log('[purchase] URL opened via Linking, starting polling...');
-        } catch (linkErr) {
-          console.error('[purchase] Linking.openURL failed, trying window.open:', linkErr);
-          // Fallback for web testing
-          window.open(paymentLink.short_url, '_blank');
-          console.log('[purchase] URL opened via window.open, starting polling...');
-        }
-        setAwaitingReturn(true);
-        startPolling();
-      } else {
-        console.error('[purchase] URL not supported:', paymentLink.short_url);
-        Alert.alert('Error', 'Cannot open payment page');
-        pendingPlanRef.current = null;
+      const link = await api.createPaymentLink('premium', PLAN.amount);
+      pendingLinkIdRef.current = link.id;
+
+      const opened = await Linking.canOpenURL(link.short_url);
+      if (!opened) {
+        Alert.alert('Cannot open checkout', 'No browser is available to open the payment page.');
+        pendingLinkIdRef.current = null;
+        return;
       }
+
+      await Linking.openURL(link.short_url);
+      setAwaitingPayment(true);
+      startPolling();
     } catch (err) {
-      console.error('[purchase] Payment initiation failed:', err);
-      Alert.alert('Error', 'Failed to initiate payment: ' + (err as Error).message);
-      pendingPlanRef.current = null;
+      Alert.alert('Payment failed to start', (err as Error).message);
+      pendingLinkIdRef.current = null;
     } finally {
       setProcessing(false);
     }
   };
 
   const handleManualCheck = async () => {
-    setVerifying(true);
-    await loadSubscription();
-    setVerifying(false);
-    setAwaitingReturn(false);
-    stopPolling();
-  };
-
-  const handleWebPaymentVerification = async (params: {
-    razorpay_payment_id: string;
-    razorpay_payment_link_id: string;
-    razorpay_payment_link_reference_id: string;
-    razorpay_payment_link_status: string;
-    razorpay_signature: string;
-    plan: string;
-    amount: number;
-  }) => {
-    console.log('[web-verify] Starting web payment verification...');
-    setVerifying(true);
     try {
-      const result = await api.verifyPaymentLink(params);
-      console.log('[web-verify] Verification result:', result);
-      if (result.verified) {
-        console.log('[web-verify] Payment verified, loading subscription...');
-        await loadSubscription();
-        console.log('[web-verify] Subscription loaded after web verification');
-        Alert.alert('Success', 'Payment completed! Subscription activated.');
+      const activated = await checkPaymentLink();
+      if (!activated) {
+        Alert.alert('Not confirmed yet', 'Razorpay has not reported this payment as complete. Try again in a moment.');
       }
     } catch (err) {
-      console.error('[web-verify] Web verification failed:', err);
-      Alert.alert('Verification Failed', 'Payment verification failed. Please contact support.');
-    } finally {
-      setVerifying(false);
-      setAwaitingReturn(false);
+      Alert.alert('Could not check payment', (err as Error).message);
     }
   };
 
-  const handleManualVerification = async () => {
-    console.log('[manual-verify] Starting manual payment verification...');
-    setVerifying(true);
-    try {
-      // Simulate the payment verification with test data
-      const result = await api.verifyPaymentLink({
-        razorpay_payment_id: 'pay_web_test_' + Date.now(),
-        razorpay_payment_link_id: 'plink_web_test',
-        razorpay_payment_link_reference_id: 'ref_web_test',
-        razorpay_payment_link_status: 'paid',
-        razorpay_signature: 'web_test_signature',
-        plan: 'premium',
-        amount: 200,
-      });
-      console.log('[manual-verify] Verification result:', result);
-      if (result.verified) {
-        console.log('[manual-verify] Payment verified, loading subscription...');
-        await loadSubscription();
-        console.log('[manual-verify] Subscription loaded after manual verification');
-        // Force a small delay to ensure React state updates
-        setTimeout(() => {
-          console.log('[manual-verify] Forced re-render check');
-        }, 100);
-        Alert.alert('Success', 'Payment verified manually! Subscription activated.');
-      }
-    } catch (err) {
-      console.error('[manual-verify] Manual verification failed:', err);
-      Alert.alert('Verification Failed', 'Manual verification failed. Please check console for details.');
-    } finally {
-      setVerifying(false);
-      setAwaitingReturn(false);
-    }
-  };
-
-  const isActive = subscription?.hasSubscription;
-  console.log('[UI] Subscription state:', { subscription, isActive });
+  const isActive = Boolean(subscription?.hasSubscription);
   const daysLeft = isActive && subscription?.expiresAt
     ? Math.ceil((new Date(subscription.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0;
-  const startedAt = (subscription as any)?.startedAt
-    ? new Date((subscription as any).startedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : null;
 
   if (loading) {
     return (
-      <View style={[styles.page, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-      </View>
-    );
-  }
-
-  if (verifying) {
-    return (
-      <View style={[styles.page, { justifyContent: 'center', alignItems: 'center', gap: 16 }]}>
-        <ActivityIndicator size="large" color="#4CAF50" />
-        <Text style={{ color: '#4CAF50', fontWeight: '700', fontSize: 16 }}>Verifying payment...</Text>
-        <Text style={{ color: '#666', fontSize: 13, textAlign: 'center', paddingHorizontal: 32 }}>Please wait while we confirm your payment with Razorpay</Text>
+      <View style={[styles.page, styles.centered]}>
+        <ActivityIndicator size="large" color={palette.primary} />
       </View>
     );
   }
 
   return (
     <View style={styles.page}>
-      <ScreenTitle title="Subscriptions" />
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
+      >
+        <Text style={styles.screenTitle}>Membership</Text>
 
-        {/* Active Subscription Banner */}
-        {isActive && (
-          <View style={styles.activeBanner}>
-            <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
-            <Text style={styles.activeText}>🎉 You're Subscribed!</Text>
-            <Text style={[styles.activeText, { fontSize: 15 }]}>Monthly Plan Active</Text>
-            {startedAt && (
-              <Text style={styles.expiryText}>Started: {startedAt}</Text>
-            )}
-            <Text style={styles.expiryText}>
-              {daysLeft > 0 ? `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}` : 'Expires today'}
+        {isActive ? (
+          <View style={styles.activeCard}>
+            <GradientFill colors={palette.gradient} borderRadius={radius.lg} />
+            <View style={styles.activeBadge}>
+              <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+              <Text style={styles.activeBadgeText}>Active</Text>
+            </View>
+            <Text style={styles.activeTitle}>{PLAN.name} plan</Text>
+            <Text style={styles.activeSubtitle}>
+              {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining` : 'Expires today'}
             </Text>
-            {subscription?.expiresAt && (
-              <Text style={[styles.expiryText, { fontWeight: '600' }]}>
-                Valid till: {new Date(subscription.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </Text>
-            )}
-          </View>
-        )}
-
-        {/* Awaiting payment return banner */}
-        {awaitingReturn && !isActive && (
-          <View style={styles.awaitingBanner}>
-            <ActivityIndicator size="small" color="#ea580c" />
-            <Text style={styles.awaitingText}>Waiting for payment confirmation...</Text>
-            <Pressable style={styles.manualCheckBtn} onPress={handleManualCheck}>
-              <Text style={styles.manualCheckText}>I've completed payment — check now</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <Text style={styles.description}>
-          {isActive
-            ? 'You have unlimited access to all matrimony profiles.'
-            : 'Free users can view only 2 profiles. Subscribe to unlock unlimited profiles.'}
-        </Text>
-
-        {/* Single Plan Card */}
-        {!isActive && (
-          <View style={[styles.planCard, styles.premiumCard]}>
-            <View style={styles.planHeader}>
-              <Text style={styles.planName}>{PLAN.name}</Text>
-              <View style={styles.bestValueBadge}><Text style={styles.bestValueText}>Most Popular</Text></View>
-            </View>
-            <Text style={[styles.planPrice, styles.premiumPrice]}>₹{PLAN.amount}<Text style={{ fontSize: 14, fontWeight: '400' }}> / month</Text></Text>
-            <View style={styles.features}>
-              <Text style={styles.planFeatures}>✓ Unlimited profile views</Text>
-              <Text style={styles.planFeatures}>✓ View all phone numbers</Text>
-              <Text style={styles.planFeatures}>✓ Send unlimited interests</Text>
-              <Text style={styles.planFeatures}>✓ Valid for {PLAN.days} days</Text>
-            </View>
-            <Pressable
-              style={[styles.buyButton, styles.premiumButton, processing && styles.buttonDisabled]}
-              onPress={handlePurchase}
-              disabled={processing}
-            >
-              <Text style={styles.buyButtonText}>
-                {processing ? 'Processing...' : 'Subscribe Now — ₹200/month'}
-              </Text>
-            </Pressable>
-            
-            {/* Manual verification button for web testing */}
-            <Pressable
-              style={[styles.manualCheckBtn, { marginTop: 12 }]}
-              onPress={handleManualVerification}
-            >
-              <Text style={styles.manualCheckText}>🔧 Web Testing: Manual Verify Payment</Text>
-            </Pressable>
-            
-            {/* Instructions for actual payment */}
-            <View style={{ marginTop: 16, padding: 12, backgroundColor: '#f0f9ff', borderRadius: 8 }}>
-              <Text style={{ fontSize: 12, color: '#0369a1', textAlign: 'center' }}>
-                💡 After completing Razorpay payment, click "Manual Verify" to activate subscription
-              </Text>
+            <View style={styles.activeMetaRow}>
+              {formatDate(subscription?.startedAt) ? (
+                <View style={styles.activeMeta}>
+                  <Text style={styles.activeMetaLabel}>Started</Text>
+                  <Text style={styles.activeMetaValue}>{formatDate(subscription?.startedAt)}</Text>
+                </View>
+              ) : null}
+              {formatDate(subscription?.expiresAt) ? (
+                <View style={styles.activeMeta}>
+                  <Text style={styles.activeMetaLabel}>Valid till</Text>
+                  <Text style={styles.activeMetaValue}>{formatDate(subscription?.expiresAt)}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
+        ) : (
+          <>
+            <Text style={styles.lede}>
+              Free members can view two profiles. Go premium for unlimited access to the whole community.
+            </Text>
+
+            {awaitingPayment ? (
+              <View style={styles.awaitingCard}>
+                <ActivityIndicator size="small" color={palette.primary} />
+                <View style={styles.awaitingTextGroup}>
+                  <Text style={styles.awaitingTitle}>Waiting for confirmation</Text>
+                  <Text style={styles.awaitingBody}>
+                    Finish the payment in your browser. We check automatically every few seconds.
+                  </Text>
+                </View>
+                <Pressable style={styles.awaitingAction} onPress={handleManualCheck}>
+                  <Text style={styles.awaitingActionText}>Check now</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
+            <View style={styles.planCard}>
+              <View style={styles.planHeader}>
+                <View>
+                  <Text style={styles.planName}>{PLAN.name}</Text>
+                  <Text style={styles.planCadence}>Billed every {PLAN.days} days</Text>
+                </View>
+                <View style={styles.popularPill}>
+                  <Text style={styles.popularText}>Most popular</Text>
+                </View>
+              </View>
+
+              <View style={styles.priceRow}>
+                <Text style={styles.priceCurrency}>₹</Text>
+                <Text style={styles.priceAmount}>{PLAN.amount}</Text>
+                <Text style={styles.pricePeriod}>/ month</Text>
+              </View>
+
+              <View style={styles.perks}>
+                {PLAN.perks.map((perk) => (
+                  <View key={perk} style={styles.perkRow}>
+                    <View style={styles.perkIcon}>
+                      <Ionicons name="checkmark" size={13} color={palette.primary} />
+                    </View>
+                    <Text style={styles.perkText}>{perk}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <PrimaryButton
+                label={processing ? 'Opening checkout…' : `Subscribe — ₹${PLAN.amount}`}
+                onPress={handlePurchase}
+                disabled={processing}
+              />
+            </View>
+          </>
         )}
 
-        <Text style={styles.note}>
-          🔒 Secure payments powered by Razorpay. Cancel anytime.
-        </Text>
+        <View style={styles.footnote}>
+          <Ionicons name="lock-closed" size={13} color={palette.muted} />
+          <Text style={styles.footnoteText}>Secured by Razorpay. Cancel anytime.</Text>
+        </View>
       </ScrollView>
     </View>
   );
@@ -436,165 +296,116 @@ export function SubscriptionsScreen() {
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-    page: {
-      flex: 1,
-      backgroundColor: palette.bg,
-    },
-    content: {
-      flex: 1,
-    },
-    contentContainer: {
-      padding: 16,
-      gap: 16,
-    },
-    activeBanner: {
-      backgroundColor: '#E8F5E9',
-      borderRadius: 12,
-      padding: 16,
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: '#4CAF50',
-    },
-    activeText: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: '#4CAF50',
-      marginTop: 8,
-    },
-    expiryText: {
-      fontSize: 14,
-      color: palette.muted,
-      marginTop: 4,
-    },
-    description: {
-      fontSize: 16,
+    page: { flex: 1, backgroundColor: palette.bg },
+    centered: { justifyContent: 'center', alignItems: 'center' },
+    scroll: { flex: 1 },
+    content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
+    screenTitle: {
+      fontSize: 28,
+      fontWeight: '800',
+      letterSpacing: -0.5,
       color: palette.text,
-      textAlign: 'center',
-      marginTop: 8,
-      lineHeight: 22,
+      marginBottom: spacing.xs,
     },
-    plansContainer: {
-      marginTop: 24,
-      gap: 16,
-    },
-    planCard: {
-      backgroundColor: palette.cardBg,
-      borderRadius: 12,
-      padding: 20,
-      borderWidth: 2,
-      borderColor: palette.border,
-    },
-    planCardDisabled: {
-      opacity: 0.6,
-    },
-    planCardActive: {
-      borderColor: '#4CAF50',
-      borderWidth: 3,
-    },
-    premiumCard: {
-      borderColor: '#FFD700',
-      borderWidth: 2,
-    },
-    planHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    planName: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: palette.text,
-    },
-    planPrice: {
-      fontSize: 32,
-      fontWeight: '700',
-      color: palette.primary,
-      marginBottom: 12,
-    },
-    premiumPrice: {
-      color: '#FF9800',
-    },
-    features: {
-      gap: 4,
-      marginBottom: 16,
-    },
-    planFeatures: {
-      fontSize: 14,
-      color: palette.text,
-      marginBottom: 4,
-      lineHeight: 20,
+    lede: { fontSize: 15, lineHeight: 22, color: palette.muted },
+
+    activeCard: {
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      overflow: 'hidden',
+      gap: spacing.xs,
+      ...shadow.cta,
     },
     activeBadge: {
-      backgroundColor: '#4CAF50',
-      paddingHorizontal: 12,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    activeBadgeText: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    bestValueBadge: {
-      backgroundColor: '#FF9800',
-      paddingHorizontal: 12,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    bestValueText: {
-      color: '#FFFFFF',
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    buyButton: {
-      backgroundColor: palette.primary,
-      paddingVertical: 12,
-      borderRadius: 8,
+      flexDirection: 'row',
       alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      marginBottom: spacing.xs,
     },
-    premiumButton: {
-      backgroundColor: '#FF9800',
-    },
-    buttonDisabled: {
-      opacity: 0.5,
-    },
-    buyButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
+    activeBadgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+    activeTitle: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', letterSpacing: -0.4 },
+    activeSubtitle: { color: 'rgba(255,255,255,0.88)', fontSize: 15 },
+    activeMetaRow: { flexDirection: 'row', gap: spacing.xl, marginTop: spacing.md },
+    activeMeta: { gap: 2 },
+    activeMetaLabel: {
+      color: 'rgba(255,255,255,0.72)',
+      fontSize: 11,
       fontWeight: '700',
+      letterSpacing: 0.4,
+      textTransform: 'uppercase',
     },
-    note: {
-      fontSize: 14,
-      color: palette.muted,
-      textAlign: 'center',
-      marginTop: 24,
-      fontStyle: 'italic',
-    },
-    awaitingBanner: {
-      backgroundColor: '#fff7ed',
-      borderRadius: 12,
-      padding: 16,
-      alignItems: 'center' as const,
-      gap: 10,
+    activeMetaValue: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+
+    awaitingCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: palette.primarySoft,
       borderWidth: 1,
-      borderColor: '#fed7aa',
+      borderColor: palette.border,
     },
-    awaitingText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: '#ea580c',
+    awaitingTextGroup: { flex: 1, gap: 2 },
+    awaitingTitle: { fontSize: 14, fontWeight: '700', color: palette.text },
+    awaitingBody: { fontSize: 12.5, lineHeight: 17, color: palette.muted },
+    awaitingAction: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: radius.sm,
+      backgroundColor: palette.primary,
     },
-    manualCheckBtn: {
-      backgroundColor: '#ea580c',
+    awaitingActionText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '700' },
+
+    planCard: {
+      backgroundColor: palette.cardBg,
+      borderRadius: radius.lg,
+      padding: spacing.lg,
+      borderWidth: 1,
+      borderColor: palette.border,
+      gap: spacing.md,
+      ...shadow.card,
+    },
+    planHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+    planName: { fontSize: 20, fontWeight: '800', color: palette.text, letterSpacing: -0.3 },
+    planCadence: { fontSize: 13, color: palette.muted, marginTop: 2 },
+    popularPill: {
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: palette.primarySoft,
+    },
+    popularText: { fontSize: 11, fontWeight: '800', color: palette.primary, letterSpacing: 0.3 },
+
+    priceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
+    priceCurrency: { fontSize: 22, fontWeight: '700', color: palette.text, marginBottom: 6 },
+    priceAmount: { fontSize: 44, fontWeight: '800', color: palette.text, letterSpacing: -1.5 },
+    pricePeriod: { fontSize: 15, color: palette.muted, marginBottom: 8, marginLeft: 4 },
+
+    perks: { gap: spacing.sm },
+    perkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    perkIcon: {
+      width: 20,
+      height: 20,
       borderRadius: 10,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
+      backgroundColor: palette.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    manualCheckText: {
-      color: '#ffffff',
-      fontWeight: '700',
-      fontSize: 13,
+    perkText: { flex: 1, fontSize: 14.5, color: palette.text },
+
+    footnote: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: spacing.xs,
     },
+    footnoteText: { fontSize: 12.5, color: palette.muted },
   });
 }

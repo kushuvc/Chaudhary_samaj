@@ -51,6 +51,17 @@ export interface SignupPayload {
   hobbies?: string[];
   music?: string[];
   sports?: string[];
+  cuisine?: string[];
+  profileCreatedFor?: string;
+  motherTongue?: string;
+  subcaste?: string;
+  openToAnySubcaste?: boolean;
+  employmentType?: string;
+  incomeCurrency?: string;
+  annualIncome?: string;
+  nakshatra?: string;
+  raasi?: string;
+  bio?: string;
   createAccount?: boolean;
 }
 

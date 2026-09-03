@@ -56,7 +56,7 @@ export function ProfileSetupScreen() {
   const styles = StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: palette.background,
+      backgroundColor: palette.bg,
     },
     content: {
       flexGrow: 1,
@@ -91,7 +91,7 @@ export function ProfileSetupScreen() {
       paddingVertical: 10,
       fontSize: 14,
       color: palette.text,
-      backgroundColor: palette.inputBg,
+      backgroundColor: palette.surface,
     },
     textArea: {
       minHeight: 80,

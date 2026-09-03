@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "migrate": "node server/migrate.js",
+    "db:copy": "node server/copy-db.js",
     "server": "node server/migrate.js && node server/index.js",
     "server:prod": "node server/migrate.js && node server/cluster.js",
     "build": "tsc && vite build",

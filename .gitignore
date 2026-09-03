@@ -8,3 +8,6 @@ dist/
 server/data/*.sqlite
 server/data/*.sqlite-shm
 server/data/*.sqlite-wal
+
+# Locally stored profile photos (dev fallback when Supabase Storage is unset)
+server/uploads/

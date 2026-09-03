@@ -2,6 +2,8 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import crypto from 'crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import multer from 'multer'
 import Razorpay from 'razorpay'
 import helmet from 'helmet'
@@ -1946,9 +1948,29 @@ app.put('/api/matrimony/me', async (request, response) => {
 // Photo upload
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://gvcefstsjakuwkxsuwkl.supabase.co'
+const SUPABASE_URL = process.env.SUPABASE_URL || ''
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || ''
 const STORAGE_BUCKET = 'profile-photos'
+
+// Supabase Storage is only usable when both the project URL and a key are set.
+// Without them we fall back to local disk so photo upload works in development.
+const useSupabaseStorage = Boolean(SUPABASE_URL && SUPABASE_SERVICE_KEY)
+const localUploadDir = path.resolve('server', 'uploads')
+
+if (!useSupabaseStorage) {
+  fs.mkdirSync(localUploadDir, { recursive: true })
+  console.log('[upload] Supabase Storage not configured; storing photos on local disk at server/uploads')
+}
+
+// Serve locally stored photos. Harmless when Supabase is configured (dir is empty).
+app.use('/uploads', express.static(localUploadDir, { maxAge: '7d' }))
+
+/** Absolute base URL for this request, so returned photo URLs work from a phone. */
+function publicBaseUrl(request) {
+  const configured = String(process.env.PUBLIC_API_BASE_URL || '').trim().replace(/\/+$/, '')
+  if (configured) return configured.replace(/\/api$/, '')
+  return `${request.protocol}://${request.get('host')}`
+}
 
 app.post('/api/upload/photo', uploadLimiter, upload.single('photo'), async (request, response) => {
   const activeUserId = resolveUserId(request)
@@ -1960,12 +1982,24 @@ app.post('/api/upload/photo', uploadLimiter, upload.single('photo'), async (requ
     response.status(400).json({ success: false, error: 'No file uploaded' })
     return
   }
+  if (!String(request.file.mimetype || '').startsWith('image/')) {
+    response.status(400).json({ success: false, error: 'Only image files are allowed' })
+    return
+  }
 
   try {
     const ext = request.file.mimetype === 'image/png' ? 'png' : 'jpg'
     const fileName = `${activeUserId}/${crypto.randomUUID()}.${ext}`
-    const storageUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`
 
+    if (!useSupabaseStorage) {
+      const destination = path.join(localUploadDir, fileName)
+      await fs.promises.mkdir(path.dirname(destination), { recursive: true })
+      await fs.promises.writeFile(destination, request.file.buffer)
+      response.json({ success: true, data: { url: `${publicBaseUrl(request)}/uploads/${fileName}` } })
+      return
+    }
+
+    const storageUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${fileName}`
     const uploadRes = await fetch(storageUrl, {
       method: 'POST',
       headers: {
@@ -1984,6 +2018,7 @@ app.post('/api/upload/photo', uploadLimiter, upload.single('photo'), async (requ
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${fileName}`
     response.json({ success: true, data: { url: publicUrl } })
   } catch (err) {
+    console.error('[upload] photo upload failed:', err.message)
     response.status(500).json({ success: false, error: err.message })
   }
 })
@@ -2001,8 +2036,8 @@ app.delete('/api/upload/photo', async (request, response) => {
   }
 
   try {
-    // Extract path after bucket name
-    const marker = `/object/public/${STORAGE_BUCKET}/`
+    // Extract the stored path, which is "<userId>/<uuid>.<ext>" under either backend.
+    const marker = useSupabaseStorage ? `/object/public/${STORAGE_BUCKET}/` : '/uploads/'
     const idx = url.indexOf(marker)
     if (idx === -1) throw new Error('Invalid photo URL')
     const filePath = url.slice(idx + marker.length)
@@ -2010,6 +2045,18 @@ app.delete('/api/upload/photo', async (request, response) => {
     // Only allow deleting own photos
     if (!filePath.startsWith(activeUserId + '/')) {
       response.status(403).json({ success: false, error: 'Forbidden' })
+      return
+    }
+
+    if (!useSupabaseStorage) {
+      // Resolve and confirm the path stays inside the upload dir before unlinking.
+      const target = path.resolve(localUploadDir, filePath)
+      if (!target.startsWith(localUploadDir + path.sep)) {
+        response.status(400).json({ success: false, error: 'Invalid photo path' })
+        return
+      }
+      await fs.promises.rm(target, { force: true })
+      response.json({ success: true })
       return
     }
 
@@ -2023,6 +2070,7 @@ app.delete('/api/upload/photo', async (request, response) => {
     }
     response.json({ success: true })
   } catch (err) {
+    console.error('[upload] photo delete failed:', err.message)
     response.status(500).json({ success: false, error: err.message })
   }
 })

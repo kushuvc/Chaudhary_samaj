@@ -29,54 +29,28 @@ import { SignupStarDetailsScreen, type StarDetailsData } from '../screens/Signup
 import { SignupManagePhotosScreen, type Photo } from '../screens/SignupManagePhotosScreen';
 import { SignupBasicDetailsScreen, type BasicDetailsData } from '../screens/SignupBasicDetailsScreen';
 import { useAppTheme } from '../context/ThemeContext';
+import { AnimatedTabBar } from '../components/AnimatedTabBar';
 import { useAppLanguage } from '../context/LanguageContext';
 import { api } from '../services/api';
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
 
-function tabIcon(name: keyof typeof Ionicons.glyphMap) {
-  return ({ color, size }: { color: string; size: number }) => <Ionicons name={name} color={color} size={size} />;
-}
-
 function MainTabs() {
-  const insets = useSafeAreaInsets();
-  const { resolvedTheme, palette } = useAppTheme();
   const { t } = useAppLanguage();
 
   return (
     <Tabs.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: palette.primary,
-        tabBarInactiveTintColor: palette.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
-        tabBarHideOnKeyboard: true,
-        tabBarStyle: {
-          minHeight: 66,
-          height: 58 + Math.max(insets.bottom, 10),
-          paddingBottom: Math.max(insets.bottom, 10),
-          paddingTop: 7,
-          borderTopLeftRadius: 18,
-          borderTopRightRadius: 18,
-          borderTopColor: palette.border,
-          borderTopWidth: 1,
-          backgroundColor: palette.tabBg,
-          shadowColor: '#000000',
-          shadowOpacity: resolvedTheme === 'dark' ? 0.24 : 0.08,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: -5 },
-          elevation: 10,
-        },
-      }}
+      tabBar={(props) => <AnimatedTabBar {...props} />}
+      screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}
     >
-      <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarIcon: tabIcon('home-outline'), tabBarLabel: t('home') }} />
-      <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarIcon: tabIcon('heart-outline'), tabBarLabel: t('matrimony') }} />
-      <Tabs.Screen name="Interests" component={InterestsScreen} options={{ tabBarIcon: tabIcon('mail-outline'), tabBarLabel: 'Interests' }} />
-      <Tabs.Screen name="Messages" component={MessagesScreen} options={{ tabBarIcon: tabIcon('chatbubble-outline'), tabBarLabel: 'Messages' }} />
-      <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ tabBarIcon: tabIcon('card-outline'), tabBarLabel: 'Subscriptions' }} />
-      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarIcon: tabIcon('person-outline'), tabBarLabel: t('profile') }} />
-      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarIcon: tabIcon('settings-outline'), tabBarLabel: t('settings') }} />
+      <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarLabel: t('home') }} />
+      <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarLabel: t('matrimony') }} />
+      <Tabs.Screen name="Interests" component={InterestsScreen} options={{ tabBarLabel: 'Interests' }} />
+      <Tabs.Screen name="Messages" component={MessagesScreen} options={{ tabBarLabel: 'Messages' }} />
+      <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ tabBarLabel: 'Plans' }} />
+      <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: t('profile') }} />
+      <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('settings') }} />
     </Tabs.Navigator>
   );
 }

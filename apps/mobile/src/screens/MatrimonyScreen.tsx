@@ -21,6 +21,7 @@ import { api } from '../services/api';
 import type { MatrimonyFilterOptions, MatrimonyProfile } from '../types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type MatchTab = 'all' | 'newlyJoined' | 'more';
 
@@ -114,6 +115,7 @@ function FilterSection({
 export function MatrimonyScreen() {
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [tab, setTab] = useState<MatchTab>('all');
   const [search, setSearch] = useState('');
@@ -247,51 +249,83 @@ export function MatrimonyScreen() {
   return (
     <View style={styles.page}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
-        {/* Tab Row */}
-        <Text style={styles.matchCount}>{profiles.length} Matches based on your <Text style={styles.preferencesHighlight}>preferences</Text></Text>
+        <View style={styles.headerBlock}>
+          <Text style={styles.matchCount}>
+            <Text style={styles.matchCountNumber}>{profiles.length}</Text>
+            {profiles.length === 1 ? ' match' : ' matches'} based on your preferences
+          </Text>
+        </View>
 
-        {/* Filter Chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsRow}>
-          <Pressable style={styles.filterChipMain} onPress={() => setFilterModalVisible(true)}>
-            <Ionicons name="options-outline" size={16} color={palette.text} />
-            <Text style={styles.filterChipMainText}>Filter</Text>
-          </Pressable>
-          <Pressable style={[styles.filterChipMain, filters.sortBy ? styles.filterChipMainActive : null]} onPress={() => setFilterModalVisible(true)}>
-            <Text style={[styles.filterChipMainText, filters.sortBy ? styles.filterChipMainActiveText : null]}>
-              {filters.sortBy ? `Sort: ${filters.sortBy === 'name' ? 'Name' : 'Age'}` : 'Sort by'}
-            </Text>
-            <Ionicons name="chevron-down" size={16} color={filters.sortBy ? '#FFFFFF' : palette.text} />
-          </Pressable>
-          <Pressable style={styles.filterChipMain}>
-            <Text style={styles.filterChipMainText}>Newly joined</Text>
-          </Pressable>
-          <Pressable style={[styles.filterChipMain, styles.notMatchChip]}>
-            <Text style={[styles.filterChipMainText, styles.notMatchText]}>Not matches</Text>
-          </Pressable>
-        </ScrollView>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+        {/* View tabs. These switch which set of profiles is listed. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabRow}
+        >
           {TAB_CONFIG.map((item) => (
             <Pressable
               key={item.key}
               style={[styles.tab, tab === item.key ? styles.tabActive : null]}
               onPress={() => setTab(item.key)}
             >
-              <Text style={[styles.tabText, tab === item.key ? styles.tabTextActive : null]}>{tabLabel(item.key)}</Text>
+              <Text style={[styles.tabText, tab === item.key ? styles.tabTextActive : null]}>
+                {tabLabel(item.key)}
+              </Text>
             </Pressable>
           ))}
         </ScrollView>
 
-        <View style={styles.filterActionsRow}>
-          <Pressable style={styles.filterButton} onPress={() => setFilterModalVisible(true)}>
-            <Text style={styles.filterButtonText}>{t('filtersLabel')} {appliedFilterCount ? `(${appliedFilterCount})` : ''}</Text>
+        {/* Refinement controls. Kept to one row: everything here opens the
+            filter sheet or clears it, so there is a single place to look. */}
+        <View style={styles.filterBar}>
+          <Pressable
+            style={[styles.filterAction, appliedFilterCount > 0 ? styles.filterActionActive : null]}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Ionicons
+              name="options-outline"
+              size={16}
+              color={appliedFilterCount > 0 ? '#FFFFFF' : palette.text}
+            />
+            <Text
+              style={[
+                styles.filterActionText,
+                appliedFilterCount > 0 ? styles.filterActionTextActive : null,
+              ]}
+            >
+              {t('filtersLabel')}
+            </Text>
+            {appliedFilterCount > 0 ? (
+              <View style={styles.filterBadge}>
+                <Text style={styles.filterBadgeText}>{appliedFilterCount}</Text>
+              </View>
+            ) : null}
           </Pressable>
-          <Pressable style={styles.clearButton} onPress={clearFilters}>
-            <Text style={styles.clearButtonText}>{t('clear')}</Text>
+
+          <Pressable
+            style={[styles.filterAction, filters.sortBy ? styles.filterActionActive : null]}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Text
+              style={[styles.filterActionText, filters.sortBy ? styles.filterActionTextActive : null]}
+            >
+              {filters.sortBy ? (filters.sortBy === 'name' ? 'Name' : 'Age') : 'Sort'}
+            </Text>
+            <Ionicons
+              name="chevron-down"
+              size={15}
+              color={filters.sortBy ? '#FFFFFF' : palette.text}
+            />
           </Pressable>
+
+          {appliedFilterCount > 0 || search ? (
+            <Pressable style={styles.clearAction} onPress={clearFilters} hitSlop={8}>
+              <Text style={styles.clearActionText}>{t('clear')}</Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {error ? <InlineError message={error} /> : null}
@@ -405,7 +439,7 @@ export function MatrimonyScreen() {
                     }
                   }}
                 >
-                  <Ionicons name="eye-outline" size={16} color="#E53935" />
+                  <Ionicons name="eye-outline" size={16} color={palette.primary} />
                   <Text style={styles.showNumberText}>Show Number</Text>
                 </Pressable>
                 {interestStatus === 'sent' || interestStatus === 'mutual' ? (
@@ -462,10 +496,10 @@ export function MatrimonyScreen() {
 
       <Modal visible={filterModalVisible} animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <View style={styles.modalPage}>
-          <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('matrimonyFilters')}</Text>
-            <Pressable onPress={() => setFilterModalVisible(false)}>
-                <Text style={styles.modalClose}>{t('done')}</Text>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.modalTitle}>{t('matrimonyFilters')}</Text>
+            <Pressable onPress={() => setFilterModalVisible(false)} hitSlop={10}>
+              <Text style={styles.modalClose}>{t('done')}</Text>
             </Pressable>
           </View>
 
@@ -549,52 +583,79 @@ function createStyles(palette: ThemePalette) {
   tabRow: {
     gap: 8,
     paddingVertical: 2,
+    // Trailing space so the last chip clears the screen edge when scrolled.
+    paddingRight: 8,
   },
   tab: {
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 999,
     backgroundColor: palette.surface,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
   },
   tabActive: {
     borderColor: palette.primary,
     backgroundColor: palette.primarySoft,
   },
   tabText: {
-    color: palette.accent,
-    fontSize: 12,
-    fontWeight: '600',
+    color: palette.textSoft,
+    fontSize: 13,
+    fontWeight: '700',
   },
   tabTextActive: {
     color: palette.primary,
   },
-  filterActionsRow: {
+  filterBar: {
     flexDirection: 'row',
-    gap: 10,
-  },
-  filterButton: {
-    flex: 1,
-    borderRadius: 10,
-    backgroundColor: palette.primary,
-    paddingVertical: 10,
     alignItems: 'center',
+    gap: 8,
   },
-  filterButtonText: {
-    color: palette.surface,
-    fontWeight: '700',
-  },
-  clearButton: {
-    borderRadius: 10,
+  filterAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
     backgroundColor: palette.surface,
   },
-  clearButtonText: {
-    color: palette.accent,
+  filterActionActive: {
+    backgroundColor: palette.primary,
+    borderColor: palette.primary,
+  },
+  filterActionText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: palette.text,
+  },
+  filterActionTextActive: {
+    color: '#FFFFFF',
+  },
+  filterBadge: {
+    minWidth: 19,
+    height: 19,
+    paddingHorizontal: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  clearAction: {
+    marginLeft: 'auto',
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+  },
+  clearActionText: {
+    color: palette.primary,
+    fontSize: 13.5,
     fontWeight: '700',
   },
   error: {
@@ -716,7 +777,8 @@ function createStyles(palette: ThemePalette) {
   },
   modalContent: {
     padding: 16,
-    gap: 12,
+    paddingBottom: 40,
+    gap: 20,
   },
   ageRow: {
     flexDirection: 'row',
@@ -727,7 +789,7 @@ function createStyles(palette: ThemePalette) {
     gap: 6,
   },
   ageLabel: {
-    color: palette.accent,
+    color: palette.textSoft,
     fontWeight: '600',
     fontSize: 12,
   },
@@ -740,78 +802,52 @@ function createStyles(palette: ThemePalette) {
     paddingVertical: 9,
   },
   filterSection: {
-    gap: 8,
+    gap: 10,
   },
   filterSectionTitle: {
     color: palette.text,
     fontWeight: '700',
+    fontSize: 15,
   },
   filterChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
     paddingBottom: 2,
+    paddingRight: 8,
   },
   filterChip: {
     borderWidth: 1,
     borderColor: palette.border,
     borderRadius: 999,
     backgroundColor: palette.surface,
-    paddingVertical: 7,
-    paddingHorizontal: 11,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
   },
   filterChipActive: {
     borderColor: palette.primary,
     backgroundColor: palette.primarySoft,
   },
   filterChipText: {
-    color: palette.accent,
-    fontSize: 12,
+    color: palette.textSoft,
+    fontSize: 13,
     fontWeight: '600',
   },
   filterChipTextActive: {
     color: palette.primary,
   },
+  headerBlock: {
+    paddingBottom: 2,
+  },
   matchCount: {
-    fontSize: 14,
+    fontSize: 14.5,
+    lineHeight: 20,
     color: palette.muted,
-    marginBottom: 12,
-    textAlign: 'center',
   },
-  preferencesHighlight: {
-    color: '#E53935',
-    fontWeight: '600',
-  },
-  filterChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  filterChipMain: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.cardBg,
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: palette.border,
-  },
-  filterChipMainText: {
-    fontSize: 13,
+  matchCountNumber: {
     color: palette.text,
-  },
-  filterChipMainActive: {
-    backgroundColor: palette.primary,
-    borderColor: palette.primary,
-  },
-  filterChipMainActiveText: {
-    color: '#FFFFFF',
-  },
-  notMatchChip: {
-    borderColor: palette.muted,
-  },
-  notMatchText: {
-    color: palette.muted,
+    fontWeight: '800',
   },
   // New card styles
   newCard: {
@@ -895,7 +931,7 @@ function createStyles(palette: ThemePalette) {
   },
   mutualStatus: {
     fontSize: 13,
-    color: '#4CAF50',
+    color: palette.accent,
     fontWeight: '600',
   },
   newActionRow: {
@@ -912,7 +948,7 @@ function createStyles(palette: ThemePalette) {
     justifyContent: 'center',
     backgroundColor: palette.bg,
     borderWidth: 1,
-    borderColor: '#E53935',
+    borderColor: palette.primary,
     paddingVertical: 10,
     borderRadius: 24,
     gap: 6,
@@ -920,20 +956,20 @@ function createStyles(palette: ThemePalette) {
   showNumberText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#E53935',
+    color: palette.primary,
   },
   sendMessageButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E53935',
+    backgroundColor: palette.primary,
     paddingVertical: 10,
     borderRadius: 24,
     gap: 6,
   },
   sendMessageButtonDisabled: {
-    backgroundColor: '#9E9E9E',
+    backgroundColor: palette.borderStrong,
     opacity: 0.85,
   },
   sendMessageText: {
@@ -968,7 +1004,7 @@ function createStyles(palette: ThemePalette) {
   },
   lockedButton: {
     marginTop: 6,
-    backgroundColor: '#FF9800',
+    backgroundColor: palette.violet,
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 24,

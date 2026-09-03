@@ -422,7 +422,7 @@ function createStyles(palette: ThemePalette) {
       borderColor: palette.primary,
     },
     tabChipText: {
-      color: palette.accent,
+      color: palette.textSoft,
       fontWeight: '600',
     },
     tabChipTextActive: {

@@ -13,8 +13,10 @@ import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
+import { colors } from '../theme';
 import { api } from '../services/api';
 import type { MatrimonyProfile } from '../types';
 
@@ -86,16 +88,16 @@ const infoRowStyle: import('react-native').ViewStyle = {
   justifyContent: 'space-between',
   paddingVertical: 8,
   borderBottomWidth: 1,
-  borderBottomColor: '#e2e8f0',
+  borderBottomColor: colors.border,
 };
 const infoLabelStyle: import('react-native').TextStyle = {
   fontSize: 14,
-  color: '#64748b',
+  color: colors.muted,
   flex: 1,
 };
 const infoValueStyle: import('react-native').TextStyle = {
   fontSize: 14,
-  color: '#0f172a',
+  color: colors.text,
   fontWeight: '500',
   flex: 1,
   textAlign: 'right',
@@ -111,7 +113,8 @@ const FEATURES = {
 export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyProfileDetailScreenProps) {
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(palette, insets.top), [palette, insets.top]);
   
   const [profile, setProfile] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -491,7 +494,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, insetTop = 0) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -501,7 +504,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingTop: 60,
+      paddingTop: insetTop + 12,
       paddingBottom: 16,
       borderBottomWidth: 1,
       borderBottomColor: palette.border,
@@ -600,7 +603,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#16a34a',
+      backgroundColor: palette.accent,
       paddingVertical: 14,
       borderRadius: 14,
       gap: 8,
@@ -630,7 +633,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#0284c7',
+      backgroundColor: palette.primary,
       paddingVertical: 14,
       borderRadius: 14,
       gap: 8,
@@ -660,7 +663,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#16a34a',
+      backgroundColor: palette.accent,
       paddingVertical: 14,
       borderRadius: 14,
       gap: 8,
@@ -730,16 +733,16 @@ function createStyles(palette: ThemePalette) {
       alignSelf: 'flex-start',
     },
     statussent: {
-      backgroundColor: '#FFF3E0',
+      backgroundColor: palette.primarySoft,
     },
     statuspending: {
-      backgroundColor: '#E3F2FD',
+      backgroundColor: palette.primarySoft,
     },
     statusaccepted: {
-      backgroundColor: '#E8F5E9',
+      backgroundColor: palette.accentSoft,
     },
     statusdeclined: {
-      backgroundColor: '#FFEBEE',
+      backgroundColor: palette.dangerSoft,
     },
     statusnone: {
       backgroundColor: palette.border,

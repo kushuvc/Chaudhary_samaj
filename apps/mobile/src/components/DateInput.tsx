@@ -187,7 +187,7 @@ function createStyles(palette: ThemePalette) {
       paddingVertical: spacing.xs,
     },
     cancelText: {
-      color: palette.accent,
+      color: palette.textSoft,
       fontWeight: '600',
     },
     confirmBtn: {

@@ -23,6 +23,7 @@ import type {
   MobileSettingsState,
   ThemeMode,
 } from '../types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
@@ -59,6 +60,7 @@ const LANGUAGE_OPTIONS: Array<{ key: AppLanguage; label: string; nativeLabel: st
 
 export function SettingsScreen() {
   const { palette, themeMode, setThemeMode } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { language, setLanguage, t } = useAppLanguage();
   const { logout } = useAuth();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -187,7 +189,10 @@ export function SettingsScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: palette.bg }]} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: palette.bg }]}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
+    >
       <SectionCard>
         <ScreenTitle title={t('settings')} subtitle={t('settingsSubtitle')} />
         <View style={styles.actionRow}>
@@ -441,7 +446,7 @@ function createStyles(palette: ThemePalette) {
     },
     resetButtonText: {
       fontWeight: '700',
-      color: palette.accent,
+      color: palette.textSoft,
     },
     savedRow: {
       marginTop: spacing.xs,
@@ -496,7 +501,7 @@ function createStyles(palette: ThemePalette) {
     },
     themeBtnText: {
       textTransform: 'capitalize',
-      color: palette.accent,
+      color: palette.textSoft,
       fontWeight: '600',
     },
     themeBtnTextActive: {

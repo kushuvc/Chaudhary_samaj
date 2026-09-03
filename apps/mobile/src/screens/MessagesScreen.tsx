@@ -13,6 +13,7 @@ import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -49,8 +50,9 @@ const FEATURES = {
 
 export function MessagesScreen({ onBack }: MessagesScreenProps) {
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useAppLanguage();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, insets.top), [palette, insets.top]);
   const { session } = useAuth();
   const currentUserId = session?.user?.id || '';
   
@@ -293,7 +295,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, insetTop = 0) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -303,7 +305,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingTop: 60,
+      paddingTop: insetTop + 12,
       paddingBottom: 16,
       borderBottomWidth: 1,
       borderBottomColor: palette.border,
@@ -379,7 +381,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingTop: 60,
+      paddingTop: insetTop + 12,
       paddingBottom: 16,
       borderBottomWidth: 1,
       borderBottomColor: palette.border,
@@ -396,7 +398,7 @@ function createStyles(palette: ThemePalette) {
     },
     chatHeaderStatus: {
       fontSize: 12,
-      color: '#4CAF50',
+      color: palette.accent,
     },
     moreButton: {
       width: 40,

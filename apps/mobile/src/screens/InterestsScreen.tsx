@@ -13,6 +13,7 @@ import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -43,8 +44,9 @@ const FEATURES = {
 
 export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsScreenProps) {
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useAppLanguage();
-  const styles = useMemo(() => createStyles(palette), [palette]);
+  const styles = useMemo(() => createStyles(palette, insets.top), [palette, insets.top]);
   const navigation = useNavigation<any>();
   
   const [activeTab, setActiveTab] = useState<InterestTab>('received');
@@ -292,7 +294,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
         {error ? <InlineError message={error} /> : null}
@@ -328,7 +330,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   );
 }
 
-function createStyles(palette: ThemePalette) {
+function createStyles(palette: ThemePalette, insetTop = 0) {
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -338,7 +340,7 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      paddingTop: 60,
+      paddingTop: insetTop + 12,
       paddingBottom: 16,
       borderBottomWidth: 1,
       borderBottomColor: palette.border,
@@ -466,13 +468,13 @@ function createStyles(palette: ThemePalette) {
       borderRadius: 12,
     },
     statuspending: {
-      backgroundColor: '#E3F2FD',
+      backgroundColor: palette.primarySoft,
     },
     statusaccepted: {
-      backgroundColor: '#E8F5E9',
+      backgroundColor: palette.accentSoft,
     },
     statusdeclined: {
-      backgroundColor: '#FFEBEE',
+      backgroundColor: palette.dangerSoft,
     },
     statusText: {
       fontSize: 12,
@@ -504,7 +506,7 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
       paddingVertical: 10,
       borderRadius: 20,
-      backgroundColor: '#4CAF50',
+      backgroundColor: palette.accent,
       gap: 6,
     },
     acceptButtonText: {
@@ -536,7 +538,7 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
       paddingVertical: 10,
       borderRadius: 20,
-      backgroundColor: '#2196F3',
+      backgroundColor: palette.primary,
       gap: 6,
     },
     messageButtonText: {

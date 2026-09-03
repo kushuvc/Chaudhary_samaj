@@ -706,7 +706,7 @@ function createStyles(palette: ThemePalette) {
     fontSize: 13,
   },
   bio: {
-    color: palette.accent,
+    color: palette.textSoft,
     marginTop: 2,
   },
   actionRow: {
@@ -724,7 +724,7 @@ function createStyles(palette: ThemePalette) {
     backgroundColor: palette.surface,
   },
   secondaryActionText: {
-    color: palette.accent,
+    color: palette.textSoft,
     fontWeight: '700',
     fontSize: 12,
   },
@@ -931,7 +931,7 @@ function createStyles(palette: ThemePalette) {
   },
   mutualStatus: {
     fontSize: 13,
-    color: palette.accent,
+    color: palette.textSoft,
     fontWeight: '600',
   },
   newActionRow: {

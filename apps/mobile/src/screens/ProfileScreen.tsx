@@ -14,6 +14,7 @@ import type { Photo } from './SignupManagePhotosScreen';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { useAuth } from '../context/AuthContext';
 import { useAppLanguage } from '../context/LanguageContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -185,6 +186,7 @@ export function ProfileScreen() {
   console.log('[ProfileScreen] Session:', session ? 'Authenticated' : 'Not authenticated');
   const { t } = useAppLanguage();
   const { palette } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -365,7 +367,10 @@ export function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
+    >
       <View style={styles.headerRow}>
         <ScreenTitle title={t('profile')} subtitle={t('profileSubtitle')} />
         <PrimaryButton

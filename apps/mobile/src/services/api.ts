@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import type {
   AuthSession,
   BusinessListing,
@@ -24,7 +25,29 @@ import type {
   SignupPayload
 } from '../types';
 
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:3000/api').replace(/\/$/, '');
+/**
+ * Where the API lives.
+ *
+ * EXPO_PUBLIC_API_BASE_URL wins when set (deployed builds). Otherwise, derive
+ * the host from the Metro server the bundle was loaded from. On a phone that is
+ * the dev machine's LAN address, which changes whenever DHCP hands out a new
+ * lease — hardcoding it in .env means the app silently stops reaching the API
+ * every time that happens. Reading it from Expo keeps the two in sync.
+ */
+function resolveApiBaseUrl() {
+  const configured = process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (configured) return configured.replace(/\/$/, '');
+
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    (Constants.expoGoConfig as { debuggerHost?: string } | undefined)?.debuggerHost;
+  const host = hostUri?.split(':')[0];
+  if (host) return `http://${host}:3000/api`;
+
+  return 'http://localhost:3000/api';
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 let authToken: string | null = null;
 let userId: string | null = null;

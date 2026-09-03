@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { useAppTheme } from '../context/ThemeContext';
+import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { Photo } from '../screens/SignupManagePhotosScreen';
 
@@ -21,6 +23,8 @@ interface PhotoManagerProps {
 }
 
 export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 }: PhotoManagerProps) {
+  const { palette } = useAppTheme();
+  const styles = useMemo(() => createStyles(palette), [palette]);
   const [uploading, setUploading] = useState<string | null>(null);
 
   const pickAndUpload = async () => {
@@ -112,7 +116,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
                 <Image source={{ uri: displayUri }} style={styles.photoImage} resizeMode="cover" />
               ) : (
                 <View style={styles.placeholder}>
-                  <Ionicons name="person" size={36} color="#CCCCCC" />
+                  <Ionicons name="person" size={36} color={palette.muted} />
                 </View>
               )}
               {photo.status === 'uploading' && (
@@ -140,7 +144,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
 
       {editable && photos.length < maxPhotos && (
         <Pressable style={styles.addBtn} onPress={pickAndUpload} disabled={uploading !== null}>
-          <Ionicons name="add" size={28} color="#E53935" />
+          <Ionicons name="add" size={28} color={palette.primary} />
           <Text style={styles.addText}>Add Photo</Text>
         </Pressable>
       )}
@@ -148,7 +152,8 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
   );
 }
 
-const styles = StyleSheet.create({
+function createStyles(palette: ThemePalette) {
+  return StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -163,7 +168,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -8,
     left: 8,
-    backgroundColor: '#E53935',
+    backgroundColor: palette.primary,
     paddingVertical: 3,
     paddingHorizontal: 10,
     borderRadius: 10,
@@ -176,14 +181,14 @@ const styles = StyleSheet.create({
   },
   photoBox: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: palette.surfaceSunken,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E0E0E0',
+    borderColor: palette.border,
     overflow: 'hidden',
   },
   photoBoxDone: {
-    borderColor: '#E53935',
+    borderColor: palette.primary,
   },
   photoImage: {
     width: '100%',
@@ -236,10 +241,10 @@ const styles = StyleSheet.create({
   addBtn: {
     width: '47%',
     aspectRatio: 0.8,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: palette.dangerSoft,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#E53935',
+    borderColor: palette.primary,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -247,7 +252,8 @@ const styles = StyleSheet.create({
   },
   addText: {
     fontSize: 13,
-    color: '#E53935',
+    color: palette.primary,
     fontWeight: '600',
   },
-});
+  });
+}

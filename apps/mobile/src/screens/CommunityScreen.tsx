@@ -636,7 +636,7 @@ function createStyles(palette: ThemePalette) {
       fontSize: 12,
     },
     cardContent: {
-      color: palette.accent,
+      color: palette.textSoft,
       lineHeight: 20,
     },
     metricsRow: {
@@ -708,7 +708,7 @@ function createStyles(palette: ThemePalette) {
       borderColor: palette.primary,
     },
     checkboxLabel: {
-      color: palette.accent,
+      color: palette.textSoft,
       fontWeight: '600',
     },
     modalActions: {

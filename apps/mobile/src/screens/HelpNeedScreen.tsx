@@ -373,7 +373,7 @@ function createStyles(palette: ThemePalette) {
     borderColor: palette.primary,
   },
   chipText: {
-    color: palette.accent,
+    color: palette.textSoft,
     textTransform: 'capitalize',
   },
   chipTextActive: {
@@ -447,7 +447,7 @@ function createStyles(palette: ThemePalette) {
     borderRadius: 10,
   },
   secondaryBtnText: {
-    color: palette.accent,
+    color: palette.textSoft,
     fontWeight: '700',
   },
   emptyText: {

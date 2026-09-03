@@ -129,7 +129,7 @@ export function DashboardScreen() {
       {/* Error */}
       {!!error && (
         <View style={styles.errorBanner}>
-          <Ionicons name="warning-outline" size={16} color="#b45309" />
+          <Ionicons name="warning-outline" size={16} color={palette.violet} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
@@ -165,7 +165,7 @@ export function DashboardScreen() {
         </View>
         <View style={[styles.statPill, { backgroundColor: palette.accentSoft }]}>
           <Ionicons name="checkmark-circle" size={18} color={palette.accent} />
-          <Text style={[styles.statPillValue, { color: palette.accent }]}>{acceptedInterests}</Text>
+          <Text style={[styles.statPillValue, { color: palette.textSoft }]}>{acceptedInterests}</Text>
           <Text style={styles.statPillLabel}>{t('dashboardInterestsAccepted')}</Text>
         </View>
         <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
@@ -213,7 +213,7 @@ export function DashboardScreen() {
               {myProfile?.age ? `${myProfile.age} yrs` : 'Age not set'} • {myProfile?.location || 'Location not set'}
             </Text>
             <View style={styles.myProfileStatus}>
-              <View style={[styles.myProfileDot, { backgroundColor: profileComplete ? '#10b981' : '#f59e0b' }]} />
+              <View style={[styles.myProfileDot, { backgroundColor: profileComplete ? palette.accent : palette.violet }]} />
               <Text style={styles.myProfileStatusText}>{profileComplete ? 'Profile Complete' : 'Incomplete Profile'}</Text>
             </View>
           </View>

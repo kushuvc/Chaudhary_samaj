@@ -203,7 +203,7 @@ function createStyles(palette: ThemePalette) {
   },
   chipText: {
     ...type.caption,
-    color: palette.accent,
+    color: palette.textSoft,
     textTransform: 'capitalize',
   },
   chipTextActive: {
@@ -262,7 +262,7 @@ function createStyles(palette: ThemePalette) {
   },
   itemMessage: {
     ...type.body,
-    color: palette.accent,
+    color: palette.textSoft,
   },
   });
 }

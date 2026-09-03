@@ -20,16 +20,25 @@ let currentTransaction = null
 let _pgPool = null
 export function getPgPool() {
   if (!_pgPool && process.env.DATABASE_URL) {
+    // Tuned for a connection pooler (Supabase's pgBouncer) rather than a direct
+    // Postgres. The pooler closes idle server connections on its own, so holding
+    // 50 of them open for 5 minutes leaves the pool full of dead sockets — the
+    // symptom is "Connection terminated unexpectedly" / ETIMEDOUT and requests
+    // that hang instead of failing. Keep the pool small and recycle well before
+    // the pooler does.
+    const isPooled = /pooler\.supabase\.com|pgbouncer/i.test(process.env.DATABASE_URL)
+
     _pgPool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 50,
-      min: 5,
-      idleTimeoutMillis: 300000,
-      connectionTimeoutMillis: 8000,
+      max: isPooled ? 10 : 50,
+      min: 0,
+      idleTimeoutMillis: isPooled ? 30000 : 300000,
+      connectionTimeoutMillis: 10000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
       statement_timeout: 30000,
+      allowExitOnIdle: false,
     })
     _pgPool.on('error', (err) => {
       console.error('[PgPool] idle client error:', err.message)

@@ -339,7 +339,7 @@ function createStyles(palette: ThemePalette) {
       alignItems: 'center',
       marginBottom: 10,
     },
-    secondaryButtonText: { color: palette.accent, fontWeight: '600' },
+    secondaryButtonText: { color: palette.textSoft, fontWeight: '600' },
     filterLabel: { marginTop: 6, marginBottom: 6, color: palette.text, fontWeight: '600' },
     chipRow: { marginBottom: 10 },
     chip: {
@@ -352,7 +352,7 @@ function createStyles(palette: ThemePalette) {
       marginRight: 8,
     },
     chipActive: { backgroundColor: palette.primarySoft, borderColor: palette.primary },
-    chipText: { color: palette.accent, fontWeight: '600' },
+    chipText: { color: palette.textSoft, fontWeight: '600' },
     chipTextActive: { color: palette.primary },
     errorText: { color: palette.danger, marginBottom: 10 },
     card: {
@@ -375,7 +375,7 @@ function createStyles(palette: ThemePalette) {
       overflow: 'hidden',
     },
     cardSub: { color: palette.muted, marginTop: 2 },
-    description: { color: palette.accent, marginTop: 8 },
+    description: { color: palette.textSoft, marginTop: 8 },
     tags: { color: palette.primary, marginTop: 8, fontWeight: '600' },
     emptyCard: {
       marginTop: 8,
@@ -388,7 +388,7 @@ function createStyles(palette: ThemePalette) {
     emptyTitle: { fontWeight: '700', color: palette.text },
     emptyText: { marginTop: 4, color: palette.muted },
     centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.bg },
-    stateText: { marginTop: 8, color: palette.accent },
+    stateText: { marginTop: 8, color: palette.textSoft },
     modalContainer: { flex: 1, backgroundColor: palette.bg, padding: 16, paddingTop: 48 },
     modalTitle: { fontSize: 22, fontWeight: '700', color: palette.text, marginBottom: 12 },
   });

@@ -9,6 +9,7 @@ import Razorpay from 'razorpay'
 import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import rateLimit from 'express-rate-limit'
+import { isSmsConfigured, sendOtpSms } from './sms.js'
 import { LRUCache } from 'lru-cache'
 import {
   applyProfileUpdate,
@@ -585,6 +586,20 @@ app.post('/api/auth/otp/request', async (request, response) => {
       `[OTP] send completed to=${normalizedEmail} purpose=${normalizedPurpose} sendMs=${sendEnd - sendStart} totalMs=${sendEnd - routeStart} fallback=${Boolean(sendResult.fallback)}`,
     )
 
+    // `fallback` means the mailer could not actually deliver (typically no SMTP
+    // configured) and only logged the code. In production that must fail closed:
+    // the previous condition OR'd it in, so an unconfigured mailer handed the
+    // real code to the caller and any account could be taken over by email
+    // address alone.
+    if (sendResult.fallback && process.env.NODE_ENV === 'production') {
+      console.error('[OTP] mailer is not configured; refusing to issue a code')
+      await (databaseEngine === 'postgres'
+        ? invalidateActiveEmailOtpsFast(normalizedEmail, normalizedPurpose)
+        : invalidateActiveEmailOtps(normalizedEmail, normalizedPurpose))
+      response.status(503).json({ success: false, error: 'Email sign-in is temporarily unavailable.' })
+      return
+    }
+
     response.json({
       success: true,
       data: {
@@ -592,7 +607,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
         purpose: normalizedPurpose,
         expiresAt: otpRequest.data.expiresAt,
         sentViaFallback: Boolean(sendResult.fallback),
-        ...(process.env.NODE_ENV !== 'production' || sendResult.fallback ? { debugOtp: otpRequest.data.otpCode } : {}),
+        ...(process.env.NODE_ENV !== 'production' ? { debugOtp: otpRequest.data.otpCode } : {}),
       },
     })
   } catch (error) {
@@ -612,8 +627,10 @@ app.post('/api/auth/otp/request', async (request, response) => {
       return
     }
 
-    // On timeout or any error, fallback to returning OTP in dev mode
-    if (error?.message?.includes('timeout') || process.env.NODE_ENV !== 'production') {
+    // Outside production, hand the code back so local development works without
+    // SMTP. The timeout case used to be OR'd in here, which meant a production
+    // send that timed out returned the real code to the caller.
+    if (process.env.NODE_ENV !== 'production') {
       response.json({
         success: true,
         data: {
@@ -791,16 +808,39 @@ app.post('/api/auth/phone/send-otp', async (request, response) => {
     }
   }
 
-  // Generate 6-digit OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString()
+  // Use a CSPRNG: Math.random is predictable enough that an attacker who sees
+  // a few codes can narrow the next one.
+  const otpCode = String(crypto.randomInt(100000, 1000000))
   const expiresAt = Date.now() + 5 * 60 * 1000 // 5 minutes
+  const isProduction = process.env.NODE_ENV === 'production'
 
-  // Store OTP
   phoneOtpStore.set(normalizedPhone, { otp: otpCode, expiresAt, attempts: 0 })
 
-  console.log(`[phone-otp] Phone: +91${normalizedPhone}, OTP: ${otpCode}`)
+  if (isSmsConfigured()) {
+    try {
+      await sendOtpSms(normalizedPhone, otpCode)
+    } catch (err) {
+      console.error('[phone-otp] SMS send failed:', err.message)
+      phoneOtpStore.delete(normalizedPhone)
+      response.status(502).json({ success: false, error: 'Could not send the code. Please try again.' })
+      return
+    }
 
-  // Development mode - return OTP in response
+    response.json({ success: true, message: 'OTP sent successfully' })
+    return
+  }
+
+  // No SMS provider. In production that must fail closed — returning the code
+  // to the caller would let anyone log in as any account from its phone number
+  // alone, which is exactly what this route used to do unconditionally.
+  if (isProduction) {
+    console.error('[phone-otp] MSG91 is not configured; refusing to issue a code')
+    phoneOtpStore.delete(normalizedPhone)
+    response.status(503).json({ success: false, error: 'Phone sign-in is temporarily unavailable.' })
+    return
+  }
+
+  console.log(`[phone-otp] (dev) +91${normalizedPhone} -> ${otpCode}`)
   response.json({
     success: true,
     message: 'OTP sent successfully (test mode)',

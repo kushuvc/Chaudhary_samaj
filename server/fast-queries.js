@@ -10,11 +10,16 @@ const pool = hasPostgres
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
-      max: 50,
-      min: 5,
-      idleTimeoutMillis: 300000,
-      connectionTimeoutMillis: 8000,
+      // Same reasoning as the pool in db.js: a pooler closes idle server
+      // connections itself, so a large pool held open for minutes fills with
+      // dead sockets. Opening a fresh one costs ~2.5s against a distant region,
+      // so keep them a reasonable while but well under the pooler's own timeout.
+      max: /pooler\.supabase\.com|pgbouncer/i.test(process.env.DATABASE_URL) ? 10 : 50,
+      min: 0,
+      idleTimeoutMillis: 60000,
+      connectionTimeoutMillis: 15000,
       keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       statement_timeout: 30000,
     })
   : null

@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { colors } from '../theme';
@@ -28,6 +29,8 @@ interface ProfileDetail extends MatrimonyProfile {
   interestStatus?: InterestStatus;
   hasSentInterest?: boolean;
   hasReceivedInterest?: boolean;
+  /** Id of the interest this profile sent us, needed to accept or decline it. */
+  receivedInterestId?: string | null;
   // Personal Details
   gender?: string | null;
   dateOfBirth?: string | null;
@@ -114,6 +117,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const styles = useMemo(() => createStyles(palette, insets.top), [palette, insets.top]);
   
   const [profile, setProfile] = useState<ProfileDetail | null>(null);
@@ -150,6 +154,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           interestStatus,
           hasSentInterest: !!sent,
           hasReceivedInterest: !!received,
+          receivedInterestId: received?.id ?? null,
         });
       } else {
         setError('Profile not found');
@@ -193,6 +198,44 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const respondToInterest = async (accept: boolean) => {
+    const interestId = profile?.receivedInterestId;
+    if (!interestId) {
+      showAlert('Nothing to respond to', 'This interest is no longer available. Pull down to refresh.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await api.respondToInterest(interestId, accept);
+      showAlert(
+        accept ? 'Interest accepted 🎉' : 'Interest declined',
+        accept
+          ? `You and ${profile?.name || 'this member'} are now matched. You can message each other.`
+          : `${profile?.name || 'This member'} will not be notified.`
+      );
+      await loadProfile();
+    } catch (err) {
+      showAlert(
+        accept ? 'Could not accept' : 'Could not decline',
+        (err as Error).message || 'Something went wrong. Please try again.'
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleMessage = () => {
+    if (!FEATURES.CHAT_FREE) {
+      showAlert('Premium Feature', 'Upgrade to premium to message your matches.');
+      return;
+    }
+    // Chat lives in the Messages tab, which lists every accepted match.
+    // Close this modal first, otherwise it stays open over the tab.
+    onBack?.();
+    navigation.navigate('Messages');
   };
 
   const handleShowPhoneNumber = () => {
@@ -246,7 +289,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             <Ionicons name="call-outline" size={20} color="#FFFFFF" />
             <Text style={styles.phoneButtonText}>Show Number</Text>
           </Pressable>
-          <Pressable style={styles.messageButton}>
+          <Pressable style={styles.messageButton} onPress={handleMessage}>
             <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
             <Text style={styles.messageButtonText}>Message</Text>
           </Pressable>
@@ -274,11 +317,19 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
     if (interestStatus === 'pending') {
       return (
         <View style={styles.actionRow}>
-          <Pressable style={styles.respondButton}>
+          <Pressable
+            style={[styles.respondButton, actionLoading ? styles.buttonBusy : null]}
+            onPress={() => respondToInterest(true)}
+            disabled={actionLoading}
+          >
             <Ionicons name="checkmark" size={20} color="#FFFFFF" />
             <Text style={styles.respondButtonText}>Accept Interest</Text>
           </Pressable>
-          <Pressable style={styles.declineButton}>
+          <Pressable
+            style={[styles.declineButton, actionLoading ? styles.buttonBusy : null]}
+            onPress={() => respondToInterest(false)}
+            disabled={actionLoading}
+          >
             <Ionicons name="close" size={20} color={palette.danger} />
             <Text style={styles.declineButtonText}>Decline</Text>
           </Pressable>
@@ -672,6 +723,9 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
       color: '#FFFFFF',
       fontSize: 16,
       fontWeight: '600',
+    },
+    buttonBusy: {
+      opacity: 0.6,
     },
     declineButton: {
       flex: 1,

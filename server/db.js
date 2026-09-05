@@ -33,8 +33,10 @@ export function getPgPool() {
       ssl: { rejectUnauthorized: false },
       max: isPooled ? 10 : 50,
       min: 0,
-      idleTimeoutMillis: isPooled ? 30000 : 300000,
-      connectionTimeoutMillis: 10000,
+      // Opening a connection costs seconds against a distant region, so do not
+      // churn them aggressively — just stay under the pooler's own idle timeout.
+      idleTimeoutMillis: isPooled ? 60000 : 300000,
+      connectionTimeoutMillis: 15000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
       statement_timeout: 30000,

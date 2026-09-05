@@ -104,6 +104,9 @@ const migrations = [
   // Run server/dedupe-phones.js --apply BEFORE this on a database that
   // predates the constraint, or existing duplicate phone numbers will make
   // this index creation fail.
+  // Gates /api/admin/*. Defaults to false, so granting access is an explicit
+  // deliberate act: UPDATE users SET is_admin = true WHERE email = '...';
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`,
   `CREATE UNIQUE INDEX IF NOT EXISTS users_phone_normalized_key
      ON users (right(regexp_replace(phone, '\\D', '', 'g'), 10))
      WHERE coalesce(phone, '') <> ''`,

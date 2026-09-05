@@ -162,6 +162,34 @@ async function phoneAlreadyRegistered(rawPhone) {
 /* Authentication                                                      */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Express middleware for the /api/admin routes.
+ *
+ * These were previously unauthenticated: a single request returned every
+ * user's name, email, phone and id. Admin is an explicit flag on the user
+ * row, never inferred from anything the caller controls.
+ */
+async function requireAdmin(request, response, next) {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  try {
+    const rows = await pgQuery('SELECT is_admin FROM users WHERE id = $1 LIMIT 1', [activeUserId])
+    if (!rows[0]?.is_admin) {
+      // Deliberately the same shape as any other denial: do not tell a caller
+      // whether they merely lack the flag, which confirms a valid session.
+      response.status(403).json({ success: false, error: 'Admin access required' })
+      return
+    }
+    next()
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+}
+
 const JWT_TTL = '30d'
 
 /**
@@ -2757,7 +2785,7 @@ app.put('/api/settings', async (request, response) => {
 })
 
 // Admin Dashboard APIs
-app.get('/api/admin/stats', async (request, response) => {
+app.get('/api/admin/stats', requireAdmin, async (request, response) => {
   try {
     // Get total users count
     const totalUsersResult = await pgQuery('SELECT COUNT(*)::int as count FROM users')
@@ -2806,7 +2834,7 @@ app.get('/api/admin/stats', async (request, response) => {
   }
 })
 
-app.get('/api/admin/users', async (request, response) => {
+app.get('/api/admin/users', requireAdmin, async (request, response) => {
   try {
     const { page = 1, limit = 20 } = request.query
     const offset = (Number(page) - 1) * Number(limit)

@@ -11,3 +11,5 @@ server/data/*.sqlite-wal
 
 # Locally stored profile photos (dev fallback when Supabase Storage is unset)
 server/uploads/
+admin-dashboard/node_modules/
+admin-dashboard/dist/

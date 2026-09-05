@@ -3,9 +3,105 @@ import { format } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 // Backend API URL - connects to your production database
-const API_BASE = 'http://localhost:3000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
+const TOKEN_KEY = 'chaudhary_admin_token';
+
+/**
+ * The /api/admin routes require a bearer token from an account flagged
+ * is_admin. Previously this dashboard called them with no credentials at all,
+ * which meant anyone who could reach the API could read the whole user table.
+ */
+async function adminFetch(path, token) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 || response.status === 403) {
+    const err = new Error(data.error || 'Not authorised');
+    err.authFailed = true;
+    throw err;
+  }
+  return data;
+}
+
+function LoginScreen({ onAuthenticated }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Login failed');
+
+      const token = data.data.authToken;
+      // Confirm the account actually has admin rights before storing anything,
+      // so a non-admin gets told now rather than at the first empty dashboard.
+      await adminFetch('/admin/stats', token);
+
+      localStorage.setItem(TOKEN_KEY, token);
+      onAuthenticated(token);
+    } catch (err) {
+      setError(err.authFailed ? 'This account does not have admin access.' : err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <form onSubmit={submit} className="bg-white rounded-lg shadow p-8 w-full max-w-sm">
+        <h1 className="text-2xl font-bold mb-1">Admin sign in</h1>
+        <p className="text-sm text-gray-500 mb-6">Chaudhary Samaj dashboard</p>
+
+        <label className="block text-sm font-medium mb-1" htmlFor="admin-email">Email</label>
+        <input
+          id="admin-email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full border rounded px-3 py-2 mb-4"
+          autoComplete="username"
+          required
+        />
+
+        <label className="block text-sm font-medium mb-1" htmlFor="admin-password">Password</label>
+        <input
+          id="admin-password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full border rounded px-3 py-2 mb-5"
+          autoComplete="current-password"
+          required
+        />
+
+        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full bg-indigo-600 text-white rounded py-2 font-semibold disabled:opacity-60"
+        >
+          {submitting ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 export default function App() {
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
   const [stats, setStats] = useState({
     totalUsers: 0,
     recentUsers: 0,
@@ -28,8 +124,7 @@ export default function App() {
     try {
       console.log('Fetching stats from backend API...');
       
-      const response = await fetch(`${API_BASE}/admin/stats`);
-      const data = await response.json();
+      const data = await adminFetch('/admin/stats', token);
       
       console.log('Stats response:', data);
       
@@ -46,8 +141,7 @@ export default function App() {
 
   const fetchUsers = async (page = 1) => {
     try {
-      const response = await fetch(`${API_BASE}/admin/users?page=${page}&limit=20`);
-      const data = await response.json();
+      const data = await adminFetch(`/admin/users?page=${page}&limit=20`, token);
       
       if (data.success) {
         setUsers(data.data.users);
@@ -91,7 +185,12 @@ export default function App() {
         setLoading(false);
       } catch (err) {
         console.error('Error loading data:', err);
-        setError('Failed to load data: ' + err.message);
+        if (err.authFailed) {
+          localStorage.removeItem(TOKEN_KEY);
+          setToken(null);
+        } else {
+          setError('Failed to load data: ' + err.message);
+        }
         setLoading(false);
       }
     };
@@ -105,7 +204,7 @@ export default function App() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [currentPage]);
+  }, [currentPage, token]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
@@ -122,6 +221,15 @@ export default function App() {
       return dateString;
     }
   };
+
+  const signOut = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+  };
+
+  if (!token) {
+    return <LoginScreen onAuthenticated={(next) => { setToken(next); setLoading(true); }} />;
+  }
 
   if (loading) {
     return (
@@ -149,9 +257,18 @@ export default function App() {
               <h1 className="text-2xl font-bold text-gray-900">Production Admin Dashboard</h1>
               <p className="text-sm text-green-600">Real-time updates from Supabase</p>
             </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">Last updated:</p>
-              <p className="text-sm text-gray-700">{formatDate(lastUpdate)}</p>
+            <div className="flex items-center gap-5">
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Last updated:</p>
+                <p className="text-sm text-gray-700">{formatDate(lastUpdate)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={signOut}
+                className="text-sm font-semibold text-gray-600 hover:text-gray-900 border rounded px-3 py-1.5"
+              >
+                Sign out
+              </button>
             </div>
           </div>
         </div>

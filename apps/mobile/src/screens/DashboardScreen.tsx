@@ -129,7 +129,7 @@ export function DashboardScreen() {
       {/* Error */}
       {!!error && (
         <View style={styles.errorBanner}>
-          <Ionicons name="warning-outline" size={16} color={palette.violet} />
+          <Ionicons name="warning-outline" size={16} color={palette.warning} />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
@@ -253,11 +253,11 @@ function createStyles(palette: ThemePalette) {
     heroSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 3 },
     errorBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
-      backgroundColor: '#fffbeb', borderRadius: 10, padding: 12,
+      backgroundColor: palette.warningSoft, borderRadius: 10, padding: 12,
       marginHorizontal: 16, marginBottom: 12,
-      borderWidth: 1, borderColor: '#fde68a',
+      borderWidth: 1, borderColor: palette.warning,
     },
-    errorText: { color: '#92400e', fontSize: 13, flex: 1 },
+    errorText: { color: palette.warning, fontSize: 13, flex: 1 },
     incompleteBanner: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
       backgroundColor: palette.surface, borderRadius: 14, padding: 14,
@@ -311,8 +311,10 @@ function createStyles(palette: ThemePalette) {
       width: 22, height: 22, borderRadius: 11,
       justifyContent: 'center', alignItems: 'center',
     },
-    profileBadgeFemale: { backgroundColor: '#fce7f3' },
-    profileBadgeMale: { backgroundColor: '#eff6ff' },
+    // Gender tints reuse the pink/blue soft tokens so they stay legible in dark
+    // mode; the semantics come from the icon, not the colour.
+    profileBadgeFemale: { backgroundColor: palette.dangerSoft },
+    profileBadgeMale: { backgroundColor: palette.infoSoft },
     profileBadgeText: { fontSize: 12, fontWeight: '700' },
     myProfileCard: {
       backgroundColor: palette.surface, borderRadius: 16,

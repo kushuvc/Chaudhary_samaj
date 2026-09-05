@@ -999,7 +999,8 @@ function createStyles(palette: ThemePalette) {
   },
   lockedSubtitle: {
     fontSize: 13,
-    color: '#e0e0e0',
+    // Sits on the dark locked overlay, so it stays light in both themes.
+    color: 'rgba(255,255,255,0.82)',
     textAlign: 'center',
   },
   lockedButton: {

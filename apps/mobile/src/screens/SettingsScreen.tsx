@@ -336,13 +336,13 @@ export function SettingsScreen() {
 
       {/* Danger Zone */}
       <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.danger ?? '#dc2626' }]}>{t('dangerZone')}</Text>
+        <Text style={[styles.sectionTitle, { color: palette.danger }]}>{t('dangerZone')}</Text>
         <Text style={[styles.noteText, { color: palette.muted, marginTop: 4 }]}>{t('dangerZoneSubtitle')}</Text>
         <Pressable
-          style={[styles.deleteBtn, { borderColor: palette.danger ?? '#dc2626' }]}
+          style={[styles.deleteBtn, { borderColor: palette.danger }]}
           onPress={() => { setShowDeleteModal(true); setDeleteConfirmText(''); setDeleteError(null); }}
         >
-          <Text style={[styles.deleteBtnText, { color: palette.danger ?? '#dc2626' }]}>{t('deleteMyAccount')}</Text>
+          <Text style={[styles.deleteBtnText, { color: palette.danger }]}>{t('deleteMyAccount')}</Text>
         </Pressable>
       </SectionCard>
 
@@ -369,7 +369,7 @@ export function SettingsScreen() {
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteModal(false)}>
           <View style={[styles.deleteModalSheet, { backgroundColor: palette.cardBg }]}>
-            <Text style={[styles.deleteModalTitle, { color: palette.danger ?? '#dc2626' }]}>{t('deleteAccountTitle')}</Text>
+            <Text style={[styles.deleteModalTitle, { color: palette.danger }]}>{t('deleteAccountTitle')}</Text>
             <Text style={[styles.deleteModalWarning, { color: palette.text }]}>{t('deleteAccountWarning')}</Text>
             <Text style={[styles.deleteModalLabel, { color: palette.text }]}>{t('typeDeleteToConfirm')}</Text>
             <TextInput
@@ -390,7 +390,7 @@ export function SettingsScreen() {
                 <Text style={[styles.deleteCancelText, { color: palette.text }]}>{t('cancel')}</Text>
               </Pressable>
               <Pressable
-                style={[styles.deleteConfirmBtn, { backgroundColor: deleteConfirmText === 'DELETE' && !deleting ? (palette.danger ?? '#dc2626') : palette.border }]}
+                style={[styles.deleteConfirmBtn, { backgroundColor: deleteConfirmText === 'DELETE' && !deleting ? palette.danger : palette.border }]}
                 onPress={async () => {
                   if (deleteConfirmText !== 'DELETE' || deleting) return;
                   setDeleting(true);
@@ -600,7 +600,7 @@ function createStyles(palette: ThemePalette) {
       marginTop: 4,
     },
     deleteErrorText: {
-      color: '#dc2626',
+      color: palette.danger,
       fontSize: 13,
       marginTop: 4,
     },

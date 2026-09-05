@@ -22,6 +22,13 @@ export interface ThemePalette {
   dangerSoft: string;
   accent: string;
   accentSoft: string;
+  /** Semantic status colours. `*Soft` variants are tinted backgrounds. */
+  success: string;
+  successSoft: string;
+  warning: string;
+  warningSoft: string;
+  info: string;
+  infoSoft: string;
   onPrimary: string;
   tabBg: string;
   cardBg: string;
@@ -55,6 +62,12 @@ const lightPalette: ThemePalette = {
   dangerSoft: '#FDECF0',
   accent: '#00B8A9',
   accentSoft: '#E3F8F6',
+  success: '#0E9F6E',
+  successSoft: '#E6F6F0',
+  warning: '#B45309',
+  warningSoft: '#FEF6E7',
+  info: '#2563EB',
+  infoSoft: '#EAF1FE',
   onPrimary: '#FFFFFF',
   tabBg: '#FFFFFF',
   cardBg: '#FFFFFF',
@@ -78,6 +91,12 @@ const darkPalette: ThemePalette = {
   dangerSoft: '#3A1622',
   accent: '#2DD4BF',
   accentSoft: '#0E2E2C',
+  success: '#34D399',
+  successSoft: '#0E2A22',
+  warning: '#FBBF24',
+  warningSoft: '#332412',
+  info: '#60A5FA',
+  infoSoft: '#12203A',
   onPrimary: '#0A0B14',
   tabBg: '#141625',
   cardBg: '#141625',

@@ -10,6 +10,7 @@ import helmet from 'helmet'
 import jwt from 'jsonwebtoken'
 import rateLimit from 'express-rate-limit'
 import { isSmsConfigured, sendOtpSms } from './sms.js'
+import { PostgresRateLimitStore } from './rate-limit-store.js'
 import { LRUCache } from 'lru-cache'
 import {
   applyProfileUpdate,
@@ -114,6 +115,9 @@ app.use(cors({ origin: true, credentials: true }))
 app.use(express.json({ limit: '2mb' }))
 
 // Rate limiters
+// Deliberately left on the in-memory store: this is a coarse traffic brake, and
+// a database round-trip on every request would cost more than the precision is
+// worth. Per-worker counters mean the real ceiling is this times the worker count.
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 300,
@@ -121,11 +125,19 @@ const globalLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, error: 'Too many requests, please slow down.' },
 })
+/*
+ * Auth is the one limiter where the number is a security control rather than a
+ * traffic brake, so it gets a shared store: in-memory counters are per-worker,
+ * which multiplied the real cap by the worker count. The previous limit of 1000
+ * per 15 minutes (left over from testing) was no brake on credential stuffing
+ * or on guessing a six-digit code.
+ */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000, // Increased for testing
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  store: new PostgresRateLimitStore({ prefix: 'auth' }),
   message: { success: false, error: 'Too many auth attempts, try again later.' },
 })
 const uploadLimiter = rateLimit({

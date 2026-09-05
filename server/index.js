@@ -2202,14 +2202,50 @@ app.delete('/api/upload/photo', async (request, response) => {
   }
 })
 
-// Razorpay Payment Integration
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_SoumuudukTdW0a',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc'
-})
+/* ------------------------------------------------------------------ */
+/* Razorpay                                                            */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Credentials come from the environment only.
+ *
+ * These were previously inlined as `process.env.X || '<literal key>'` in five
+ * places, which meant a deploy that forgot the variables transacted against a
+ * committed key instead of failing. One of those fallbacks was a different
+ * string again ('placeholder_secret'), so with the environment unset the two
+ * signature-verification paths would have used different secrets from the one
+ * that signed the request.
+ *
+ * Without credentials the payment routes report 503 rather than the process
+ * refusing to start: payments are one feature, and local development of
+ * everything else should not require a Razorpay account.
+ */
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || ''
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || ''
+const isRazorpayConfigured = Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET)
+
+if (!isRazorpayConfigured) {
+  console.warn('[payments] RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET not set — payment routes will return 503')
+}
+
+const razorpay = isRazorpayConfigured
+  ? new Razorpay({ key_id: RAZORPAY_KEY_ID, key_secret: RAZORPAY_KEY_SECRET })
+  : null
+
+const RAZORPAY_BASIC_AUTH =
+  'Basic ' + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString('base64')
+
+/** Guards every payment route so an unconfigured deploy fails loudly, not silently. */
+function requirePayments(request, response, next) {
+  if (!isRazorpayConfigured) {
+    response.status(503).json({ success: false, error: 'Payments are temporarily unavailable.' })
+    return
+  }
+  next()
+}
 
 // Create order
-app.post('/api/payments/create-order', async (request, response) => {
+app.post('/api/payments/create-order', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
     if (!activeUserId) {
@@ -2238,7 +2274,7 @@ app.post('/api/payments/create-order', async (request, response) => {
 })
 
 // Verify payment
-app.post('/api/payments/verify', async (request, response) => {
+app.post('/api/payments/verify', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
     if (!activeUserId) {
@@ -2251,7 +2287,7 @@ app.post('/api/payments/verify', async (request, response) => {
     // Verify signature
     const body = razorpay_order_id + '|' + razorpay_payment_id
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret')
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
       .update(body)
       .digest('hex')
 
@@ -2398,7 +2434,7 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
 const RAZORPAY_AUTH_HEADER =
   'Basic ' +
   Buffer.from(
-    `${process.env.RAZORPAY_KEY_ID || 'rzp_test_SoumuudukTdW0a'}:${process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc'}`
+    `${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`
   ).toString('base64')
 
 function planDurationDays(plan) {
@@ -2440,7 +2476,7 @@ async function activateSubscription({ userId, plan, amount, paymentId, orderId }
  * firing. The link's `notes.userId` must match the caller, so one user cannot
  * activate a subscription from someone else's payment link.
  */
-app.get('/api/payments/link-status/:linkId', async (request, response) => {
+app.get('/api/payments/link-status/:linkId', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
     if (!activeUserId) {
@@ -2498,7 +2534,7 @@ app.get('/api/payments/return', (request, response) => {
   response.redirect(302, `chaudharysamaj://payment/razorpay${query ? `?${query}` : ''}`)
 })
 
-app.post('/api/payments/verify-link', async (request, response) => {
+app.post('/api/payments/verify-link', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
     if (!activeUserId) {
@@ -2524,7 +2560,7 @@ app.post('/api/payments/verify-link', async (request, response) => {
     // Verify signature: payload = payment_link_id|payment_link_reference_id|payment_link_status|payment_id
     const payload = `${razorpay_payment_link_id}|${razorpay_payment_link_reference_id}|${razorpay_payment_link_status}|${razorpay_payment_id}`
     const expectedSig = crypto
-      .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc')
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
       .update(payload)
       .digest('hex')
 
@@ -2560,7 +2596,7 @@ app.post('/api/payments/verify-link', async (request, response) => {
 })
 
 // Create Razorpay Payment Link
-app.post('/api/payments/create-link', async (request, response) => {
+app.post('/api/payments/create-link', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
     if (!activeUserId) {
@@ -2611,7 +2647,7 @@ app.post('/api/payments/create-link', async (request, response) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Basic ' + Buffer.from(`${process.env.RAZORPAY_KEY_ID || 'rzp_test_SoumuudukTdW0a'}:${process.env.RAZORPAY_KEY_SECRET || 'KTd22rV5s4iBAteNYw60KPYc'}`).toString('base64'),
+        'Authorization': RAZORPAY_BASIC_AUTH,
       },
       body: JSON.stringify(linkData),
     })

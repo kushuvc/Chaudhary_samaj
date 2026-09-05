@@ -111,7 +111,44 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false, // managed by frontend
 }))
-app.use(cors({ origin: true, credentials: true }))
+/*
+ * CORS was `origin: true` with credentials, which reflects back whatever Origin
+ * the caller sends — every site was an allowed origin. Auth travels in a header
+ * rather than a cookie, so a browser will not attach it automatically today,
+ * but the setting removes the browser's own protection the moment a cookie is
+ * introduced.
+ *
+ * Requests with no Origin are still allowed: the React Native app, curl and
+ * server-to-server callers (Razorpay webhooks) send none, and CORS is not the
+ * control protecting those — authentication is.
+ */
+const allowedOrigins = new Set(
+  [
+    ...String(process.env.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+    // Vite dev servers for the web app and the admin dashboard.
+    ...(process.env.NODE_ENV === 'production'
+      ? []
+      : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:4173']),
+  ]
+)
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true)
+        return
+      }
+      // Refuse by omitting the header rather than throwing, which would turn a
+      // disallowed origin into a 500 instead of a clean browser-side block.
+      callback(null, false)
+    },
+    credentials: true,
+  })
+)
 app.use(express.json({ limit: '2mb' }))
 
 // Rate limiters
@@ -1400,7 +1437,7 @@ app.get('/api/matrimony/interests', async (request, response) => {
     // Run both queries in parallel
     const [sentRows, receivedRows] = await Promise.all([
       pgQuery(`
-        SELECT i.id, i.receiver_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at
+        SELECT i.id, p.id as profile_id, u.full_name as name, i.status, i.created_at
         FROM matrimony_interests i
         JOIN matrimony_profiles p ON i.receiver_id = p.user_id
         JOIN users u ON p.user_id = u.id
@@ -1408,7 +1445,7 @@ app.get('/api/matrimony/interests', async (request, response) => {
         ORDER BY i.created_at DESC
       `, [activeUserId]),
       pgQuery(`
-        SELECT i.id, i.sender_id as user_id, p.id as profile_id, u.full_name as name, i.status, i.created_at
+        SELECT i.id, p.id as profile_id, u.full_name as name, i.status, i.created_at
         FROM matrimony_interests i
         JOIN matrimony_profiles p ON i.sender_id = p.user_id
         JOIN users u ON p.user_id = u.id
@@ -1417,9 +1454,11 @@ app.get('/api/matrimony/interests', async (request, response) => {
       `, [activeUserId]),
     ])
 
+    // Deliberately no user id: the client identifies the other party by
+    // profileId, and exposing account ids here leaked them to anyone who
+    // exchanged an interest.
     const mapRow = r => ({
       id: r.id,
-      userId: r.user_id,
       profileId: r.profile_id,
       name: r.name,
       status: r.status,

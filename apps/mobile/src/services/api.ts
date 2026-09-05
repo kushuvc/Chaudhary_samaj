@@ -275,7 +275,6 @@ export const api = {
       sent: response.data.sent.map((item) => ({
         id: String(item.id),
         profileId: String(item.profileId || item.receiverId || ''),
-        userId: String(item.userId || ''),
         name: String(item.name || ''),
         status: String(item.status || 'pending'),
         createdAt: String(item.createdAt || ''),
@@ -283,7 +282,6 @@ export const api = {
       received: response.data.received.map((item) => ({
         id: String(item.id),
         profileId: String(item.profileId || item.senderId || ''),
-        userId: String(item.userId || ''),
         name: String(item.name || ''),
         status: String(item.status || 'pending'),
         createdAt: String(item.createdAt || ''),

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { api, setApiSession } from '../services/api';
+import { api, setApiSession, setUnauthorizedHandler } from '../services/api';
 import { clearSession, loadSession, saveSession } from '../services/authStorage';
 import type { AuthSession, OtpPurpose, SignupPayload } from '../types';
 
@@ -30,6 +30,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsNewSignup(false);
       })
       .finally(() => setLoading(false));
+  }, []);
+
+  // The API layer calls this when the server rejects our stored token, so an
+  // expired or invalidated session lands the user on the login screen instead
+  // of an authenticated shell that silently fails every request.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setSession(null);
+      setApiSession(null);
+      setIsNewSignup(false);
+      void clearSession();
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const value = useMemo<AuthContextValue>(

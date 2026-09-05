@@ -7,6 +7,7 @@ import path from 'node:path'
 import multer from 'multer'
 import Razorpay from 'razorpay'
 import helmet from 'helmet'
+import jwt from 'jsonwebtoken'
 import rateLimit from 'express-rate-limit'
 import { LRUCache } from 'lru-cache'
 import {
@@ -157,16 +158,67 @@ async function phoneAlreadyRegistered(rawPhone) {
   return rows.length > 0
 }
 
+/* ------------------------------------------------------------------ */
+/* Authentication                                                      */
+/* ------------------------------------------------------------------ */
+
+const JWT_TTL = '30d'
+
+/**
+ * Signing key for session tokens. There is deliberately no hardcoded
+ * fallback: a predictable secret would let anyone mint a valid token for any
+ * account, which is the exact flaw this replaces. Production refuses to boot
+ * without it; development gets an ephemeral key, so restarting the server
+ * invalidates existing sessions.
+ */
+const JWT_SECRET = (() => {
+  const configured = process.env.JWT_SECRET
+  if (configured && configured.length >= 32) return configured
+
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[auth] FATAL: JWT_SECRET must be set (min 32 chars) in production')
+    process.exit(1)
+  }
+
+  console.warn('[auth] JWT_SECRET not set — using an ephemeral development key. Sessions end on restart.')
+  return crypto.randomBytes(48).toString('hex')
+})()
+
+/** Mint a session token. `sub` is the user id; nothing secret goes in the payload. */
+function issueAuthToken(userId) {
+  return jwt.sign({ sub: String(userId) }, JWT_SECRET, { expiresIn: JWT_TTL })
+}
+
+/**
+ * Identify the caller from their signed bearer token.
+ *
+ * Only the signature establishes identity. The `x-user-id` header is still
+ * sent by older clients but is never trusted — before this, it *was* the
+ * whole authentication check, so knowing any user's id was equivalent to
+ * holding their password.
+ */
 function resolveUserId(request) {
-  const headerUserId = request.header('x-user-id')
-  if (!headerUserId) return null
-  const ck = `user:${headerUserId}`
+  const header = request.header('authorization') || ''
+  const [scheme, token] = header.split(' ')
+  if (!/^Bearer$/i.test(scheme || '') || !token) return null
+
+  let payload
+  try {
+    payload = jwt.verify(token, JWT_SECRET)
+  } catch {
+    return null
+  }
+
+  const userId = payload?.sub
+  if (!userId) return null
+
+  const ck = `user:${userId}`
   let exists = cacheGet(ck)
   if (exists === null) {
-    exists = userExists(headerUserId) ? true : false
+    exists = userExists(userId) ? true : false
     cacheSet(ck, exists, 300000) // 5 min TTL
   }
-  return exists ? headerUserId : null
+  return exists ? userId : null
 }
 
 app.post('/api/auth/login', async (request, response) => {
@@ -198,7 +250,7 @@ app.post('/api/auth/login', async (request, response) => {
     }
     const user = { id: row.id, fullName: row.full_name, email: row.email, phone: row.phone, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(row.full_name || row.email)}` }
     cacheSet(`user:${row.id}`, true, 300000)
-    response.json({ success: true, data: { user, authToken: user.id } }) // TODO: replace authToken with signed JWT
+    response.json({ success: true, data: { user, authToken: issueAuthToken(user.id) } })
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
   }
@@ -422,7 +474,7 @@ app.post('/api/auth/signup', async (request, response) => {
     if (createAccount) {
       const user = { id: userId, fullName: String(fullName).trim(), email: String(email).trim().toLowerCase(), phone: phone || null, avatar: avatarUrl }
       cacheSet(`user:${userId}`, true, 300000)
-      response.status(201).json({ success: true, data: { user, authToken: userId } })
+      response.status(201).json({ success: true, data: { user, authToken: issueAuthToken(userId) } })
     } else {
       // Validation mode - just return success without creating account
       response.json({ success: true, data: { validated: true, message: 'Data validated successfully' } })
@@ -828,9 +880,7 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
       )
     }
 
-    // Same convention as the email login/signup routes: the user id is the token.
-    // TODO: replace authToken with a signed JWT across all auth routes together.
-    const token = userId
+    const token = issueAuthToken(userId)
 
     // Clear OTP
     phoneOtpStore.delete(normalizedPhone)

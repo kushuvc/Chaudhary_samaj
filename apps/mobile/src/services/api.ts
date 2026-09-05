@@ -57,6 +57,17 @@ export const setApiSession = (session: AuthSession | null) => {
   userId = session?.user?.id || null;
 };
 
+/**
+ * Called when the server rejects our token. A stored session can stop being
+ * valid without the app doing anything — the token expires, or the signing key
+ * rotates — and without this the app keeps its stale session and renders empty
+ * screens instead of asking the user to sign in again.
+ */
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  onUnauthorized = handler;
+};
+
 export interface ApiError extends Error {
   status?: number;
   /** Machine-readable error code from the server, e.g. PHONE_ALREADY_REGISTERED. */
@@ -102,6 +113,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
+    // A 401 while we believed we were signed in means the stored token is no
+    // longer accepted. Drop the session so the app returns to the login screen
+    // rather than sitting on an authenticated shell full of empty data.
+    if (response.status === 401 && authToken) {
+      onUnauthorized?.();
+    }
+
     const error = new Error(data.error || `Request failed (${response.status})`) as ApiError;
     error.status = response.status;
     error.code = data.code;

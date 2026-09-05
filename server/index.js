@@ -664,7 +664,50 @@ app.get('/api/health', (_request, response) => {
 
 // Phone OTP Authentication
 
-const phoneOtpStore = new Map() // Store OTPs temporarily (in production, use Redis)
+/*
+ * Phone OTP storage.
+ *
+ * These used to live in a per-process Map. `npm run server:prod` runs
+ * cluster.js, which forks a worker per core, so a code issued by one worker
+ * was invisible to the one that handled the verify request — phone login failed
+ * roughly three times in four at four workers. Keeping them in Postgres makes
+ * the state shared, and gives expiry that survives a restart.
+ */
+const PHONE_OTP_MAX_ATTEMPTS = 3
+
+async function savePhoneOtp(phone, otpCode, expiresAt) {
+  await pgQuery(
+    `INSERT INTO auth_phone_otps (phone, otp_code, expires_at, attempts, created_at)
+     VALUES ($1, $2, $3, 0, NOW())
+     ON CONFLICT (phone) DO UPDATE SET
+       otp_code = EXCLUDED.otp_code,
+       expires_at = EXCLUDED.expires_at,
+       attempts = 0,
+       created_at = NOW()`,
+    [phone, otpCode, new Date(expiresAt).toISOString()]
+  )
+}
+
+async function getPhoneOtp(phone) {
+  const rows = await pgQuery(
+    'SELECT otp_code, expires_at, attempts FROM auth_phone_otps WHERE phone = $1 LIMIT 1',
+    [phone]
+  )
+  return rows[0] || null
+}
+
+async function clearPhoneOtp(phone) {
+  await pgQuery('DELETE FROM auth_phone_otps WHERE phone = $1', [phone])
+}
+
+/** Returns the attempt count after incrementing, so the caller can lock out. */
+async function recordPhoneOtpFailure(phone) {
+  const rows = await pgQuery(
+    'UPDATE auth_phone_otps SET attempts = attempts + 1 WHERE phone = $1 RETURNING attempts',
+    [phone]
+  )
+  return rows[0]?.attempts ?? PHONE_OTP_MAX_ATTEMPTS
+}
 
 app.post('/api/auth/phone/send-otp', async (request, response) => {
   const { phone, purpose } = request.body || {}
@@ -699,14 +742,14 @@ app.post('/api/auth/phone/send-otp', async (request, response) => {
   const expiresAt = Date.now() + 5 * 60 * 1000 // 5 minutes
   const isProduction = process.env.NODE_ENV === 'production'
 
-  phoneOtpStore.set(normalizedPhone, { otp: otpCode, expiresAt, attempts: 0 })
+  await savePhoneOtp(normalizedPhone, otpCode, expiresAt)
 
   if (isSmsConfigured()) {
     try {
       await sendOtpSms(normalizedPhone, otpCode)
     } catch (err) {
       console.error('[phone-otp] SMS send failed:', err.message)
-      phoneOtpStore.delete(normalizedPhone)
+      await clearPhoneOtp(normalizedPhone)
       response.status(502).json({ success: false, error: 'Could not send the code. Please try again.' })
       return
     }
@@ -720,7 +763,7 @@ app.post('/api/auth/phone/send-otp', async (request, response) => {
   // alone, which is exactly what this route used to do unconditionally.
   if (isProduction) {
     console.error('[phone-otp] MSG91 is not configured; refusing to issue a code')
-    phoneOtpStore.delete(normalizedPhone)
+    await clearPhoneOtp(normalizedPhone)
     response.status(503).json({ success: false, error: 'Phone sign-in is temporarily unavailable.' })
     return
   }
@@ -743,23 +786,29 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
     return
   }
 
-  const stored = phoneOtpStore.get(normalizedPhone)
+  const stored = await getPhoneOtp(normalizedPhone)
 
   if (!stored) {
     response.status(400).json({ success: false, error: 'OTP not found or expired. Please request new OTP.' })
     return
   }
 
-  if (Date.now() > stored.expiresAt) {
-    phoneOtpStore.delete(normalizedPhone)
+  if (Date.now() > new Date(stored.expires_at).getTime()) {
+    await clearPhoneOtp(normalizedPhone)
     response.status(400).json({ success: false, error: 'OTP expired. Please request new OTP.' })
     return
   }
 
-  if (stored.otp !== normalizedOtp) {
-    stored.attempts += 1
-    if (stored.attempts >= 3) {
-      phoneOtpStore.delete(normalizedPhone)
+  // Constant-time compare so a timing signal cannot narrow the code.
+  const submitted = Buffer.from(normalizedOtp)
+  const expected = Buffer.from(String(stored.otp_code))
+  const otpMatches =
+    submitted.length === expected.length && crypto.timingSafeEqual(submitted, expected)
+
+  if (!otpMatches) {
+    const attempts = await recordPhoneOtpFailure(normalizedPhone)
+    if (attempts >= PHONE_OTP_MAX_ATTEMPTS) {
+      await clearPhoneOtp(normalizedPhone)
       response.status(400).json({ success: false, error: 'Too many failed attempts. Please request new OTP.' })
       return
     }
@@ -769,7 +818,7 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
 
   // verifyOnly mode: just confirm OTP is valid (used in signup flow before account creation)
   if (verifyOnly) {
-    phoneOtpStore.delete(normalizedPhone)
+    await clearPhoneOtp(normalizedPhone)
     response.json({ success: true, verified: true, message: 'OTP verified successfully' })
     return
   }
@@ -836,7 +885,7 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
     const token = issueAuthToken(userId)
 
     // Clear OTP
-    phoneOtpStore.delete(normalizedPhone)
+    await clearPhoneOtp(normalizedPhone)
 
     response.json({
       success: true,

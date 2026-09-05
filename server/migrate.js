@@ -120,6 +120,17 @@ const migrations = [
   // Run server/dedupe-phones.js --apply BEFORE this on a database that
   // predates the constraint, or existing duplicate phone numbers will make
   // this index creation fail.
+  // Phone OTPs previously lived in a per-process Map, which breaks under the
+  // clustered production entrypoint: a code issued by one worker is invisible
+  // to the others. Mirrors auth_email_otps.
+  `CREATE TABLE IF NOT EXISTS auth_phone_otps (
+    phone TEXT PRIMARY KEY,
+    otp_code TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_auth_phone_otps_expires_at ON auth_phone_otps(expires_at)`,
   // Gates /api/admin/*. Defaults to false, so granting access is an explicit
   // deliberate act: UPDATE users SET is_admin = true WHERE email = '...';
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`,

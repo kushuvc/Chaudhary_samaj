@@ -68,6 +68,22 @@ const migrations = [
   `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS annual_income TEXT`,
   `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS nakshatra TEXT`,
   `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS raasi TEXT`,
+  // Ported from the former POST /api/migrate-columns route, which was the only
+  // place these were declared. Signup writes all of them, so a database built
+  // purely from this file was missing them until now.
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS caste TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS country TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS state TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS native_city TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS native_village TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS family_status TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS family_type TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS family_wealth TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS father_name TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS mother_name TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS father_occupation TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS mother_occupation TEXT`,
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS siblings TEXT`,
   `CREATE TABLE IF NOT EXISTS user_subscriptions (
     id SERIAL PRIMARY KEY,
     user_id TEXT NOT NULL UNIQUE,

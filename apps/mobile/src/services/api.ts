@@ -150,6 +150,36 @@ export const api = {
       debugOtp: response.data?.debugOtp,
     };
   },
+  /**
+   * Confirm an emailed code. For `login` the server returns a session; for
+   * `signup` it only confirms the address — /auth/signup issues the token once
+   * the account is actually created.
+   */
+  verifyOtp: async (email: string, purpose: OtpPurpose, otp: string) => {
+    const response = await request<{
+      data?: { user?: any; authToken?: string; verified?: boolean };
+    }>('/auth/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, purpose, otp }),
+    });
+
+    const next = response.data;
+    if (!next?.authToken) {
+      return null;
+    }
+
+    const user = next.user || {};
+    return {
+      authToken: String(next.authToken),
+      user: {
+        id: String(user.id || ''),
+        name: String(user.name || user.fullName || ''),
+        email: String(user.email || ''),
+        phone: user.phone ?? null,
+        isVerified: true,
+      },
+    } as AuthSession;
+  },
   signup: async (payload: SignupPayload) => {
     const response = await request<{ data?: { user?: any; authToken?: string } }>('/auth/signup', {
       method: 'POST',

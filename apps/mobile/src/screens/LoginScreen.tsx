@@ -1,11 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { showAlert } from '../utils/alert';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { Field, GradientFill, Input, PrimaryButton } from '../components/ui';
+import { Callout, Field, GradientFill, Input, PrimaryButton, TextButton } from '../components/ui';
 import { radius, shadow, spacing } from '../theme';
 
 interface LoginScreenProps {
@@ -14,39 +13,60 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
-  const { login } = useAuth();
+  const { requestOtp, verifyOtp } = useAuth();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
+  const [stage, setStage] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [devCode, setDevCode] = useState('');
 
-  const emailValid = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i.test(email.trim());
-  const emailError = touched && email.length > 0 && !emailValid ? 'Enter a valid Gmail address.' : undefined;
+  // Any deliverable-looking address. The account used to be restricted to
+  // Gmail, which locked out anyone on Outlook, Yahoo or a work domain.
+  const emailValid = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email.trim());
+  const emailError = touched && email.length > 0 && !emailValid ? 'Enter a valid email address.' : undefined;
 
-  const handleSubmit = async () => {
+  const handleSendCode = async () => {
     setTouched(true);
-    if (!emailValid) {
-      showAlert('Invalid email', 'Please enter a valid Gmail address.');
-      return;
-    }
-    if (!password) {
-      showAlert('Password required', 'Please enter your password.');
+    if (!emailValid || submitting) {
       return;
     }
 
+    setSubmitting(true);
+    setError(null);
     try {
-      setSubmitting(true);
-      await login({ email: email.trim(), password });
-    } catch (error) {
-      const msg = ((error as Error).message || '').toLowerCase();
-      if (msg.includes('not found') || msg.includes('does not exist')) {
-        showAlert('Account not found', 'No account exists with this email. Create a profile first.');
-      } else {
-        showAlert('Login failed', 'That email and password combination did not work. Please try again.');
+      const result = await requestOtp(email.trim(), 'login');
+      if (result.debugOtp) {
+        setDevCode(result.debugOtp);
       }
+      setStage('code');
+    } catch (err) {
+      const message = (err as Error).message || '';
+      setError(
+        message.toLowerCase().includes('not found')
+          ? 'No account exists with this email. Create a profile first.'
+          : message || 'Could not send the code. Please try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (code.length !== 6 || submitting) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await verifyOtp(email.trim(), 'login', code);
+    } catch (err) {
+      setError((err as Error).message || 'That code did not work. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -70,30 +90,66 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
         contentContainerStyle={styles.sheetInner}
         keyboardShouldPersistTaps="handled"
       >
-        <Field label="Email address" error={emailError}>
-          <Input
-            placeholder="you@gmail.com"
-            value={email}
-            onChangeText={setEmail}
-            onBlur={() => setTouched(true)}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            invalid={Boolean(emailError)}
-          />
-        </Field>
+        {stage === 'email' ? (
+          <>
+            <Field label="Email address" hint="We'll email you a 6-digit code." error={emailError}>
+              <Input
+                placeholder="you@example.com"
+                value={email}
+                onChangeText={setEmail}
+                onBlur={() => setTouched(true)}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                invalid={Boolean(emailError)}
+              />
+            </Field>
 
-        <Field label="Password">
-          <Input
-            placeholder="Your password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-        </Field>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <View style={styles.cta}>
-          <PrimaryButton label="Log in" onPress={handleSubmit} loading={submitting} />
-        </View>
+            <View style={styles.cta}>
+              <PrimaryButton
+                label="Email me a code"
+                icon="arrow-forward"
+                disabled={!emailValid}
+                loading={submitting}
+                onPress={handleSendCode}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            {devCode ? <Callout icon="flask-outline" text={`Test mode code: ${devCode}`} /> : null}
+
+            <Field label="6-digit code" hint={`Sent to ${email.trim()}`} error={error}>
+              <Input
+                placeholder="000000"
+                value={code}
+                onChangeText={(text) => setCode(text.replace(/\D/g, '').slice(0, 6))}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+            </Field>
+
+            <View style={styles.cta}>
+              <PrimaryButton
+                label="Log in"
+                disabled={code.length !== 6}
+                loading={submitting}
+                onPress={handleVerify}
+              />
+            </View>
+
+            <TextButton
+              label="Use a different email"
+              onPress={() => {
+                setStage('email');
+                setCode('');
+                setError(null);
+                setDevCode('');
+              }}
+            />
+          </>
+        )}
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
@@ -153,6 +209,7 @@ function createStyles(palette: ThemePalette) {
     sheetInner: { padding: spacing.lg, paddingTop: spacing.xl, gap: spacing.md },
 
     cta: { marginTop: spacing.xs },
+    error: { fontSize: 13.5, color: palette.danger, fontWeight: '600' },
 
     divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginVertical: spacing.xs },
     dividerLine: { flex: 1, height: 1, backgroundColor: palette.border },

@@ -8,6 +8,7 @@ interface AuthContextValue {
   loading: boolean;
   isNewSignup: boolean;
   requestOtp: (email: string, purpose: OtpPurpose) => Promise<{ message?: string; debugOtp?: string }>;
+  verifyOtp: (email: string, purpose: OtpPurpose, otp: string) => Promise<void>;
   login: (payload: { email: string; password: string }) => Promise<void>;
   loginWithToken: (token: string, userId: string) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
@@ -52,6 +53,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isNewSignup,
       requestOtp: async (email, purpose) => {
         return api.requestOtp(email, purpose);
+      },
+      verifyOtp: async (email, purpose, otp) => {
+        const next = await api.verifyOtp(email, purpose, otp);
+        // Signup verifies the address before the account exists, so there is no
+        // session yet — the signup call that follows establishes it.
+        if (next) {
+          setSession(next);
+          setApiSession(next);
+          setIsNewSignup(false);
+          await saveSession(next);
+        }
       },
       login: async (payload) => {
         const next = await api.login(payload);

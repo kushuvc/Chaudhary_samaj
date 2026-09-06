@@ -187,8 +187,19 @@ const uploadLimiter = rateLimit({
 app.use(globalLimiter)
 app.use('/api/auth', authLimiter)
 
-function isGmailAddress(email) {
-  return /^[^\s@]+@gmail\.com$/i.test(String(email || '').trim())
+/**
+ * Accept any deliverable-looking address.
+ *
+ * Signup, login and the OTP request all used to require @gmail.com, which
+ * locked out anyone on Outlook, Yahoo, or a work domain. Since email is now
+ * the primary way members sign in, that restriction excludes real users for
+ * no security benefit — the OTP is what proves the address, not its domain.
+ */
+function isValidEmail(email) {
+  const value = String(email || '').trim()
+  // Deliberately permissive: reject the obviously malformed, and let the OTP
+  // decide the rest. A stricter pattern rejects valid addresses.
+  return value.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value)
 }
 
 /**
@@ -307,8 +318,8 @@ app.post('/api/auth/login', async (request, response) => {
     return
   }
 
-  if (!isGmailAddress(email)) {
-    response.status(400).json({ success: false, error: 'Only Gmail addresses are allowed' })
+  if (!isValidEmail(email)) {
+    response.status(400).json({ success: false, error: 'Please enter a valid email address' })
     return
   }
 
@@ -395,8 +406,8 @@ app.post('/api/auth/signup', async (request, response) => {
     return
   }
 
-  if (!isGmailAddress(email)) {
-    response.status(400).json({ success: false, error: 'Only Gmail addresses are allowed' })
+  if (!isValidEmail(email)) {
+    response.status(400).json({ success: false, error: 'Please enter a valid email address' })
     return
   }
 
@@ -562,6 +573,111 @@ app.post('/api/auth/signup', async (request, response) => {
   }
 })
 
+/**
+ * Verify an email OTP against Postgres.
+ *
+ * An async twin of verifyEmailOtp() in db.js, which runs through spawnSync and
+ * blocks the worker. Same rules: newest unconsumed code for the address and
+ * purpose, capped attempts, expiry, and single use.
+ */
+async function verifyEmailOtpAsync(email, purpose, otpCode) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedPurpose = String(purpose || '').trim().toLowerCase()
+  const normalizedCode = String(otpCode || '').trim()
+
+  if (!normalizedEmail || !normalizedCode || !['signup', 'login'].includes(normalizedPurpose)) {
+    return { ok: false, statusCode: 400, error: 'Invalid OTP verification request' }
+  }
+
+  const rows = await pgQuery(
+    `SELECT id, otp_code, expires_at, attempts, max_attempts
+     FROM auth_email_otps
+     WHERE lower(email) = lower($1) AND purpose = $2 AND consumed_at IS NULL
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [normalizedEmail, normalizedPurpose]
+  )
+
+  const row = rows[0]
+  if (!row) {
+    return { ok: false, statusCode: 400, error: 'No active code found. Please request a new one.' }
+  }
+
+  if (row.attempts >= row.max_attempts) {
+    return { ok: false, statusCode: 429, error: 'Too many incorrect attempts. Please request a new code.' }
+  }
+
+  if (new Date(row.expires_at).getTime() < Date.now()) {
+    return { ok: false, statusCode: 400, error: 'This code has expired. Please request a new one.' }
+  }
+
+  const submitted = Buffer.from(normalizedCode)
+  const expected = Buffer.from(String(row.otp_code))
+  const matches = submitted.length === expected.length && crypto.timingSafeEqual(submitted, expected)
+
+  if (!matches) {
+    await pgQuery('UPDATE auth_email_otps SET attempts = attempts + 1 WHERE id = $1', [row.id])
+    return { ok: false, statusCode: 400, error: 'That code is not correct.' }
+  }
+
+  // Single use: consuming it here means a replay cannot verify twice.
+  await pgQuery('UPDATE auth_email_otps SET consumed_at = $1 WHERE id = $2', [
+    new Date().toISOString(),
+    row.id,
+  ])
+
+  return { ok: true }
+}
+
+app.post('/api/auth/otp/verify', async (request, response) => {
+  const { email, purpose, otp } = request.body || {}
+
+  try {
+    const result = await verifyEmailOtpAsync(email, purpose, otp)
+    if (!result.ok) {
+      response.status(result.statusCode || 400).json({ success: false, error: result.error })
+      return
+    }
+
+    // Signup verifies the address before the account exists, so there is no
+    // session to hand back here — /auth/signup issues the token. For login the
+    // account already exists, so this is the point a session is created.
+    if (String(purpose).toLowerCase() === 'login') {
+      const normalizedEmail = String(email).trim().toLowerCase()
+      const rows = await pgQuery(
+        'SELECT id, full_name, email, phone, avatar_url FROM users WHERE lower(email) = lower($1) LIMIT 1',
+        [normalizedEmail]
+      )
+      const user = rows[0]
+      if (!user) {
+        response.status(404).json({ success: false, error: 'Account not found for this email' })
+        return
+      }
+
+      cacheSet(`user:${user.id}`, true, 300000)
+      response.json({
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            fullName: user.full_name,
+            email: user.email,
+            phone: user.phone,
+            avatar: user.avatar_url,
+          },
+          authToken: issueAuthToken(user.id),
+        },
+      })
+      return
+    }
+
+    response.json({ success: true, data: { verified: true } })
+  } catch (err) {
+    console.error('[OTP] verify error:', err.message)
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
 app.post('/api/auth/otp/request', async (request, response) => {
   const { email, purpose } = request.body || {}
   const normalizedEmail = String(email || '').trim().toLowerCase()
@@ -572,8 +688,8 @@ app.post('/api/auth/otp/request', async (request, response) => {
     return
   }
 
-  if (!isGmailAddress(normalizedEmail)) {
-    response.status(400).json({ success: false, error: 'Only Gmail addresses are allowed' })
+  if (!isValidEmail(normalizedEmail)) {
+    response.status(400).json({ success: false, error: 'Please enter a valid email address' })
     return
   }
 
@@ -598,6 +714,18 @@ app.post('/api/auth/otp/request', async (request, response) => {
   if (normalizedPurpose === 'signup' && doesAccountExist) {
     response.status(409).json({ success: false, error: 'Email already registered' })
     return
+  }
+
+  // Retire any code still outstanding for this address and purpose before
+  // issuing another. Each row carries its own attempt counter, so leaving old
+  // codes live multiplies the number of guesses an attacker gets, and lets a
+  // stale row shadow the newest one when verifying.
+  try {
+    await (databaseEngine === 'postgres'
+      ? invalidateActiveEmailOtpsFast(normalizedEmail, normalizedPurpose)
+      : invalidateActiveEmailOtps(normalizedEmail, normalizedPurpose))
+  } catch (err) {
+    console.warn('[OTP] could not retire previous codes:', err.message)
   }
 
   const otpRequest = databaseEngine === 'postgres'

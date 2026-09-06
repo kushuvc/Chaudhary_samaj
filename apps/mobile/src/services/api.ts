@@ -245,8 +245,17 @@ export const api = {
       });
     }
     const suffix = query.toString() ? `?${query.toString()}` : '';
-    const response = await request<{ data: MatrimonyProfile[] }>(`/matrimony/profiles${suffix}`);
-    return { profiles: response.data };
+    const response = await request<{
+      data: MatrimonyProfile[];
+      pagination?: { total: number; limit: number; offset: number; hasMore: boolean };
+    }>(`/matrimony/profiles${suffix}`);
+    return {
+      profiles: response.data,
+      // Older builds of the API returned no pagination block; treating a
+      // missing one as "there is no more" keeps them working unchanged.
+      total: response.pagination?.total ?? response.data.length,
+      hasMore: response.pagination?.hasMore ?? false,
+    };
   },
   getMatrimonyFilterOptions: async () => {
     const response = await request<{ data: MatrimonyFilterOptions }>('/matrimony/filter-options');

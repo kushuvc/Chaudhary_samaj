@@ -1224,7 +1224,34 @@ app.get('/api/matrimony/profiles', async (request, response) => {
     )
   })
 
-  response.json({ success: true, data: profiles })
+  /*
+   * Pagination.
+   *
+   * This endpoint returned every matching profile. Each row carries the full
+   * detail payload — family, horoscope, interests — none of which the list
+   * card renders, so the response ran about 1 KB per profile. At a few dozen
+   * profiles that is invisible; at ten thousand it is a ~10 MB response on
+   * mobile data every time the Matrimony tab opens.
+   *
+   * Note the filtering above still happens in memory over the full set, so
+   * this bounds the response, not the database read. Pushing the filters into
+   * SQL would also mean giving up the per-user cache of the whole list, so it
+   * is left as a separate change.
+   */
+  const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 50)
+  const offset = Math.max(Number(request.query.offset) || 0, 0)
+  const page = profiles.slice(offset, offset + limit)
+
+  response.json({
+    success: true,
+    data: page,
+    pagination: {
+      total: profiles.length,
+      limit,
+      offset,
+      hasMore: offset + page.length < profiles.length,
+    },
+  })
 })
 
 app.get('/api/matrimony/filter-options', async (request, response) => {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Modal,
   Pressable,
@@ -123,6 +124,9 @@ export function MatrimonyScreen() {
   const [filters, setFilters] = useState<FilterState>(INITIAL_FILTERS);
   const [filterOptions, setFilterOptions] = useState<MatrimonyFilterOptions>(EMPTY_OPTIONS);
   const [profiles, setProfiles] = useState<MatrimonyProfile[]>([]);
+  const [totalMatches, setTotalMatches] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +176,8 @@ export function MatrimonyScreen() {
         sortBy: filters.sortBy,
       });
       setProfiles(response.profiles || []);
+      setTotalMatches(response.total);
+      setHasMore(response.hasMore);
       await loadInterests();
     } catch (err) {
       setError((err as Error).message);
@@ -184,6 +190,33 @@ export function MatrimonyScreen() {
   useEffect(() => {
     loadProfiles();
   }, [loadProfiles]);
+
+  /** Fetch the next page and append it. Guarded so a fast scroll cannot stack requests. */
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore) {
+      return;
+    }
+    setLoadingMore(true);
+    try {
+      const response = await api.getMatrimonyProfiles({
+        tab: tab === 'more' ? 'all' : tab,
+        search,
+        gender: filters.gender,
+        education: filters.education,
+        minAge: filters.minAge,
+        maxAge: filters.maxAge,
+        sortBy: filters.sortBy,
+        offset: profiles.length,
+      });
+      setProfiles((current) => [...current, ...(response.profiles || [])]);
+      setTotalMatches(response.total);
+      setHasMore(response.hasMore);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, profiles.length, tab, search, filters]);
 
   useEffect(() => {
     api.getSubscriptionStatus().then((s) => setIsSubscribed(s.hasSubscription)).catch(() => {});
@@ -251,11 +284,21 @@ export function MatrimonyScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
+        scrollEventThrottle={16}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const distanceFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+          // Start the next page before the user reaches the end, so the list
+          // does not visibly stall at the bottom.
+          if (distanceFromBottom < 600) {
+            void loadMore();
+          }
+        }}
       >
         <View style={styles.headerBlock}>
           <Text style={styles.matchCount}>
-            <Text style={styles.matchCountNumber}>{profiles.length}</Text>
-            {profiles.length === 1 ? ' match' : ' matches'} based on your preferences
+            <Text style={styles.matchCountNumber}>{totalMatches}</Text>
+            {totalMatches === 1 ? ' match' : ' matches'} based on your preferences
           </Text>
         </View>
 
@@ -482,6 +525,18 @@ export function MatrimonyScreen() {
             </View>
           );
         })}
+
+        {loadingMore ? (
+          <View style={styles.loadingMore}>
+            <ActivityIndicator size="small" color={palette.primary} />
+          </View>
+        ) : null}
+
+        {!hasMore && profiles.length > 0 ? (
+          <Text style={styles.listEnd}>
+            {totalMatches === 1 ? "That's the only match" : `That's all ${totalMatches} matches`}
+          </Text>
+        ) : null}
       </ScrollView>
 
       {/* Profile Detail Modal */}
@@ -808,6 +863,16 @@ function createStyles(palette: ThemePalette) {
     color: palette.text,
     fontWeight: '700',
     fontSize: 15,
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  listEnd: {
+    paddingVertical: 20,
+    textAlign: 'center',
+    fontSize: 13,
+    color: palette.muted,
   },
   filterChipRow: {
     flexDirection: 'row',

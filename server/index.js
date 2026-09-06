@@ -1242,14 +1242,38 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   const offset = Math.max(Number(request.query.offset) || 0, 0)
   const page = profiles.slice(offset, offset + limit)
 
+  // Redact anything past the free allowance for members without a subscription.
+  // The ordering is deterministic (compatibility score, then age of profile), so
+  // "the first N" is the same set on every request and matches what the detail
+  // endpoint allows.
+  let subscribed = false
+  try {
+    subscribed = await hasActiveSubscription(activeUserId)
+  } catch (err) {
+    // Fail closed: if we cannot confirm a subscription, do not hand over data.
+    console.error('[paywall] subscription check failed:', err.message)
+    response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+    return
+  }
+
+  const visible = subscribed
+    ? page
+    : page.map((profile, index) =>
+        offset + index < FREE_PROFILE_LIMIT ? profile : lockedProfile(profile)
+      )
+
   response.json({
     success: true,
-    data: page,
+    data: visible,
     pagination: {
       total: profiles.length,
       limit,
       offset,
       hasMore: offset + page.length < profiles.length,
+    },
+    access: {
+      subscribed,
+      freeLimit: FREE_PROFILE_LIMIT,
     },
   })
 })
@@ -1279,6 +1303,13 @@ app.get('/api/matrimony/filter-options', async (request, response) => {
 
 app.get('/api/matrimony/profiles/:id', async (request, response) => {
   const activeUserId = resolveUserId(request)
+  // This route resolved the caller but never checked the result, so it served
+  // any member's full profile to an unauthenticated request.
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   let profile = null
 
   try {
@@ -1316,8 +1347,78 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     return
   }
 
+  // Same paywall as the list: without a subscription, only the first
+  // FREE_PROFILE_LIMIT profiles of this member's ordering are readable.
+  // Otherwise the list could be locked while the detail route handed over
+  // everything to anyone who knew an id.
+  let subscribed = false
+  try {
+    subscribed = await hasActiveSubscription(activeUserId)
+  } catch (err) {
+    console.error('[paywall] subscription check failed:', err.message)
+    response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+    return
+  }
+
+  if (!subscribed) {
+    let allowedIds = []
+    try {
+      const all = (await getPublicProfilesFast(activeUserId)) || []
+      allowedIds = all.slice(0, FREE_PROFILE_LIMIT).map((entry) => entry.id)
+    } catch (err) {
+      console.error('[paywall] could not resolve the free allowance:', err.message)
+      response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+      return
+    }
+
+    if (!allowedIds.includes(profile.id)) {
+      response.status(403).json({
+        success: false,
+        error: 'Subscribe to ₹200/month to view this profile.',
+        code: 'SUBSCRIPTION_REQUIRED',
+      })
+      return
+    }
+  }
+
   response.json({ success: true, data: profile })
 })
+
+/* ------------------------------------------------------------------ */
+/* Paywall                                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How many profiles a member can read in full before subscribing.
+ *
+ * The server is the authority. This limit used to live only in the mobile
+ * client, which decided whether to draw a lock over a card whose data it had
+ * already been sent — so the whole member directory was readable by anyone
+ * with an account, subscribed or not.
+ */
+const FREE_PROFILE_LIMIT = 2
+
+async function hasActiveSubscription(userId) {
+  if (!userId) return false
+  const rows = await pgQuery(
+    `SELECT id FROM user_subscriptions
+     WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW()
+     LIMIT 1`,
+    [userId]
+  )
+  return rows.length > 0
+}
+
+/**
+ * What a locked profile looks like on the wire.
+ *
+ * Only the id and the flag — the client needs to know a card belongs here and
+ * how many there are, and nothing else. No name, age, location, bio, photo or
+ * contact detail leaves the server for a profile the caller has not paid for.
+ */
+function lockedProfile(profile) {
+  return { id: profile.id, isLocked: true }
+}
 
 /* ------------------------------------------------------------------ */
 /* Matrimony interactions — async equivalents of the db.js helpers      */

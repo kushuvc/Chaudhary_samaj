@@ -160,7 +160,14 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         setError('Profile not found');
       }
     } catch (err) {
-      setError((err as Error).message);
+      // A locked profile comes back as 403 rather than a failure — say what it
+      // is and what to do, instead of surfacing a raw error string.
+      const apiError = err as { code?: string; message?: string };
+      setError(
+        apiError.code === 'SUBSCRIPTION_REQUIRED'
+          ? 'Subscribe to ₹200/month to view this profile.'
+          : apiError.message || 'Could not load this profile.'
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);

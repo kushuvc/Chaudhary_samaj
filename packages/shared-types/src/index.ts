@@ -68,6 +68,12 @@ export interface SignupPayload {
 export type OtpPurpose = 'signup' | 'login';
 
 export interface MatrimonyProfile {
+  /**
+   * Set by the server for a profile the member has not paid to see. Such a
+   * profile arrives with only an id — every other field is absent, so never
+   * read one without checking this first.
+   */
+  isLocked?: boolean;
   id: string;
   name: string;
   age: number;

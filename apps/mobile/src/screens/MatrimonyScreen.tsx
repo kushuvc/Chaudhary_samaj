@@ -138,7 +138,6 @@ export function MatrimonyScreen() {
   const [sendingInterest, setSendingInterest] = useState<string | null>(null);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const FREE_PROFILE_LIMIT = 2;
 
   const appliedFilterCount = useMemo(
     () => Object.values(filters).filter((value) => String(value).trim() !== '').length,
@@ -384,7 +383,9 @@ export function MatrimonyScreen() {
 
         {profiles.map((profile, index) => {
           const interestStatus = interestsMap[profile.id];
-          const isLocked = !isSubscribed && index >= FREE_PROFILE_LIMIT;
+          // The server decides this and omits the data for locked profiles;
+          // recomputing it from list position here would only ever disagree.
+          const isLocked = Boolean(profile.isLocked);
           // Get primary photo or first available photo
           const primaryPhoto = profile.photos?.find(p => p.status === 'done' && p.isPrimary)
             || profile.photos?.find(p => p.status === 'done')

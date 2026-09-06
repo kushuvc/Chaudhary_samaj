@@ -130,7 +130,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  requestOtp: async (email: string, purpose: OtpPurpose) => {
+  /**
+   * `phone` is only meaningful for signup — the server checks it alongside the
+   * email so a number already in use is caught before the profile questions.
+   */
+  requestOtp: async (email: string, purpose: OtpPurpose, phone?: string) => {
     const response = await request<{
       message?: string;
       data?: {
@@ -142,7 +146,7 @@ export const api = {
       };
     }>('/auth/otp/request', {
       method: 'POST',
-      body: JSON.stringify({ email, purpose })
+      body: JSON.stringify({ email, purpose, ...(phone ? { phone } : {}) })
     });
 
     return {

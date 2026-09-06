@@ -55,10 +55,12 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
     setSending(true);
     setError(null);
     try {
-      const response = await api.requestPhoneOtp(phone, 'signup');
-      if (response.mockOtp) {
-        setMockOtpHint(response.mockOtp);
-        Alert.alert('Test mode OTP', `Your OTP is: ${response.mockOtp}`);
+      // Verify by email. The phone still goes along so the server can reject a
+      // number that is already registered at this step rather than after the
+      // profile questions.
+      const response = await api.requestOtp(email.trim(), 'signup', phone);
+      if (response.debugOtp) {
+        setMockOtpHint(response.debugOtp);
       }
       setStage('otp');
     } catch (err: any) {
@@ -73,7 +75,18 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
         );
         return;
       }
-      setError(err?.message || 'Could not send the OTP. Please try again.');
+      if (String(err?.message || '').toLowerCase().includes('already registered')) {
+        Alert.alert(
+          'Email already registered',
+          'An account already exists with this email. Would you like to log in instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Log in', onPress: () => onExistingAccount?.() },
+          ]
+        );
+        return;
+      }
+      setError(err?.message || 'Could not send the code. Please try again.');
     } finally {
       setSending(false);
     }
@@ -86,7 +99,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
     setLoading(true);
     setError(null);
     try {
-      await api.verifyPhoneOtp(phone, otp, true);
+      await api.verifyOtp(email.trim(), 'signup', otp);
       await onSubmit({ fullName, email, password, phone, agreeToTerms });
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please try again.');
@@ -105,7 +118,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
         }}
         eyebrow="Verify"
         title="Enter the 6-digit code"
-        subtitle={`Sent to +91 ${phone}`}
+        subtitle={`Sent to ${email.trim()}`}
         footer={
           <>
             <PrimaryButton
@@ -138,11 +151,11 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
       onBack={onBack}
       eyebrow="Account"
       title="Create your login"
-      subtitle="We'll send a one-time code to confirm your number."
+      subtitle="We'll email you a one-time code to confirm your address."
       footer={
         <>
           <PrimaryButton
-            label="Get OTP"
+            label="Email me a code"
             icon="arrow-forward"
             disabled={!detailsValid}
             loading={sending}
@@ -177,7 +190,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
         <Input value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry maxLength={PASSWORD_MAX} />
       </Field>
 
-      <Field label="Mobile number" hint="The OTP will be sent to this number.">
+      <Field label="Mobile number" hint="Used for matches to contact you.">
         <Input
           value={phone}
           onChangeText={(text) => setPhone(text.replace(/\D/g, '').slice(0, 10))}

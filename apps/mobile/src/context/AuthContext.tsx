@@ -7,7 +7,7 @@ interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
   isNewSignup: boolean;
-  requestOtp: (email: string, purpose: OtpPurpose) => Promise<{ message?: string; debugOtp?: string }>;
+  requestOtp: (email: string, purpose: OtpPurpose, phone?: string) => Promise<{ message?: string; debugOtp?: string }>;
   verifyOtp: (email: string, purpose: OtpPurpose, otp: string) => Promise<void>;
   login: (payload: { email: string; password: string }) => Promise<void>;
   loginWithToken: (token: string, userId: string) => Promise<void>;
@@ -51,8 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       loading,
       isNewSignup,
-      requestOtp: async (email, purpose) => {
-        return api.requestOtp(email, purpose);
+      requestOtp: async (email, purpose, phone) => {
+        return api.requestOtp(email, purpose, phone);
       },
       verifyOtp: async (email, purpose, otp) => {
         const next = await api.verifyOtp(email, purpose, otp);

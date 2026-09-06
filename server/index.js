@@ -679,7 +679,10 @@ app.post('/api/auth/otp/verify', async (request, response) => {
 })
 
 app.post('/api/auth/otp/request', async (request, response) => {
-  const { email, purpose } = request.body || {}
+  // `phone` is optional and only used for signup: the screen collects the email
+  // and phone together, so checking both here keeps a duplicate number caught
+  // at the first step rather than after six screens of profile questions.
+  const { email, purpose, phone } = request.body || {}
   const normalizedEmail = String(email || '').trim().toLowerCase()
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
   const routeStart = Date.now()
@@ -714,6 +717,22 @@ app.post('/api/auth/otp/request', async (request, response) => {
   if (normalizedPurpose === 'signup' && doesAccountExist) {
     response.status(409).json({ success: false, error: 'Email already registered' })
     return
+  }
+
+  if (normalizedPurpose === 'signup' && phone) {
+    try {
+      if (await phoneAlreadyRegistered(phone)) {
+        response.status(409).json({
+          success: false,
+          error: 'This phone number is already registered. Please log in instead.',
+          code: 'PHONE_ALREADY_REGISTERED',
+        })
+        return
+      }
+    } catch (err) {
+      response.status(500).json({ success: false, error: err.message })
+      return
+    }
   }
 
   // Retire any code still outstanding for this address and purpose before

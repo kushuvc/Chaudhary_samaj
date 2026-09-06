@@ -964,8 +964,11 @@ app.get('/api/community/posts', async (request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({
@@ -1023,8 +1026,11 @@ app.get('/api/community/stats', async (_request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({ success: true, data: getCommunityFeedStats() })
@@ -1037,8 +1043,11 @@ app.get('/api/business/listings', async (_request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({ success: true, data: getBusinessListings() })
@@ -1089,8 +1098,11 @@ app.get('/api/help-requests', async (request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({
@@ -1228,8 +1240,11 @@ app.get('/api/matrimony/filter-options', async (request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({ success: true, data: getMatrimonyFilterOptions(activeUserId) })
@@ -1277,59 +1292,123 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
   response.json({ success: true, data: profile })
 })
 
-app.post('/api/matrimony/profiles/:id/shortlist', (request, response) => {
+/* ------------------------------------------------------------------ */
+/* Matrimony interactions — async equivalents of the db.js helpers      */
+/* ------------------------------------------------------------------ */
+
+/*
+ * These routes previously called the synchronous helpers in db.js. In Postgres
+ * mode those run each statement through spawnSync — a whole Node process and a
+ * fresh TLS connection to the database region, with the event loop blocked
+ * throughout. On hot paths like viewing a profile that stalls every other
+ * request on the worker.
+ */
+
+/** True if the profile exists; selects nothing else so it stays cheap. */
+async function profileExists(profileId) {
+  const rows = await pgQuery('SELECT id FROM matrimony_profiles WHERE id = $1 LIMIT 1', [profileId])
+  return rows.length > 0
+}
+
+/**
+ * Upsert one viewer's state for a profile. Null fields keep their current
+ * value, which lets a single statement do what the sync helper needed a
+ * read-then-write for — and removes the race between the two.
+ */
+async function updateProfileStateAsync(profileId, viewerUserId, next = {}) {
+  const { is_shortlisted = null, is_viewed = null, is_unlocked = null } = next
+  await pgQuery(
+    `INSERT INTO matrimony_profile_states
+       (profile_id, viewer_user_id, is_shortlisted, is_viewed, is_unlocked, updated_at)
+     VALUES ($1, $2, COALESCE($3, 0), COALESCE($4, 0), COALESCE($5, 0), $6)
+     ON CONFLICT (profile_id, viewer_user_id) DO UPDATE SET
+       is_shortlisted = COALESCE($3, matrimony_profile_states.is_shortlisted),
+       is_viewed      = COALESCE($4, matrimony_profile_states.is_viewed),
+       is_unlocked    = COALESCE($5, matrimony_profile_states.is_unlocked),
+       updated_at     = $6`,
+    [profileId, viewerUserId, is_shortlisted, is_viewed, is_unlocked, new Date().toISOString()]
+  )
+}
+
+async function recordProfileActionAsync({ profileId, actorUserId, actionType, metadata }) {
+  await pgQuery(
+    `INSERT INTO matrimony_profile_actions
+       (id, profile_id, actor_user_id, action_type, metadata_json, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      `action-${crypto.randomUUID()}`,
+      profileId,
+      actorUserId,
+      actionType,
+      metadata ? JSON.stringify(metadata) : null,
+      new Date().toISOString(),
+    ]
+  )
+}
+
+app.post('/api/matrimony/profiles/:id/shortlist', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  const profile = database.prepare('SELECT id, is_shortlisted FROM matrimony_profiles WHERE id = ?').get(request.params.id)
+  try {
+    if (!(await profileExists(request.params.id))) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
 
-  if (!profile) {
-    response.status(404).json({ success: false, error: 'Profile not found' })
-    return
-  }
-
-  const state = database
-    .prepare(
-      'SELECT is_shortlisted FROM matrimony_profile_states WHERE profile_id = ? AND viewer_user_id = ? LIMIT 1'
+    const state = await pgQuery(
+      'SELECT is_shortlisted FROM matrimony_profile_states WHERE profile_id = $1 AND viewer_user_id = $2 LIMIT 1',
+      [request.params.id, activeUserId]
     )
-    .get(request.params.id, activeUserId)
-  const nextValue = state?.is_shortlisted ? 0 : 1
-  updateProfileState(request.params.id, activeUserId, { is_shortlisted: nextValue })
-  recordProfileAction({
-    profileId: request.params.id,
-    actorUserId: activeUserId,
-    actionType: 'shortlist',
-    metadata: { shortlisted: Boolean(nextValue) },
-  })
+    const nextValue = state[0]?.is_shortlisted ? 0 : 1
 
-  response.json({ success: true, data: { shortlisted: Boolean(nextValue) } })
+    await Promise.all([
+      updateProfileStateAsync(request.params.id, activeUserId, { is_shortlisted: nextValue }),
+      recordProfileActionAsync({
+        profileId: request.params.id,
+        actorUserId: activeUserId,
+        actionType: 'shortlist',
+        metadata: { shortlisted: Boolean(nextValue) },
+      }),
+    ])
+
+    response.json({ success: true, data: { shortlisted: Boolean(nextValue) } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
 })
 
-app.post('/api/matrimony/profiles/:id/view', (request, response) => {
+app.post('/api/matrimony/profiles/:id/view', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
-  const profile = database.prepare('SELECT id FROM matrimony_profiles WHERE id = ?').get(request.params.id)
+  try {
+    if (!(await profileExists(request.params.id))) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
 
-  if (!profile) {
-    response.status(404).json({ success: false, error: 'Profile not found' })
-    return
+    // Independent writes, so pay one round trip rather than two. Against a
+    // pooler in another region each one costs real latency.
+    await Promise.all([
+      updateProfileStateAsync(request.params.id, activeUserId, { is_viewed: 1 }),
+      recordProfileActionAsync({
+        profileId: request.params.id,
+        actorUserId: activeUserId,
+        actionType: 'view',
+      }),
+    ])
+
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  updateProfileState(request.params.id, activeUserId, { is_viewed: 1 })
-  recordProfileAction({
-    profileId: request.params.id,
-    actorUserId: activeUserId,
-    actionType: 'view',
-  })
-
-  response.json({ success: true })
 })
 
 app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
@@ -1354,26 +1433,30 @@ app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
     return
   }
 
-  const profile = database.prepare('SELECT id FROM matrimony_profiles WHERE id = ?').get(request.params.id)
+  try {
+    if (!(await profileExists(request.params.id))) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
 
-  if (!profile) {
-    response.status(404).json({ success: false, error: 'Profile not found' })
-    return
+    await Promise.all([
+      updateProfileStateAsync(request.params.id, activeUserId, { is_unlocked: 1 }),
+      recordProfileActionAsync({
+        profileId: request.params.id,
+        actorUserId: activeUserId,
+        actionType: 'unlock',
+        metadata: { subscriptionGated: true },
+      }),
+    ])
+
+    response.json({ success: true, data: { unlocked: true } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  updateProfileState(request.params.id, activeUserId, { is_unlocked: 1 })
-  recordProfileAction({
-    profileId: request.params.id,
-    actorUserId: activeUserId,
-    actionType: 'unlock',
-    metadata: { subscriptionGated: true },
-  })
-
-  response.json({ success: true, data: { unlocked: true } })
 })
 
 // Interest APIs
-app.post('/api/matrimony/profiles/:id/interest', (request, response) => {
+app.post('/api/matrimony/profiles/:id/interest', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
@@ -1382,44 +1465,60 @@ app.post('/api/matrimony/profiles/:id/interest', (request, response) => {
 
   const { id: receiverId } = request.params
 
-  // Check if profile exists
-  const profile = database.prepare('SELECT id, user_id FROM matrimony_profiles WHERE id = ?').get(receiverId)
-  if (!profile) {
-    response.status(404).json({ success: false, error: 'Profile not found' })
-    return
-  }
+  try {
+    const profileRows = await pgQuery(
+      'SELECT id, user_id FROM matrimony_profiles WHERE id = $1 LIMIT 1',
+      [receiverId]
+    )
+    const profile = profileRows[0]
+    if (!profile) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
 
-  // Cannot send interest to self
-  if (profile.user_id === activeUserId) {
-    response.status(400).json({ success: false, error: 'Cannot send interest to yourself' })
-    return
-  }
+    if (profile.user_id === activeUserId) {
+      response.status(400).json({ success: false, error: 'Cannot send interest to yourself' })
+      return
+    }
 
-  const receiverUserId = profile.user_id
+    const receiverUserId = profile.user_id
 
-  // Check if interest already exists
-  const existing = database.prepare(
-    'SELECT id, status FROM matrimony_interests WHERE sender_id = ? AND receiver_id = ?'
-  ).get(activeUserId, receiverUserId)
+    const existingRows = await pgQuery(
+      'SELECT id, status FROM matrimony_interests WHERE sender_id = $1 AND receiver_id = $2 LIMIT 1',
+      [activeUserId, receiverUserId]
+    )
+    const existing = existingRows[0]
 
-  if (existing) {
-    if (existing.status === 'pending') {
+    if (existing?.status === 'pending') {
       response.status(409).json({ success: false, error: 'Interest already sent' })
       return
     }
-    if (existing.status === 'accepted') {
+    if (existing?.status === 'accepted') {
       response.status(409).json({ success: false, error: 'Already matched' })
       return
     }
+
+    // A declined interest can be re-sent, so reuse the row rather than
+    // colliding with the unique (sender_id, receiver_id) constraint.
+    const interestId = existing?.id || crypto.randomUUID()
+    const now = new Date().toISOString()
+
+    await pgQuery(
+      `INSERT INTO matrimony_interests (id, sender_id, receiver_id, status, created_at)
+       VALUES ($1, $2, $3, 'pending', $4)
+       ON CONFLICT (sender_id, receiver_id) DO UPDATE SET
+         status = 'pending',
+         updated_at = $4`,
+      [interestId, activeUserId, receiverUserId, now]
+    )
+
+    cacheInvalidate(`interests:${activeUserId}`)
+    cacheInvalidate(`interests:${receiverUserId}`)
+
+    response.json({ success: true, data: { interestId, status: 'pending' } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  // Create interest
-  const interestId = crypto.randomUUID()
-  database.prepare(
-    'INSERT INTO matrimony_interests (id, sender_id, receiver_id, status, created_at) VALUES (?, ?, ?, ?, ?)'
-  ).run(interestId, activeUserId, receiverUserId, 'pending', new Date().toISOString())
-
-  response.json({ success: true, data: { interestId, status: 'pending' } })
 })
 
 app.get('/api/matrimony/interests', async (request, response) => {
@@ -1473,7 +1572,7 @@ app.get('/api/matrimony/interests', async (request, response) => {
   }
 })
 
-app.put('/api/matrimony/interests/:id', (request, response) => {
+app.put('/api/matrimony/interests/:id', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
     response.status(401).json({ success: false, error: 'Authentication required' })
@@ -1483,35 +1582,44 @@ app.put('/api/matrimony/interests/:id', (request, response) => {
   const { accept } = request.body || {}
   const { id } = request.params
 
-  // Verify interest exists and belongs to current user
-  const interest = database.prepare(
-    'SELECT * FROM matrimony_interests WHERE id = ? AND receiver_id = ?'
-  ).get(id, activeUserId)
-
-  if (!interest) {
-    response.status(404).json({ success: false, error: 'Interest not found' })
-    return
-  }
-
-  if (interest.status !== 'pending') {
-    response.status(400).json({ success: false, error: 'Interest already processed' })
-    return
-  }
-
   const newStatus = accept ? 'accepted' : 'declined'
-  database.prepare(
-    'UPDATE matrimony_interests SET status = ?, updated_at = ? WHERE id = ?'
-  ).run(newStatus, new Date().toISOString(), id)
+  const now = new Date().toISOString()
 
-  // If accepted, create a match
-  if (accept) {
-    const matchId = crypto.randomUUID()
-    database.prepare(
-      'INSERT INTO matrimony_matches (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, ?)'
-    ).run(matchId, interest.sender_id, interest.receiver_id, new Date().toISOString())
+  try {
+    // Filtering on receiver_id keeps the ownership check: only the recipient of
+    // an interest may respond to it. Doing it in the UPDATE rather than a
+    // separate SELECT also makes a double-tap idempotent — the second request
+    // matches no pending row and returns 404 instead of creating a second match.
+    const updated = await pgQuery(
+      `UPDATE matrimony_interests
+       SET status = $1, updated_at = $2
+       WHERE id = $3 AND receiver_id = $4 AND status = 'pending'
+       RETURNING sender_id, receiver_id`,
+      [newStatus, now, id, activeUserId]
+    )
+
+    const interest = updated[0]
+    if (!interest) {
+      response.status(404).json({ success: false, error: 'Interest not found or already processed' })
+      return
+    }
+
+    if (accept) {
+      await pgQuery(
+        `INSERT INTO matrimony_matches (id, user1_id, user2_id, created_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user1_id, user2_id) DO NOTHING`,
+        [crypto.randomUUID(), interest.sender_id, interest.receiver_id, now]
+      )
+    }
+
+    cacheInvalidate(`interests:${activeUserId}`)
+    cacheInvalidate(`interests:${interest.sender_id}`)
+
+    response.json({ success: true, data: { status: newStatus } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
-
-  response.json({ success: true, data: { status: newStatus } })
 })
 
 // Matches & Messaging APIs
@@ -1671,8 +1779,11 @@ app.get('/api/matrimony/saved-filters', async (_request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({ success: true, data: getSavedFiltersByUserId(activeUserId) })
@@ -1717,8 +1828,11 @@ app.get('/api/events/summary', async (request, response) => {
       response.json({ success: true, data: fastData })
       return
     }
-  } catch {
-    // fall back to legacy query path
+  } catch (err) {
+    // The legacy path runs spawnSync and blocks the worker, so a silent fall
+    // through here turns a transient database blip into a latency cliff with
+    // nothing in the logs to explain it.
+    console.warn('[fallback] fast query failed, using blocking legacy path:', err.message)
   }
 
   response.json({ success: true, data: getOwnedEventSummary(activeUserId) })

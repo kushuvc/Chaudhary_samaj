@@ -49,6 +49,14 @@ function resolveApiBaseUrl() {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
+/**
+ * How long to wait before giving up on a request.
+ *
+ * Long enough to survive a cold start on Render's free tier, short enough that
+ * a genuinely unreachable server reports back rather than hanging.
+ */
+const REQUEST_TIMEOUT_MS = 45000;
+
 let authToken: string | null = null;
 let userId: string | null = null;
 
@@ -85,32 +93,45 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set('x-user-id', userId);
   }
 
-  // Debug logging for authentication
-  if (path.includes('/matrimony/me')) {
-    console.log('[API] Requesting matrimony profile with auth:', {
-      path,
-      hasAuthToken: !!authToken,
-      hasUserId: !!userId,
-      headers: {
-        Authorization: authToken ? `Bearer ${authToken.substring(0, 10)}...` : 'none',
-        'x-user-id': userId || 'none'
-      }
+  /*
+   * Time the request out.
+   *
+   * React Native's fetch has no default timeout, so a connection that stalls
+   * never settles. Every screen that awaits one of these calls sits on its
+   * "Please wait" state for ever, with the button disabled and no error — the
+   * login screen did exactly that against a cold server. The timeout is
+   * generous because the API sleeps when idle on Render's free tier and can
+   * take the better part of a minute to answer the first request.
+   */
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      signal: controller.signal
     });
+  } catch (cause) {
+    if ((cause as Error)?.name === 'AbortError') {
+      const timeoutError = new Error(
+        'The server is taking too long to respond. Check your connection and try again.'
+      ) as ApiError;
+      timeoutError.code = 'TIMEOUT';
+      throw timeoutError;
+    }
+
+    const networkError = new Error(
+      'Could not reach the server. Check your connection and try again.'
+    ) as ApiError;
+    networkError.code = 'NETWORK';
+    throw networkError;
+  } finally {
+    clearTimeout(timer);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers
-  });
-
   const data = await response.json().catch(() => ({}));
-
-  // Debug logging for API response
-  console.log('[API] Response:', {
-    status: response.status,
-    ok: response.ok,
-    data: data
-  });
 
   if (!response.ok) {
     // A 401 while we believed we were signed in means the stored token is no
@@ -679,12 +700,10 @@ export const api = {
   },
 
   createPaymentLink: async (plan: string, amount: number): Promise<{ id: string; short_url: string }> => {
-    console.log('[api] Creating payment link with plan:', plan, 'amount:', amount);
     const response = await request<{ data: { id: string; short_url: string } }>('/payments/create-link', {
       method: 'POST',
       body: JSON.stringify({ plan, amount }),
     });
-    console.log('[api] Payment link response:', response.data);
     return response.data;
   },
 

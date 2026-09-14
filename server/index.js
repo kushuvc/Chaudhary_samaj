@@ -1102,6 +1102,11 @@ app.post('/api/auth/phone/verify-otp', async (request, response) => {
 })
 
 app.get('/api/community/posts', async (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   const { category, search, pinned } = request.query
   const pinnedOnly = String(pinned || '').toLowerCase() === 'true'
 
@@ -1149,7 +1154,12 @@ app.post('/api/community/posts', (request, response) => {
   response.status(201).json({ success: true, data: post })
 })
 
-app.get('/api/community/meetings', (_request, response) => {
+app.get('/api/community/meetings', (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   response.json({ success: true, data: getUpcomingCommunityMeetings() })
 })
 
@@ -1172,7 +1182,12 @@ app.post('/api/community/meetings', (request, response) => {
   response.status(201).json({ success: true, data: meeting })
 })
 
-app.get('/api/community/stats', async (_request, response) => {
+app.get('/api/community/stats', async (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   try {
     const fastData = await getCommunityFeedStatsFast()
     if (fastData) {
@@ -1189,7 +1204,12 @@ app.get('/api/community/stats', async (_request, response) => {
   response.json({ success: true, data: getCommunityFeedStats() })
 })
 
-app.get('/api/business/listings', async (_request, response) => {
+app.get('/api/business/listings', async (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   try {
     const fastData = await getBusinessListingsFast()
     if (fastData) {
@@ -1207,6 +1227,11 @@ app.get('/api/business/listings', async (_request, response) => {
 })
 
 app.get('/api/business/listings/:id', (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   const listing = getBusinessListingById(request.params.id)
   if (!listing) {
     response.status(404).json({ success: false, error: 'Business listing not found' })
@@ -1236,6 +1261,11 @@ app.post('/api/business/listings', (request, response) => {
 })
 
 app.get('/api/help-requests', async (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   const { category, urgency, status, search } = request.query
 
   const payload = {
@@ -1265,6 +1295,11 @@ app.get('/api/help-requests', async (request, response) => {
 })
 
 app.get('/api/help-requests/:id', (request, response) => {
+  if (!resolveUserId(request)) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
   const item = getHelpRequestById(request.params.id)
   if (!item) {
     response.status(404).json({ success: false, error: 'Help request not found' })
@@ -2051,10 +2086,10 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
   }
 })
 
-app.get('/api/matrimony/saved-filters', async (_request, response) => {
-  const activeUserId = resolveUserId(_request)
+app.get('/api/matrimony/saved-filters', async (request, response) => {
+  const activeUserId = resolveUserId(request)
   if (!activeUserId) {
-    response.json({ success: true, data: [] })
+    response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 

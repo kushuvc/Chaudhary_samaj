@@ -133,3 +133,40 @@ describe('security headers and errors', () => {
     assert.ok(!text.includes('/Users/'), 'must not leak filesystem paths')
   })
 })
+
+describe('member data is not public', () => {
+  /*
+   * These routes served member data to anyone on the internet with no token.
+   * The help requests are the sharpest case — the app files them under
+   * financial and medical help — and the business listings carry each owner's
+   * name, phone number and email.
+   */
+  const routes = [
+    '/api/help-requests',
+    '/api/help-requests/some-id',
+    '/api/business/listings',
+    '/api/business/listings/some-id',
+    '/api/community/posts',
+    '/api/community/meetings',
+    '/api/community/stats',
+    '/api/matrimony/saved-filters',
+  ]
+
+  for (const route of routes) {
+    test(`GET ${route} requires a session`, async () => {
+      const res = await server.request('GET', route)
+      assert.equal(res.status, 401, `${route} must not be readable without a token`)
+    })
+
+    test(`GET ${route} still works for a member`, async () => {
+      const res = await server.request('GET', route, { token: member.token })
+      assert.notEqual(res.status, 401, `${route} must remain available to signed-in members`)
+    })
+  }
+
+  test('no contact details leak to an anonymous caller', async () => {
+    const res = await server.request('GET', '/api/business/listings')
+    const text = JSON.stringify(res.body)
+    assert.ok(!/contact_phone|contactPhone|@/.test(text), 'no contact data may appear')
+  })
+})

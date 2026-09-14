@@ -57,6 +57,9 @@ const API_BASE_URL = resolveApiBaseUrl();
  */
 const REQUEST_TIMEOUT_MS = 45000;
 
+/** Uploads carry a whole image, so they get longer than a normal request. */
+const UPLOAD_TIMEOUT_MS = 90000;
+
 let authToken: string | null = null;
 let userId: string | null = null;
 
@@ -654,14 +657,59 @@ export const api = {
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
     if (userId) headers['x-user-id'] = userId;
 
-    const res = await fetch(`${API_BASE_URL}/upload/photo`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    /*
+     * This call cannot go through request(), which serialises a JSON body —
+     * fetch has to set the multipart boundary itself. That meant it also
+     * missed the timeout and the 401 handling, so a stalled upload hung for
+     * ever behind a spinner with no error, which is indistinguishable from
+     * "uploading a photo does not work".
+     */
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+    let res: Response;
+    try {
+      res = await fetch(`${API_BASE_URL}/upload/photo`, {
+        method: 'POST',
+        headers,
+        body: formData,
+        signal: controller.signal,
+      });
+    } catch (cause) {
+      if ((cause as Error)?.name === 'AbortError') {
+        const timeoutError = new Error(
+          'The photo took too long to upload. Check your connection and try again.'
+        ) as ApiError;
+        timeoutError.code = 'TIMEOUT';
+        throw timeoutError;
+      }
+
+      const networkError = new Error(
+        'Could not reach the server to upload the photo. Check your connection and try again.'
+      ) as ApiError;
+      networkError.code = 'NETWORK';
+      throw networkError;
+    } finally {
+      clearTimeout(timer);
+    }
+
     const data = await res.json().catch(() => ({})) as any;
-    if (!res.ok) throw new Error(data.error || 'Upload failed');
-    return data.data.url as string;
+
+    if (!res.ok) {
+      if (res.status === 401 && authToken) {
+        onUnauthorized?.();
+      }
+      const error = new Error(data.error || 'Upload failed') as ApiError;
+      error.status = res.status;
+      error.code = data.code;
+      throw error;
+    }
+
+    const url = data?.data?.url;
+    if (!url) {
+      throw new Error('The server did not return a photo URL.');
+    }
+    return url as string;
   },
 
   deletePhoto: async (url: string): Promise<void> => {

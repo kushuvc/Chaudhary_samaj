@@ -14,7 +14,7 @@
     "mobile:start": "npm --prefix apps/mobile start",
     "mobile:android": "npm --prefix apps/mobile android",
     "mobile:ios": "npm --prefix apps/mobile ios",
-    "mobile:typecheck": "npm --prefix apps/mobile exec tsc -- --noEmit",
+    "mobile:typecheck": "npm --prefix apps/mobile exec -- tsc --noEmit --project apps/mobile/tsconfig.json",
     "mobile:build:apk": "npm --prefix apps/mobile run build:apk",
     "mobile:build:aab": "npm --prefix apps/mobile run build:aab",
     "test": "node tests/run.mjs"

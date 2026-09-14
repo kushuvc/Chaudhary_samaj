@@ -32,6 +32,35 @@ Use this prompt in Copilot:
 
 Build a **frontend-only web app** for a **community platform** with a clean, modern UI and a modular structure so backend APIs can be added later.
 
+## Tests
+
+```bash
+npm test
+```
+
+No setup: the runner starts a throwaway Postgres cluster (`embedded-postgres`),
+gives every server instance its own database, and tears the whole thing down
+afterwards. Nothing touches the real database, and no test can send an email or
+reach a payment provider — those credentials are blanked for the child process.
+
+Run one file with `node tests/run.mjs tests/auth.test.mjs`.
+
+The suites boot a real server and drive it over HTTP rather than importing the
+route handlers. The bugs worth catching here — auth bypass, the paywall, OTP
+leaks — have all lived in the seam between route, middleware and database,
+which a unit test on any one of those would have missed.
+
+| File | Covers |
+| --- | --- |
+| `auth.test.mjs` | Session tokens, forged and expired JWTs, signup and login |
+| `paywall.test.mjs` | The free allowance, locked profiles, subscription state |
+| `security.test.mjs` | Admin gating, removed debug routes, payment endpoints |
+| `otp.test.mjs` | Codes, throttling, and production fail-closed behaviour |
+| `validation.test.mjs` | Injection attempts, pagination limits, privilege escalation |
+| `contract.test.mjs` | Every endpoint the mobile app calls is still routed |
+| `interests.test.mjs` | Interest and messaging flows |
+| `unit.test.mjs` | Postgres TLS selection, email sender parsing |
+
 ## Goal
 
 Create a scalable community app UI with these sections:

@@ -15,5 +15,6 @@ admin-dashboard/node_modules/
 admin-dashboard/dist/
 
 # Local EAS build artifacts
-apps/mobile/build-*.aab
-apps/mobile/build-*.apk
+# Build artifacts, wherever eas --local is pointed.
+*.aab
+*.apk

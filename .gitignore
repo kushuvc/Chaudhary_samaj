@@ -13,3 +13,7 @@ server/data/*.sqlite-wal
 server/uploads/
 admin-dashboard/node_modules/
 admin-dashboard/dist/
+
+# Local EAS build artifacts
+apps/mobile/build-*.aab
+apps/mobile/build-*.apk

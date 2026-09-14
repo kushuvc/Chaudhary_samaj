@@ -113,13 +113,6 @@ const migrations = [
     privacy_searchable BOOLEAN NOT NULL DEFAULT true,
     updated_at TEXT
   )`,
-  // One phone number per account. A functional unique index rather than a
-  // plain UNIQUE(phone) so it normalizes formatting differences (with/without
-  // +91, spaces, dashes) before comparing, and so NULL/blank phones (accounts
-  // created by email only) never collide with each other.
-  // Run server/dedupe-phones.js --apply BEFORE this on a database that
-  // predates the constraint, or existing duplicate phone numbers will make
-  // this index creation fail.
   // Backs the auth rate limiter. In-memory counters are per-worker, so the
   // effective cap was multiplied by the worker count.
   `CREATE TABLE IF NOT EXISTS rate_limit_hits (
@@ -142,9 +135,26 @@ const migrations = [
   // Gates /api/admin/*. Defaults to false, so granting access is an explicit
   // deliberate act: UPDATE users SET is_admin = true WHERE email = '...';
   `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false`,
+  // One phone number per account. A functional unique index rather than a
+  // plain UNIQUE(phone) so it normalizes formatting differences (with/without
+  // +91, spaces, dashes) before comparing, and so NULL/blank phones (accounts
+  // created by email only) never collide with each other.
+  // Run server/dedupe-phones.js --apply BEFORE this on a database that
+  // predates the constraint, or existing duplicate phone numbers will make
+  // this index creation fail.
   `CREATE UNIQUE INDEX IF NOT EXISTS users_phone_normalized_key
      ON users (right(regexp_replace(phone, '\\D', '', 'g'), 10))
      WHERE coalesce(phone, '') <> ''`,
+  // Google Play subscriptions. The purchase token is Play's identifier for a
+  // subscription and stays stable across renewals, so it is what a Real-time
+  // Developer Notification is matched against. Unique so a token cannot be
+  // replayed to grant a second account access.
+  `ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS play_purchase_token TEXT`,
+  `ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS play_product_id TEXT`,
+  `ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS provider TEXT NOT NULL DEFAULT 'razorpay'`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS user_subscriptions_play_token_key
+     ON user_subscriptions(play_purchase_token)
+     WHERE play_purchase_token IS NOT NULL`,
 ]
 
 for (const sql of migrations) {

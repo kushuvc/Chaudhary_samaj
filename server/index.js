@@ -11,6 +11,12 @@ import jwt from 'jsonwebtoken'
 import rateLimit from 'express-rate-limit'
 import { isSmsConfigured, sendOtpSms } from './sms.js'
 import { PostgresRateLimitStore } from './rate-limit-store.js'
+import {
+  acknowledgeSubscription,
+  getSubscriptionFromPlay,
+  isPlayBillingConfigured,
+  isValidRtdnToken,
+} from './play-billing.js'
 import { LRUCache } from 'lru-cache'
 import {
   applyProfileUpdate,
@@ -3024,6 +3030,153 @@ app.post('/api/payments/verify-link', requirePayments, async (request, response)
 })
 
 // Create Razorpay Payment Link
+/* ------------------------------------------------------------------ */
+/* Google Play billing                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Grant a subscription from a Play purchase token.
+ *
+ * The client sends only the token. Everything that decides entitlement —
+ * product, expiry, whether it is actually active — comes from Google, never
+ * from the request body, so a forged call grants nothing.
+ */
+app.post('/api/payments/play/verify', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  if (!isPlayBillingConfigured()) {
+    response.status(503).json({ success: false, error: 'Play billing is not configured.' })
+    return
+  }
+
+  const purchaseToken = String(request.body?.purchaseToken || '').trim()
+  if (!purchaseToken) {
+    response.status(400).json({ success: false, error: 'purchaseToken is required' })
+    return
+  }
+
+  try {
+    const purchase = await getSubscriptionFromPlay(purchaseToken)
+
+    if (!purchase.valid) {
+      response.status(400).json({ success: false, error: 'This purchase could not be verified.' })
+      return
+    }
+
+    // A token already bound to another account means someone is replaying a
+    // purchase. The unique index would catch it, but answering here keeps the
+    // reason clear instead of surfacing a constraint violation.
+    const existing = await pgQuery(
+      'SELECT user_id FROM user_subscriptions WHERE play_purchase_token = $1 LIMIT 1',
+      [purchaseToken]
+    )
+    if (existing[0] && existing[0].user_id !== activeUserId) {
+      response.status(409).json({ success: false, error: 'This purchase belongs to another account.' })
+      return
+    }
+
+    if (!purchase.entitled) {
+      response.json({
+        success: true,
+        data: { active: false, state: purchase.state },
+      })
+      return
+    }
+
+    const startedAt = new Date().toISOString()
+    const expiresAt = purchase.expiryTime || new Date(Date.now() + 30 * 864e5).toISOString()
+
+    await pgQuery(
+      `INSERT INTO user_subscriptions
+         (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at,
+          play_purchase_token, play_product_id, provider)
+       VALUES ($1, 'premium', 200, $2, $3, 'active', $4, $5, $6, $7, 'google_play')
+       ON CONFLICT (user_id) DO UPDATE SET
+         plan = 'premium',
+         status = 'active',
+         payment_id = $2,
+         order_id = $3,
+         started_at = $4,
+         expires_at = $5,
+         play_purchase_token = $6,
+         play_product_id = $7,
+         provider = 'google_play'`,
+      [
+        activeUserId,
+        purchase.orderId || purchaseToken.slice(0, 40),
+        purchase.orderId || purchaseToken.slice(0, 40),
+        startedAt,
+        expiresAt,
+        purchaseToken,
+        purchase.productId,
+      ]
+    )
+
+    // Play refunds and revokes anything not acknowledged within three days, so
+    // this has to happen once access is actually granted.
+    if (purchase.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING' && purchase.productId) {
+      try {
+        await acknowledgeSubscription(purchaseToken, purchase.productId)
+      } catch (err) {
+        // Worth shouting about: an unacknowledged purchase auto-refunds.
+        console.error('[play] ACKNOWLEDGE FAILED — purchase may be auto-refunded:', err.message)
+      }
+    }
+
+    response.json({
+      success: true,
+      data: { active: true, plan: 'premium', startedAt, expiresAt },
+    })
+  } catch (err) {
+    console.error('[play] verify failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not verify the purchase.' })
+  }
+})
+
+/**
+ * Real-time Developer Notifications, delivered by Pub/Sub push.
+ *
+ * Without this a cancellation or failed renewal leaves the member with access
+ * until our stored expiry passes, and a renewal is never recorded at all.
+ * Google only tells us which token changed, so the state still comes from a
+ * fresh lookup rather than from the notification body.
+ */
+app.post('/api/payments/play/rtdn', async (request, response) => {
+  if (!isValidRtdnToken(request.query.token)) {
+    response.status(403).json({ success: false, error: 'Forbidden' })
+    return
+  }
+
+  // Acknowledge immediately: Pub/Sub retries anything it thinks failed, and a
+  // slow handler turns one notification into many.
+  response.status(204).end()
+
+  try {
+    const encoded = request.body?.message?.data
+    if (!encoded) return
+
+    const payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'))
+    const notification = payload.subscriptionNotification
+    if (!notification?.purchaseToken) return
+
+    const purchase = await getSubscriptionFromPlay(notification.purchaseToken)
+    if (!purchase.valid) return
+
+    await pgQuery(
+      `UPDATE user_subscriptions
+       SET status = $1, expires_at = COALESCE($2, expires_at)
+       WHERE play_purchase_token = $3`,
+      [purchase.entitled ? 'active' : 'expired', purchase.expiryTime, notification.purchaseToken]
+    )
+  } catch (err) {
+    console.error('[play] rtdn handling failed:', err.message)
+  }
+})
+
 app.post('/api/payments/create-link', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)

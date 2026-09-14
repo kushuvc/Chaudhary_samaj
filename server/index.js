@@ -3319,7 +3319,15 @@ app.get('/api/settings', async (request, response) => {
   }
   try {
     const result = await pgQuery(
-      'SELECT user_id, language, timezone, public_profile, notifications_json, privacy_json FROM user_settings WHERE user_id = $1',
+      // The column list must match the table migrate.js actually creates.
+      // This asked for notifications_json and privacy_json, which have never
+      // existed, so every settings load failed with a 500 — while the handler
+      // below already read the individual columns correctly.
+      `SELECT user_id, language, timezone, public_profile,
+              notif_community_announcements, notif_matrimony_matches,
+              notif_event_reminders, notif_security_alerts, notif_marketing_updates,
+              privacy_show_phone, privacy_show_location, privacy_searchable
+       FROM user_settings WHERE user_id = $1`,
       [activeUserId]
     )
     if (result.length === 0) {

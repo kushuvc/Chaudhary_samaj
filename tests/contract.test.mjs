@@ -51,5 +51,21 @@ describe('endpoints the mobile app depends on', () => {
       const res = await server.request(method, route, { token: user.token, body: method === 'POST' ? {} : undefined })
       assert.notEqual(res.status, 404, `${method} ${route} is gone — the app still calls it`)
     })
+
+    /*
+     * A GET that a signed-in member can make must not fail on the server.
+     * This started as a not-404 check only, which let GET /api/settings sit
+     * at 500 in production for every user — it selected two columns that have
+     * never existed — while the suite stayed green.
+     */
+    if (method === 'GET') {
+      test(`${method} ${route} does not fail for a signed-in member`, async () => {
+        const res = await server.request(method, route, { token: user.token })
+        assert.ok(
+          res.status < 500,
+          `${method} ${route} returned ${res.status}: ${JSON.stringify(res.body).slice(0, 200)}`
+        )
+      })
+    }
   }
 })

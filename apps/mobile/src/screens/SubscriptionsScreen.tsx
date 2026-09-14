@@ -312,7 +312,14 @@ export function SubscriptionsScreen() {
 
         <View style={styles.footnote}>
           <Ionicons name="lock-closed" size={13} color={palette.muted} />
-          <Text style={styles.footnoteText}>Secured by Razorpay. Cancel anytime.</Text>
+          {/* Name the processor that will actually take the payment. This read
+              "Secured by Razorpay" on every device, including the ones paying
+              through Google Play. */}
+          <Text style={styles.footnoteText}>
+            {play.available
+              ? 'Billed through Google Play. Cancel anytime in Play Store subscriptions.'
+              : 'Secured by Razorpay. Cancel anytime.'}
+          </Text>
         </View>
       </ScrollView>
     </View>

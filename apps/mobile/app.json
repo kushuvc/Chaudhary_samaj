@@ -18,6 +18,7 @@
     },
     "android": {
       "package": "com.chaudharysamaj.mobile",
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",

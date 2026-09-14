@@ -16,6 +16,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { GradientFill, PrimaryButton } from '../components/ui';
 import { api } from '../services/api';
+import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
 
 interface SubscriptionData {
@@ -79,6 +80,12 @@ export function SubscriptionsScreen() {
       void loadSubscription();
     }, [loadSubscription])
   );
+
+  // Google Play is the payment path on Android. Razorpay stays in the codebase
+  // for a future web checkout, where Play's service fee does not apply.
+  const play = usePlayBilling(() => {
+    void loadSubscription();
+  });
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -276,11 +283,29 @@ export function SubscriptionsScreen() {
                 ))}
               </View>
 
-              <PrimaryButton
-                label={processing ? 'Opening checkout…' : `Subscribe — ₹${PLAN.amount}`}
-                onPress={handlePurchase}
-                disabled={processing}
-              />
+              {play.available ? (
+                <>
+                  <PrimaryButton
+                    label={
+                      play.purchasing
+                        ? 'Opening Google Play…'
+                        : `Subscribe — ${play.product?.displayPrice || `₹${PLAN.amount}`}`
+                    }
+                    onPress={play.buy}
+                    disabled={play.purchasing || play.loading}
+                  />
+                  {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
+                </>
+              ) : (
+                <>
+                  <PrimaryButton
+                    label={processing ? 'Opening checkout…' : `Subscribe — ₹${PLAN.amount}`}
+                    onPress={handlePurchase}
+                    disabled={processing}
+                  />
+                  {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
+                </>
+              )}
             </View>
           </>
         )}
@@ -407,5 +432,6 @@ function createStyles(palette: ThemePalette) {
       marginTop: spacing.xs,
     },
     footnoteText: { fontSize: 12.5, color: palette.muted },
+    playError: { fontSize: 13, color: palette.danger, marginTop: spacing.sm, textAlign: 'center' },
   });
 }

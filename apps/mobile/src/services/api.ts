@@ -688,6 +688,19 @@ export const api = {
     return response.data;
   },
 
+  /**
+   * Hand a Google Play purchase token to the server, which verifies it with
+   * Google before granting anything. The client never decides entitlement.
+   */
+  verifyPlayPurchase: async (purchaseToken: string) => {
+    const response = await request<{
+      data: { active: boolean; plan?: string; startedAt?: string; expiresAt?: string; state?: string };
+    }>('/payments/play/verify', {
+      method: 'POST',
+      body: JSON.stringify({ purchaseToken }),
+    });
+    return response.data;
+  },
   getPaymentLinkStatus: async (
     linkId: string
   ): Promise<{ status: string; activated: boolean; plan?: string; startedAt?: string; expiresAt?: string }> => {

@@ -17,7 +17,7 @@ const SEND_TIMEOUT_MS = 12000
  * rejects the whole string in its `email` field, so the two halves have to be
  * separated before the call rather than passed through as one header.
  */
-function parseFromAddress(value) {
+export function parseFromAddress(value) {
   const match = String(value).match(/^\s*(.*?)\s*<\s*([^>]+?)\s*>\s*$/)
   if (match) {
     return { name: match[1] || undefined, email: match[2] }

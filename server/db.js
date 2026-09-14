@@ -4,11 +4,16 @@ import { spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto'
 import Database from 'better-sqlite3'
 import pg from 'pg'
+import { sslConfigFor } from './pg-ssl.js'
 const { Pool } = pg
 
 const serverDir = path.resolve('server')
-const dataDir = path.join(serverDir, 'data')
-const dbPath = path.join(dataDir, 'chaudhary-samaj.sqlite')
+// SQLITE_PATH lets the test suite point at a throwaway file instead of the
+// developer's real database. Unset everywhere else, so normal runs are
+// unaffected.
+const sqliteOverride = process.env.SQLITE_PATH || ''
+const dataDir = sqliteOverride ? path.dirname(path.resolve(sqliteOverride)) : path.join(serverDir, 'data')
+const dbPath = sqliteOverride ? path.resolve(sqliteOverride) : path.join(dataDir, 'chaudhary-samaj.sqlite')
 const schemaPath = path.join(serverDir, 'schema.sql')
 const preferPostgres = Boolean(process.env.DATABASE_URL)
 
@@ -30,7 +35,7 @@ export function getPgPool() {
 
     _pgPool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslConfigFor(process.env.DATABASE_URL),
       max: isPooled ? 10 : 50,
       min: 0,
       // Opening a connection costs seconds against a distant region, so do not
@@ -113,11 +118,13 @@ function executePostgresStatementsSync(queries, useTransaction = false) {
     throw new Error('DATABASE_URL is required for Postgres mode')
   }
 
-  const payload = { queries, transaction: useTransaction }
+  const payload = { queries, transaction: useTransaction, ssl: sslConfigFor(process.env.DATABASE_URL) }
   const script = `
     import { Client } from 'pg'
     const payload = JSON.parse(process.argv[1])
-    const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
+    // The TLS decision is made in the parent and passed in as JSON: this runs
+    // as a standalone --eval script, so it cannot import from pg-ssl.js.
+    const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: payload.ssl })
     await client.connect()
     try {
       if (payload.transaction) await client.query('BEGIN')
@@ -397,12 +404,18 @@ function requestEmailOtp(email, purpose) {
 
   const latest = database
     .prepare(
+      /*
+       * Deliberately not filtered by consumed_at: the route retires any
+       * outstanding code immediately before calling this, so a filter on
+       * consumed_at IS NULL never matched the previous row and the resend
+       * cooldown never fired. The hourly cap was then the only brake, leaving
+       * any address open to ten instant emails.
+       */
       `
         SELECT *
         FROM auth_email_otps
         WHERE lower(email) = lower(?)
           AND purpose = ?
-          AND consumed_at IS NULL
         ORDER BY created_at DESC
         LIMIT 1
       `

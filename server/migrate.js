@@ -1,5 +1,8 @@
 import 'dotenv/config'
+import fs from 'node:fs'
+import path from 'node:path'
 import { Client } from 'pg'
+import { sslConfigFor } from './pg-ssl.js'
 
 const connectionString = process.env.DATABASE_URL
 
@@ -10,11 +13,26 @@ if (!connectionString) {
 
 const client = new Client({
   connectionString,
-  ssl: { rejectUnauthorized: false },
+  ssl: sslConfigFor(process.env.DATABASE_URL),
 })
 
 await client.connect()
 console.log('Connected to Postgres')
+
+/*
+ * Apply the base schema before the incremental migrations below.
+ *
+ * Previously this file only ever added to a schema someone had already created
+ * by hand in the Supabase dashboard, so `npm run server` could not stand up a
+ * fresh database: the migrations that reference users and matrimony_profiles
+ * ran against nothing. Every statement in schema.postgres.sql is IF NOT
+ * EXISTS, so this is a no-op against an existing database.
+ */
+const baseSchemaPath = path.join(path.resolve('server'), 'schema.postgres.sql')
+if (fs.existsSync(baseSchemaPath)) {
+  await client.query(fs.readFileSync(baseSchemaPath, 'utf8'))
+  console.log('OK: base schema (schema.postgres.sql)')
+}
 
 const migrations = [
   `CREATE TABLE IF NOT EXISTS matrimony_interests (

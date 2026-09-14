@@ -1309,7 +1309,11 @@ app.post('/api/help-requests/:id/support', (request, response) => {
 app.get('/api/matrimony/profiles', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
-    response.json({ success: true, data: [] })
+    // Answering an unauthenticated caller with an empty list made a missing or
+    // expired session look like "no matches found", so the app showed an empty
+    // Matrimony tab instead of sending the member back to sign in. Every other
+    // protected route answers 401, and the client already handles it.
+    response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
 
@@ -3477,6 +3481,40 @@ app.get('/api/admin/users', requireAdmin, async (request, response) => {
 
 app.use((_request, response) => {
   response.status(404).json({ success: false, error: 'Route not found' })
+})
+
+/**
+ * JSON error handler.
+ *
+ * Without this, anything thrown past a route — most easily a malformed JSON
+ * body, which express.json() rejects before any handler runs — fell through to
+ * Express's default handler. That returns an HTML page containing the stack
+ * trace, which gives away absolute filesystem paths, the directory layout and
+ * the dependency versions. It also meant an API client asking for JSON got
+ * HTML back.
+ *
+ * The four-argument signature is required: Express identifies error handlers
+ * by arity, so removing `next` silently turns this back into normal middleware.
+ */
+// eslint-disable-next-line no-unused-vars
+app.use((error, request, response, next) => {
+  const status = Number(error?.status || error?.statusCode || 500)
+
+  if (status === 400 && error?.type === 'entity.parse.failed') {
+    response.status(400).json({ success: false, error: 'Request body is not valid JSON' })
+    return
+  }
+
+  if (status === 413 || error?.type === 'entity.too.large') {
+    response.status(413).json({ success: false, error: 'Request body is too large' })
+    return
+  }
+
+  console.error('[unhandled]', request.method, request.path, error?.message)
+  response.status(status >= 400 && status < 600 ? status : 500).json({
+    success: false,
+    error: status >= 400 && status < 500 ? 'Bad request' : 'Something went wrong',
+  })
 })
 
 app.listen(port, () => {

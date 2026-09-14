@@ -16,7 +16,8 @@
     "mobile:ios": "npm --prefix apps/mobile ios",
     "mobile:typecheck": "npm --prefix apps/mobile exec tsc -- --noEmit",
     "mobile:build:apk": "npm --prefix apps/mobile run build:apk",
-    "mobile:build:aab": "npm --prefix apps/mobile run build:aab"
+    "mobile:build:aab": "npm --prefix apps/mobile run build:aab",
+    "test": "node tests/run.mjs"
   },
   "dependencies": {
     "@supabase/storage-js": "^2.105.4",
@@ -43,9 +44,13 @@
     "@vitejs/plugin-react": "^4.2.0",
     "autoprefixer": "^10.4.16",
     "babel-preset-expo": "^54.0.10",
+    "embedded-postgres": "^18.4.0-beta.17",
     "postcss": "^8.4.31",
     "tailwindcss": "^3.3.0",
     "typescript": "^5.3.0",
     "vite": "^5.0.0"
+  },
+  "allowScripts": {
+    "@embedded-postgres/darwin-arm64@18.4.0-beta.17": true
   }
 }

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import pkg from 'pg'
 import { LRUCache } from 'lru-cache'
+import { sslConfigFor } from './pg-ssl.js'
 
 const { Pool } = pkg
 
@@ -9,7 +10,7 @@ const hasPostgres = Boolean(process.env.DATABASE_URL)
 const pool = hasPostgres
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : false,
+      ssl: sslConfigFor(process.env.DATABASE_URL),
       // Same reasoning as the pool in db.js: a pooler closes idle server
       // connections itself, so a large pool held open for minutes fills with
       // dead sockets. Opening a fresh one costs ~2.5s against a distant region,
@@ -425,12 +426,18 @@ export async function requestEmailOtpFast(email, purpose) {
     await client.query('BEGIN')
 
     const latestResult = await client.query(
+      /*
+       * Deliberately not filtered by consumed_at: the route retires any
+       * outstanding code immediately before calling this, so a filter on
+       * consumed_at IS NULL never matched the previous row and the resend
+       * cooldown never fired. The hourly cap was then the only brake, leaving
+       * any address open to ten instant emails.
+       */
       `
         SELECT created_at
         FROM auth_email_otps
         WHERE lower(email) = lower($1)
           AND purpose = $2
-          AND consumed_at IS NULL
         ORDER BY created_at DESC
         LIMIT 1
       `,

@@ -109,3 +109,34 @@ describe('review account refuses a weak code', () => {
     assert.notEqual(res.status, 200, 'a short code must not enable the bypass')
   })
 })
+
+describe('review code must be enterable in the app', () => {
+  let server
+  before(async () => {
+    server = await startServer({
+      env: { REVIEW_ACCOUNT_EMAIL: REVIEW_EMAIL, REVIEW_ACCOUNT_OTP: '12345678' },
+    })
+  })
+  after(async () => { await server?.stop() })
+
+  /*
+   * The login screen's code field is maxLength 6. A longer value is truncated
+   * as it is typed, so it can never match — the server must say so at boot
+   * rather than leaving it to fail silently in front of a Play reviewer.
+   */
+  test('a code longer than six characters is flagged at startup', async () => {
+    await signUpUser(server, { email: REVIEW_EMAIL })
+    assert.match(
+      server.logs(),
+      /the app's code field accepts exactly 6/,
+      'expected a startup warning about the unusable length'
+    )
+  })
+
+  test('the truncated form does not sign in either', async () => {
+    const res = await server.request('POST', '/api/auth/otp/verify', {
+      body: { email: REVIEW_EMAIL, purpose: 'login', otp: '123456' },
+    })
+    assert.notEqual(res.status, 200, 'a truncated code must not match')
+  })
+})

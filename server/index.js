@@ -656,6 +656,15 @@ if (reviewAccountEmail && !reviewAccountEnabled) {
   console.warn('[review] REVIEW_ACCOUNT_EMAIL is set but REVIEW_ACCOUNT_OTP is missing or shorter than 6 characters; the review account is disabled')
 }
 
+// The app's code field is maxLength 6, so a longer value is silently truncated
+// as it is typed and can never match. Warn rather than fail: the bypass still
+// works over the API, it just cannot be used through the app.
+if (reviewAccountEnabled && reviewAccountOtp.length !== 6) {
+  console.warn(
+    `[review] REVIEW_ACCOUNT_OTP is ${reviewAccountOtp.length} characters; the app's code field accepts exactly 6, so it cannot be entered there`
+  )
+}
+
 function isReviewAccountEmail(email) {
   if (!reviewAccountEnabled) return false
   return String(email || '').trim().toLowerCase() === reviewAccountEmail

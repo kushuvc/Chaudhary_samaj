@@ -38,6 +38,19 @@ function cacheKey(name, payload) {
   return `${name}:${JSON.stringify(payload || {})}`
 }
 
+/**
+ * Drop cached entries whose key starts with `prefix`.
+ *
+ * This module has its own cache, separate from the one in index.js, so a
+ * write there does not clear a read here — a block was recorded but the
+ * blocked member kept appearing until the entry aged out.
+ */
+export function invalidateFastCache(prefix) {
+  for (const key of cache.keys()) {
+    if (String(key).startsWith(prefix)) cache.delete(key)
+  }
+}
+
 function getCached(name, payload) {
   return cache.get(cacheKey(name, payload)) ?? null
 }
@@ -571,6 +584,16 @@ export async function getPublicProfilesFast(currentUserId, viewerGender = null) 
       LEFT JOIN matrimony_profile_states s
         ON s.profile_id = p.id AND s.viewer_user_id = $1
       WHERE p.user_id != $1
+        /*
+         * Hide anyone either side has blocked. A block has to cut both ways:
+         * hiding them from you but leaving you visible to them defeats the
+         * point of blocking someone who is harassing you.
+         */
+        AND NOT EXISTS (
+          SELECT 1 FROM member_blocks b
+          WHERE (b.blocker_user_id = $1 AND b.blocked_user_id = p.user_id)
+             OR (b.blocker_user_id = p.user_id AND b.blocked_user_id = $1)
+        )
         /*
          * Show only the opposite gender.
          *

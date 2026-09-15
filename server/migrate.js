@@ -121,6 +121,27 @@ const migrations = [
   `ALTER TABLE auth_email_otps DROP CONSTRAINT IF EXISTS auth_email_otps_purpose_check`,
   `ALTER TABLE auth_email_otps ADD CONSTRAINT auth_email_otps_purpose_check
      CHECK (purpose IN ('signup', 'login', 'reset'))`,
+  `CREATE TABLE IF NOT EXISTS member_reports (
+    id TEXT PRIMARY KEY,
+    reporter_user_id TEXT NOT NULL,
+    reported_user_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    details TEXT,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'actioned', 'dismissed')),
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS member_reports_status_idx ON member_reports (status, created_at)`,
+  // One member cannot file the same report twice; a second submission updates
+  // the first rather than flooding the queue.
+  `CREATE UNIQUE INDEX IF NOT EXISTS member_reports_pair_idx
+     ON member_reports (reporter_user_id, reported_user_id)`,
+  `CREATE TABLE IF NOT EXISTS member_blocks (
+    blocker_user_id TEXT NOT NULL,
+    blocked_user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_user_id, blocked_user_id)
+  )`,
   `CREATE TABLE IF NOT EXISTS subscription_rules (
     gender TEXT PRIMARY KEY,
     is_free BOOLEAN NOT NULL DEFAULT false,

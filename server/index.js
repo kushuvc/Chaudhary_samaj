@@ -77,6 +77,7 @@ import {
   getSavedFiltersByUserIdFast,
   invalidateActiveEmailOtpsFast,
   mapPublicProfile,
+  invalidateFastCache,
   requestEmailOtpFast,
 } from './fast-queries.js'
 
@@ -453,6 +454,47 @@ app.post('/api/auth/signup', async (request, response) => {
       }
     }
 
+    const numericAgeInput = Number(age)
+    /*
+     * Refuse anyone under 18.
+     *
+     * The age was previously floored at 18 with Math.max, so a child's date of
+     * birth was silently rewritten into an adult profile — an under-age signup
+     * was laundered into a compliant-looking one rather than stopped. This is
+     * a matrimonial service; nobody under 18 belongs on it.
+     */
+    if (dateOfBirth) {
+      const born = new Date(dateOfBirth)
+      if (Number.isNaN(born.getTime())) {
+        response.status(400).json({ success: false, error: 'Please enter a valid date of birth' })
+        return
+      }
+
+      const years = (Date.now() - born.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+      if (years < 18) {
+        console.warn('[signup] refused an under-18 registration')
+        response.status(403).json({
+          success: false,
+          code: 'UNDER_AGE',
+          error: 'You must be at least 18 years old to create an account.',
+        })
+        return
+      }
+      if (years > 120) {
+        response.status(400).json({ success: false, error: 'Please check the date of birth' })
+        return
+      }
+    }
+
+    if (Number.isFinite(numericAgeInput) && numericAgeInput < 18) {
+      response.status(403).json({
+        success: false,
+        code: 'UNDER_AGE',
+        error: 'You must be at least 18 years old to create an account.',
+      })
+      return
+    }
+
     const userId = crypto.randomUUID()
     const profileId = `profile-${crypto.randomUUID()}`
     const createdAt = new Date().toISOString()
@@ -461,7 +503,7 @@ app.post('/api/auth/signup', async (request, response) => {
     const calcAge = Number.isFinite(numericAge) && numericAge >= 18 && numericAge <= 100
       ? Math.round(numericAge)
       : dateOfBirth
-        ? Math.max(18, Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)))
+        ? Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
         : 25
     const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(String(fullName).trim())}`
 
@@ -2900,6 +2942,17 @@ app.get('/admin', (_request, response) => {
   })
 })
 
+app.get('/child-safety', (_request, response) => {
+  response.sendFile(path.join(siteDir, 'child-safety.html'), (error) => {
+    if (error) {
+      console.error('[legal] could not serve the child safety page:', error.message)
+      if (!response.headersSent) {
+        response.status(500).type('text/plain').send('Temporarily unavailable.')
+      }
+    }
+  })
+})
+
 app.get('/delete-account', (_request, response) => {
   response.sendFile(path.join(siteDir, 'delete-account.html'), (error) => {
     if (error) {
@@ -3842,6 +3895,167 @@ app.put('/api/settings', async (request, response) => {
  * Reading is admin-only because it is an operations screen; members see the
  * part that applies to them through /api/payments/subscription.
  */
+/*
+ * Reporting and blocking.
+ *
+ * Google's child safety standards expect an in-app way to report a member,
+ * and there was none — no endpoint, no screen. Reports are queued for review
+ * rather than acted on automatically; blocking takes effect immediately,
+ * because that is the part the reporter needs straight away.
+ */
+const REPORT_REASONS = [
+  'underage',
+  'fake_profile',
+  'harassment',
+  'inappropriate_content',
+  'scam',
+  'other',
+]
+
+app.post('/api/matrimony/profiles/:id/report', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  const reason = String(request.body?.reason || '').trim().toLowerCase()
+  const details = String(request.body?.details || '').trim().slice(0, 2000)
+
+  if (!REPORT_REASONS.includes(reason)) {
+    response.status(400).json({
+      success: false,
+      error: `Reason must be one of: ${REPORT_REASONS.join(', ')}`,
+    })
+    return
+  }
+
+  try {
+    const rows = await pgQuery(
+      'SELECT user_id FROM matrimony_profiles WHERE id = $1 LIMIT 1',
+      [request.params.id]
+    )
+    const reportedUserId = rows[0]?.user_id
+    if (!reportedUserId) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
+    if (reportedUserId === activeUserId) {
+      response.status(400).json({ success: false, error: 'You cannot report your own profile' })
+      return
+    }
+
+    await pgQuery(
+      `INSERT INTO member_reports (id, reporter_user_id, reported_user_id, reason, details, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, 'open', $6)
+       ON CONFLICT (reporter_user_id, reported_user_id) DO UPDATE SET
+         reason = EXCLUDED.reason,
+         details = EXCLUDED.details,
+         status = 'open',
+         created_at = EXCLUDED.created_at`,
+      [`report-${crypto.randomUUID()}`, activeUserId, reportedUserId, reason, details || null, new Date().toISOString()]
+    )
+
+    // Reporting someone you do not want to see again should also stop showing
+    // them to you, without a second step.
+    await pgQuery(
+      `INSERT INTO member_blocks (blocker_user_id, blocked_user_id, created_at)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [activeUserId, reportedUserId, new Date().toISOString()]
+    )
+
+    console.warn(`[report] ${reason} filed against ${reportedUserId}`)
+    invalidateFastCache('publicProfiles')
+    response.status(201).json({
+      success: true,
+      data: { message: 'Thank you. Our team will review this, and the member is now hidden from you.' },
+    })
+  } catch (err) {
+    console.error('[report] failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not submit the report' })
+  }
+})
+
+app.post('/api/matrimony/profiles/:id/block', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  try {
+    const rows = await pgQuery(
+      'SELECT user_id FROM matrimony_profiles WHERE id = $1 LIMIT 1',
+      [request.params.id]
+    )
+    const blockedUserId = rows[0]?.user_id
+    if (!blockedUserId) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
+    if (blockedUserId === activeUserId) {
+      response.status(400).json({ success: false, error: 'You cannot block yourself' })
+      return
+    }
+
+    await pgQuery(
+      `INSERT INTO member_blocks (blocker_user_id, blocked_user_id, created_at)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [activeUserId, blockedUserId, new Date().toISOString()]
+    )
+    invalidateFastCache('publicProfiles')
+    response.json({ success: true, data: { blocked: true } })
+  } catch (err) {
+    console.error('[block] failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not block this member' })
+  }
+})
+
+/** The review queue. */
+app.get('/api/admin/reports', requireAdmin, async (_request, response) => {
+  try {
+    const rows = await pgQuery(
+      `SELECT r.id, r.reason, r.details, r.status, r.created_at,
+              reporter.email AS reporter_email,
+              reported.email AS reported_email,
+              r.reported_user_id
+       FROM member_reports r
+       LEFT JOIN users reporter ON reporter.id = r.reporter_user_id
+       LEFT JOIN users reported ON reported.id = r.reported_user_id
+       ORDER BY (r.status = 'open') DESC, r.created_at DESC
+       LIMIT 200`
+    )
+    response.json({ success: true, data: rows })
+  } catch (err) {
+    console.error('[admin/reports] read failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not read reports' })
+  }
+})
+
+app.put('/api/admin/reports/:id', requireAdmin, async (request, response) => {
+  const status = String(request.body?.status || '').trim().toLowerCase()
+  if (!['open', 'actioned', 'dismissed'].includes(status)) {
+    response.status(400).json({ success: false, error: 'Status must be open, actioned or dismissed' })
+    return
+  }
+
+  try {
+    const rows = await pgQuery(
+      `UPDATE member_reports SET status = $2, reviewed_at = $3 WHERE id = $1
+       RETURNING id, status, reviewed_at`,
+      [request.params.id, status, new Date().toISOString()]
+    )
+    if (!rows.length) {
+      response.status(404).json({ success: false, error: 'Report not found' })
+      return
+    }
+    response.json({ success: true, data: rows[0] })
+  } catch (err) {
+    console.error('[admin/reports] update failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not update the report' })
+  }
+})
+
 app.get('/api/admin/subscription-rules', requireAdmin, async (_request, response) => {
   try {
     const rows = await pgQuery(

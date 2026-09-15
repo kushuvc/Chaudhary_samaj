@@ -104,3 +104,6 @@ services:
       - type: rewrite
         source: /admin
         destination: /admin.html
+      - type: rewrite
+        source: /child-safety
+        destination: /child-safety.html

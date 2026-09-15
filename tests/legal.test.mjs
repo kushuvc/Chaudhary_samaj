@@ -99,3 +99,23 @@ describe('admin rules page', () => {
     assert.ok(!/authorization:\s*.Bearer [A-Za-z0-9._-]{20}/i.test(html), 'no baked-in token')
   })
 })
+
+describe('child safety standards', () => {
+  /*
+   * Play requires this to be publicly reachable and not editable by the
+   * reader. The page also has to describe controls that actually exist — the
+   * age gate and the report flow it names are covered in safety.test.mjs.
+   */
+  test('/child-safety is public and states the standards', async () => {
+    const res = await fetch(`${server.base}/child-safety`)
+    assert.equal(res.status, 200)
+    assert.match(res.headers.get('content-type') || '', /text\/html/)
+
+    const html = await res.text()
+    assert.match(html, /zero tolerance/i)
+    assert.match(html, /18 years old/, 'must state the minimum age')
+    assert.match(html, /Report/, 'must explain how to report')
+    assert.match(html, /aurienlimited@gmail\.com/, 'must give a point of contact')
+    assert.match(html, /POCSO|Prohibition of Child Marriage/, 'must name the applicable law')
+  })
+})

@@ -635,11 +635,53 @@ async function verifyEmailOtpAsync(email, purpose, otpCode) {
   return { ok: true }
 }
 
+/*
+ * Google Play review account.
+ *
+ * The app signs in with an emailed one-time code, which a Play reviewer cannot
+ * receive — the code goes to a mailbox they do not control — so without this
+ * they cannot get past the login screen and the submission is rejected.
+ *
+ * This is a deliberate, deliberately narrow bypass: it applies to exactly one
+ * address, only when both environment variables are set, and only to an
+ * account that already exists. It grants no privilege beyond a normal session
+ * for that one account, which must hold no real member data. Clearing
+ * REVIEW_ACCOUNT_EMAIL removes it entirely.
+ */
+const reviewAccountEmail = String(process.env.REVIEW_ACCOUNT_EMAIL || '').trim().toLowerCase()
+const reviewAccountOtp = String(process.env.REVIEW_ACCOUNT_OTP || '').trim()
+const reviewAccountEnabled = Boolean(reviewAccountEmail && reviewAccountOtp.length >= 6)
+
+if (reviewAccountEmail && !reviewAccountEnabled) {
+  console.warn('[review] REVIEW_ACCOUNT_EMAIL is set but REVIEW_ACCOUNT_OTP is missing or shorter than 6 characters; the review account is disabled')
+}
+
+function isReviewAccountEmail(email) {
+  if (!reviewAccountEnabled) return false
+  return String(email || '').trim().toLowerCase() === reviewAccountEmail
+}
+
+/** Constant-time check, so the fixed code cannot be recovered by timing. */
+function matchesReviewOtp(candidate) {
+  if (!reviewAccountEnabled) return false
+  const given = Buffer.from(String(candidate || ''))
+  const expected = Buffer.from(reviewAccountOtp)
+  if (given.length !== expected.length) return false
+  return crypto.timingSafeEqual(given, expected)
+}
+
 app.post('/api/auth/otp/verify', async (request, response) => {
   const { email, purpose, otp } = request.body || {}
 
   try {
-    const result = await verifyEmailOtpAsync(email, purpose, otp)
+    // The review account skips the stored-code check; everything after this
+    // (the account must exist, the session it gets) is the normal path.
+    const usingReviewAccount = isReviewAccountEmail(email) && matchesReviewOtp(otp)
+    if (usingReviewAccount) {
+      console.warn(`[review] review account sign-in for ${reviewAccountEmail}`)
+    }
+
+    const result = usingReviewAccount ? { ok: true } : await verifyEmailOtpAsync(email, purpose, otp)
     if (!result.ok) {
       response.status(result.statusCode || 400).json({ success: false, error: result.error })
       return
@@ -745,6 +787,22 @@ app.post('/api/auth/otp/request', async (request, response) => {
   // issuing another. Each row carries its own attempt counter, so leaving old
   // codes live multiplies the number of guesses an attacker gets, and lets a
   // stale row shadow the newest one when verifying.
+  // The review account's code is fixed, so there is nothing to generate or
+  // send. Answering normally keeps the app's two-step screen working.
+  if (isReviewAccountEmail(normalizedEmail)) {
+    console.warn(`[review] code request for the review account (${normalizedPurpose})`)
+    response.json({
+      success: true,
+      data: {
+        email: normalizedEmail,
+        purpose: normalizedPurpose,
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+        sentViaFallback: false,
+      },
+    })
+    return
+  }
+
   try {
     await (databaseEngine === 'postgres'
       ? invalidateActiveEmailOtpsFast(normalizedEmail, normalizedPurpose)

@@ -45,6 +45,12 @@ services:
         sync: false
       - key: PLAY_RTDN_TOKEN
         sync: false
+      # Google Play review account. Lets one address sign in with a fixed
+      # code so a reviewer can get past the emailed OTP. Unset = off.
+      - key: REVIEW_ACCOUNT_EMAIL
+        sync: false
+      - key: REVIEW_ACCOUNT_OTP
+        sync: false
       # SMS OTP. Without these, phone sign-in returns 503 in production
       # rather than handing the code back to the caller.
       - key: MSG91_AUTHKEY

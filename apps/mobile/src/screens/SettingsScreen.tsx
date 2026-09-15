@@ -191,6 +191,8 @@ export function SettingsScreen() {
 
   return (
     <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       style={[styles.container, { backgroundColor: palette.bg }]}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
     >

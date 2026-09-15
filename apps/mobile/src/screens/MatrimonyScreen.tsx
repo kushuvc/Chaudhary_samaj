@@ -97,7 +97,9 @@ function FilterSection({
   return (
     <View style={styles.filterSection}>
       <Text style={styles.filterSectionTitle}>{title}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipRow}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipRow}>
         <FilterChip label={allLabel} active={!selectedValue} onPress={() => onSelect('')} styles={styles} />
         {options.map((option) => (
           <FilterChip

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
@@ -150,7 +151,19 @@ export function StepScaffold({
   const showProgress = typeof step === 'number' && typeof totalSteps === 'number' && totalSteps > 0;
 
   return (
-    <View style={styles.screen}>
+    /*
+     * Lift the content above the on-screen keyboard.
+     *
+     * Nothing did this before, so on the signup steps the keyboard covered the
+     * very field being typed into — you could not see what you had entered.
+     * iOS needs an explicit behaviour; Android resizes the window itself
+     * (softwareKeyboardLayoutMode "resize" in app.json), and adding padding on
+     * top of that would double-count the inset.
+     */
+    <KeyboardAvoidingView
+      style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         {onBack ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} onPress={onBack} hitSlop={8}>
@@ -192,6 +205,9 @@ export function StepScaffold({
         style={styles.body}
         contentContainerStyle={styles.bodyInner}
         keyboardShouldPersistTaps="handled"
+        // Scrolls the focused field into view instead of leaving it behind the
+        // keyboard. iOS-only; Android gets the same effect from resizing.
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
@@ -203,7 +219,7 @@ export function StepScaffold({
       {footer ? (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>{footer}</View>
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

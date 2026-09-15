@@ -368,6 +368,8 @@ export function ProfileScreen() {
 
   return (
     <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       style={styles.container}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
     >

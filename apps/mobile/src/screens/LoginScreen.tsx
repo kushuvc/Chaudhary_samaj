@@ -166,6 +166,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
         style={styles.sheet}
         contentContainerStyle={styles.sheetInner}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         {stage === 'signIn' ? (
           <>

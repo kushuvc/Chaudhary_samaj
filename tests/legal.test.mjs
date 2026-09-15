@@ -78,3 +78,24 @@ describe('account deletion page', () => {
     assert.match(html, /What is kept/i, 'must say what is retained')
   })
 })
+
+describe('admin rules page', () => {
+  test('/admin serves the page without a session', async () => {
+    const res = await fetch(`${server.base}/admin`)
+    assert.equal(res.status, 200, 'the page itself is public, like a login page')
+    const html = await res.text()
+    assert.match(html, /Subscription rules/)
+    assert.match(html, /noindex/, 'an admin screen should not be indexed')
+  })
+
+  /*
+   * The page is only a form. Everything it can do is behind /api/admin, which
+   * the security suite covers — this asserts the page ships no secret of its
+   * own and grants nothing by being reachable.
+   */
+  test('it carries no credentials of its own', async () => {
+    const html = await (await fetch(`${server.base}/admin`)).text()
+    assert.ok(!/xkeysib|sb_secret|JWT_SECRET|postgres:\/\//i.test(html))
+    assert.ok(!/authorization:\s*.Bearer [A-Za-z0-9._-]{20}/i.test(html), 'no baked-in token')
+  })
+})

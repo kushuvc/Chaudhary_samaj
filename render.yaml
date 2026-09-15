@@ -101,3 +101,6 @@ services:
       - type: rewrite
         source: /delete-account
         destination: /delete-account.html
+      - type: rewrite
+        source: /admin
+        destination: /admin.html

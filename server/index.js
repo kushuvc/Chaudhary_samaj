@@ -2882,6 +2882,24 @@ app.get('/', (_request, response) => {
   })
 })
 
+/*
+ * Admin screen for the subscription rules.
+ *
+ * The page itself is public HTML; everything it does goes through
+ * /api/admin/*, which requires an admin session. Serving it needs no auth for
+ * the same reason a login page needs none.
+ */
+app.get('/admin', (_request, response) => {
+  response.sendFile(path.join(siteDir, 'admin.html'), (error) => {
+    if (error) {
+      console.error('[admin] could not serve the rules page:', error.message)
+      if (!response.headersSent) {
+        response.status(500).type('text/plain').send('Temporarily unavailable.')
+      }
+    }
+  })
+})
+
 app.get('/delete-account', (_request, response) => {
   response.sendFile(path.join(siteDir, 'delete-account.html'), (error) => {
     if (error) {

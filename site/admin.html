@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Subscription rules — Chaudhary Samaj</title>
+<style>
+  :root{
+    --ink:#1b2030; --soft:#4c5468; --muted:#737c92; --line:#e5e7f0;
+    --bg:#f4f5fa; --card:#ffffff; --brand:#5B5BD6; --brand2:#8B5CF6;
+    --ok:#0f9d76; --okbg:#e6f6f1; --warn:#b4530a; --warnbg:#fdf0e3; --err:#c0344a; --errbg:#fdecef;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --ink:#eaecf5; --soft:#bcc3d4; --muted:#8d95aa; --line:#2a2f40;
+           --bg:#101219; --card:#181b24; --okbg:#0f2a23; --warnbg:#2c1e10; --errbg:#2b141a; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:46rem;margin:0 auto;padding:2.5rem 1.1rem 4rem}
+  header{margin-bottom:1.6rem}
+  h1{font-size:1.5rem;margin:0 0 .2rem;letter-spacing:-0.01em}
+  .sub{color:var(--muted);font-size:.93rem;margin:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.1rem 1.2rem;margin-bottom:1rem}
+  label{display:block;font-size:.85rem;color:var(--muted);margin:0 0 .3rem}
+  input[type=text],input[type=email],input[type=number]{
+    width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;
+    background:var(--bg);color:var(--ink);font:inherit}
+  input:focus{outline:2px solid var(--brand);outline-offset:1px}
+  button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:.62rem 1rem;cursor:pointer;
+    background:var(--brand);color:#fff}
+  button.secondary{background:transparent;color:var(--brand);border:1px solid var(--line)}
+  button:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap}
+  .row > div{flex:1 1 9rem;min-width:8rem}
+  .head{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:.9rem}
+  .head h2{margin:0;font-size:1.05rem}
+  .pill{font-size:.78rem;font-weight:700;padding:.2rem .6rem;border-radius:999px;letter-spacing:.02em}
+  .pill.free{background:var(--okbg);color:var(--ok)}
+  .pill.paid{background:var(--warnbg);color:var(--warn)}
+  .switch{display:flex;align-items:center;gap:.55rem;margin:.2rem 0 1rem;font-size:.95rem;color:var(--soft)}
+  .switch input{width:1.05rem;height:1.05rem;accent-color:var(--brand)}
+  .msg{border-radius:8px;padding:.6rem .8rem;font-size:.9rem;margin-bottom:1rem;display:none}
+  .msg.show{display:block}
+  .msg.ok{background:var(--okbg);color:var(--ok)}
+  .msg.err{background:var(--errbg);color:var(--err)}
+  .hint{color:var(--muted);font-size:.85rem;margin:.35rem 0 0}
+  .foot{color:var(--muted);font-size:.85rem;margin-top:1.4rem}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Subscription rules</h1>
+  <p class="sub">Who pays, how much, and how many profiles they see before the paywall. Changes apply on the next request — no app update.</p>
+</header>
+
+<div id="msg" class="msg"></div>
+
+<section id="signin" class="card">
+  <h2 style="margin:0 0 .8rem;font-size:1.05rem">Sign in</h2>
+  <div id="stepEmail">
+    <label for="email">Admin email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+    <p class="hint">A six-digit code is emailed to you. The account must be an admin.</p>
+    <div style="margin-top:.8rem"><button id="sendCode">Email me a code</button></div>
+  </div>
+  <div id="stepCode" hidden>
+    <label for="code">Six-digit code</label>
+    <input id="code" inputmode="numeric" maxlength="6" placeholder="000000">
+    <p class="hint">Check spam if it does not arrive.</p>
+    <div style="margin-top:.8rem;display:flex;gap:.5rem">
+      <button id="verify">Sign in</button>
+      <button id="backToEmail" class="secondary" type="button">Use a different email</button>
+    </div>
+  </div>
+</section>
+
+<section id="rules" hidden></section>
+
+<p class="foot" id="whoami"></p>
+
+</div>
+
+<script>
+const API = location.origin + '/api';
+let token = sessionStorage.getItem('cs_admin_token') || '';
+let email = sessionStorage.getItem('cs_admin_email') || '';
+
+const $ = (id) => document.getElementById(id);
+const msg = (text, kind) => {
+  const el = $('msg');
+  el.textContent = text;
+  el.className = 'msg show ' + (kind || 'ok');
+  if (kind !== 'err') setTimeout(() => { el.className = 'msg'; }, 4000);
+};
+
+async function call(path, options) {
+  const res = await fetch(API + path, {
+    ...options,
+    headers: {
+      'content-type': 'application/json',
+      ...(token ? { authorization: 'Bearer ' + token } : {}),
+      ...(options && options.headers),
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ('Request failed (' + res.status + ')'));
+  return body;
+}
+
+/* ---- sign in ---- */
+$('sendCode').onclick = async () => {
+  const value = $('email').value.trim();
+  if (!value) return;
+  $('sendCode').disabled = true;
+  try {
+    await call('/auth/otp/request', { method: 'POST', body: JSON.stringify({ email: value, purpose: 'login' }) });
+    email = value;
+    $('stepEmail').hidden = true;
+    $('stepCode').hidden = false;
+    msg('Code sent to ' + value);
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('sendCode').disabled = false;
+  }
+};
+
+$('backToEmail').onclick = () => { $('stepCode').hidden = true; $('stepEmail').hidden = false; };
+
+$('verify').onclick = async () => {
+  const code = $('code').value.trim();
+  if (code.length !== 6) return;
+  $('verify').disabled = true;
+  try {
+    const body = await call('/auth/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, purpose: 'login', otp: code }),
+    });
+    token = body.data.authToken;
+    sessionStorage.setItem('cs_admin_token', token);
+    sessionStorage.setItem('cs_admin_email', email);
+    await loadRules();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('verify').disabled = false;
+  }
+};
+
+/* ---- rules ---- */
+function ruleCard(rule) {
+  const free = rule.is_free === true;
+  const rupees = Math.round(Number(rule.price_paise || 0) / 100);
+  const name = rule.gender.charAt(0).toUpperCase() + rule.gender.slice(1);
+
+  return `
+    <div class="card" data-gender="${rule.gender}">
+      <div class="head">
+        <h2>${name} members</h2>
+        <span class="pill ${free ? 'free' : 'paid'}">${free ? 'FREE' : '₹' + rupees + ' / MONTH'}</span>
+      </div>
+
+      <div class="switch">
+        <input type="checkbox" id="free-${rule.gender}" ${free ? 'checked' : ''}>
+        <label for="free-${rule.gender}" style="margin:0;color:var(--soft)">Free — everything unlocked, no payment</label>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="price-${rule.gender}">Price (₹ per month)</label>
+          <input type="number" id="price-${rule.gender}" min="0" step="1" value="${rupees}">
+        </div>
+        <div>
+          <label for="limit-${rule.gender}">Free profiles before the paywall</label>
+          <input type="number" id="limit-${rule.gender}" min="0" step="1" value="${Number(rule.free_profile_limit || 0)}">
+        </div>
+        <div style="flex:0 0 auto">
+          <button data-save="${rule.gender}">Save</button>
+        </div>
+      </div>
+      <p class="hint">Price is ignored while Free is on. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.</p>
+    </div>`;
+}
+
+async function loadRules() {
+  const body = await call('/admin/subscription-rules');
+  $('signin').hidden = true;
+  $('rules').hidden = false;
+  $('rules').innerHTML = body.data.map(ruleCard).join('');
+  $('whoami').textContent = 'Signed in as ' + email + '. Sign-in lasts until you close this tab.';
+
+  for (const button of $('rules').querySelectorAll('[data-save]')) {
+    button.onclick = () => save(button.getAttribute('data-save'), button);
+  }
+}
+
+async function save(gender, button) {
+  const isFree = $('free-' + gender).checked;
+  const rupees = Number($('price-' + gender).value);
+  const limit = Number($('limit-' + gender).value);
+
+  if (!Number.isInteger(rupees) || rupees < 0) return msg('Price must be a whole number of rupees.', 'err');
+  if (!Number.isInteger(limit) || limit < 0) return msg('Free profiles must be zero or more.', 'err');
+
+  button.disabled = true;
+  try {
+    await call('/admin/subscription-rules/' + gender, {
+      method: 'PUT',
+      // The API takes paise; the form takes rupees, which is what you think in.
+      body: JSON.stringify({ isFree, pricePaise: rupees * 100, freeProfileLimit: limit }),
+    });
+    msg(gender.charAt(0).toUpperCase() + gender.slice(1) + ' members updated. Live now.');
+    await loadRules();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* A stored token may have expired or belong to a non-admin. */
+if (token) {
+  loadRules().catch(() => {
+    token = '';
+    sessionStorage.removeItem('cs_admin_token');
+  });
+}
+</script>
+</body>
+</html>

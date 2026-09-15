@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -126,6 +127,50 @@ export function TextButton({ label, onPress }: { label: string; onPress: () => v
  * Shared chrome for every signup step: back affordance, step progress,
  * scrolling body, and a sticky footer.
  */
+/*
+ * Keeps the focused field above the keyboard.
+ *
+ * Android does not scroll a focused TextInput into view on its own, and
+ * automaticallyAdjustKeyboardInsets is iOS-only, so on Android the keyboard
+ * simply drew over the field being typed into. Inputs report their focus here
+ * and the scroll container moves them into the visible strip above the
+ * keyboard.
+ */
+interface KeyboardScrollValue {
+  onInputFocus: (node: View | null) => void;
+}
+
+const KeyboardScrollContext = createContext<KeyboardScrollValue | null>(null);
+
+/**
+ * Where the keyboard is, 0 when closed.
+ *
+ * `screenY` is the Y coordinate of its top edge, which is what decides whether
+ * a field is covered. Deriving that from the screen height instead was off by
+ * the system bars — enough to conclude a hidden field was visible.
+ */
+function useKeyboard() {
+  const [keyboard, setKeyboard] = useState({ height: 0, screenY: 0 });
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (event) =>
+      setKeyboard({
+        height: event.endCoordinates?.height ?? 0,
+        screenY: event.endCoordinates?.screenY ?? 0,
+      })
+    );
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboard({ height: 0, screenY: 0 }));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  return keyboard;
+}
+
 export function StepScaffold({
   onBack,
   step,
@@ -149,6 +194,55 @@ export function StepScaffold({
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const showProgress = typeof step === 'number' && typeof totalSteps === 'number' && totalSteps > 0;
+
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  const focusedInput = useRef<View | null>(null);
+  const keyboard = useKeyboard();
+  const keyboardHeight = keyboard.height;
+
+  /*
+   * Scroll the focused field clear of the keyboard.
+   *
+   * Measured in window coordinates rather than with measureLayout, which in
+   * this React Native version requires a ref to a host component and rejects
+   * the scroll view's inner node.
+   */
+  const revealFocusedInput = useCallback((keyboardTop: number) => {
+    const node = focusedInput.current;
+    if (!node || keyboardTop <= 0) return;
+
+    node.measureInWindow((_x, y, _width, height) => {
+      // Leave more than a hairline above the keyboard, so the field and its
+      // label are both readable rather than flush against it.
+      const margin = 72;
+      const visibleBottom = keyboardTop - margin;
+      const inputBottom = y + height;
+      if (inputBottom <= visibleBottom) return;
+
+      scrollRef.current?.scrollTo({
+        y: Math.max(scrollY.current + (inputBottom - visibleBottom), 0),
+        animated: true,
+      });
+    });
+  }, []);
+
+  // The keyboard height is not known at focus time, so the scroll waits until
+  // it is — and runs again if the keyboard resizes, as it does when the
+  // suggestion strip appears.
+  useEffect(() => {
+    revealFocusedInput(keyboard.screenY);
+  }, [keyboard.screenY, revealFocusedInput]);
+
+  const onInputFocus = useCallback(
+    (node: View | null) => {
+      focusedInput.current = node;
+      revealFocusedInput(keyboard.screenY);
+    },
+    [keyboard.screenY, revealFocusedInput]
+  );
+
+  const keyboardScroll = useMemo(() => ({ onInputFocus }), [onInputFocus]);
 
   return (
     /*
@@ -202,8 +296,17 @@ export function StepScaffold({
       </View>
 
       <ScrollView
+        ref={scrollRef}
+        onScroll={(event) => {
+          scrollY.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
         style={styles.body}
-        contentContainerStyle={styles.bodyInner}
+        contentContainerStyle={[
+          styles.bodyInner,
+          // Room to scroll the last field clear of the keyboard.
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight + 24 },
+        ]}
         keyboardShouldPersistTaps="handled"
         // Scrolls the focused field into view instead of leaving it behind the
         // keyboard. iOS-only; Android gets the same effect from resizing.
@@ -213,10 +316,12 @@ export function StepScaffold({
         {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        <View style={styles.content}>{children}</View>
+        <KeyboardScrollContext.Provider value={keyboardScroll}>
+          <View style={styles.content}>{children}</View>
+        </KeyboardScrollContext.Provider>
       </ScrollView>
 
-      {footer ? (
+      {footer && keyboardHeight === 0 ? (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}>{footer}</View>
       ) : null}
     </KeyboardAvoidingView>
@@ -282,9 +387,12 @@ export function Input({
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [focused, setFocused] = useState(false);
+  const shellRef = useRef<View>(null);
+  const keyboardScroll = useContext(KeyboardScrollContext);
 
   return (
     <View
+      ref={shellRef}
       style={[
         styles.inputShell,
         multiline && styles.inputShellMultiline,
@@ -304,7 +412,10 @@ export function Input({
         autoCapitalize={autoCapitalize}
         multiline={multiline}
         maxLength={maxLength}
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+          keyboardScroll?.onInputFocus(shellRef.current);
+        }}
         onBlur={() => {
           setFocused(false);
           onBlur?.();

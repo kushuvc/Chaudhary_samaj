@@ -750,6 +750,26 @@ export const api = {
     return token;
   },
 
+  /** Report a member. Also hides them from the reporter straight away. */
+  reportProfile: async (
+    profileId: string,
+    reason: string,
+    details?: string
+  ): Promise<{ message?: string }> => {
+    const response = await request<{ data?: { message?: string } }>(
+      `/matrimony/profiles/${profileId}/report`,
+      { method: 'POST', body: JSON.stringify({ reason, details }) }
+    );
+    return response.data || {};
+  },
+
+  /** Hide a member from you, and you from them. */
+  blockProfile: async (profileId: string): Promise<void> => {
+    await request<{ success: boolean }>(`/matrimony/profiles/${profileId}/block`, {
+      method: 'POST',
+    });
+  },
+
   deleteAccount: async (): Promise<void> => {
     await request<{ success: boolean }>('/auth/account', { method: 'DELETE' });
   },

@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Image,
+  Modal,
   Pressable,
+  TextInput,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -119,6 +121,14 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const styles = useMemo(() => createStyles(palette, insets.top), [palette, insets.top]);
+  
+  const [reportOpen, setReportOpen] = useState(false);
+  
+  const [reportReason, setReportReason] = useState<string | null>(null);
+  
+  const [reportDetails, setReportDetails] = useState('');
+  
+  const [reporting, setReporting] = useState(false);
   
   const [profile, setProfile] = useState<ProfileDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -280,6 +290,42 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           { text: 'Send Interest', onPress: handleSendInterest }
         ]
       );
+    }
+  };
+
+  /*
+   * Reporting a member.
+   *
+   * "Under 18" is listed first and named plainly: it is the reason Google's
+   * child safety standards exist, and burying it under "Other" would make the
+   * published standards untrue.
+   */
+  const REPORT_REASONS: Array<{ id: string; label: string }> = [
+    { id: 'underage', label: 'This person is under 18' },
+    { id: 'fake_profile', label: 'Fake or impersonated profile' },
+    { id: 'harassment', label: 'Harassment or abusive messages' },
+    { id: 'inappropriate_content', label: 'Inappropriate photos or content' },
+    { id: 'scam', label: 'Scam or asking for money' },
+    { id: 'other', label: 'Something else' },
+  ];
+
+  const submitReport = async () => {
+    if (!reportReason || reporting) return;
+    setReporting(true);
+    try {
+      await api.reportProfile(profileId, reportReason, reportDetails.trim() || undefined);
+      setReportOpen(false);
+      setReportReason(null);
+      setReportDetails('');
+      showAlert(
+        'Thank you',
+        'Our team will review this. This member is now hidden from you.',
+        [{ text: 'OK', onPress: onBack }]
+      );
+    } catch (err) {
+      showAlert('Could not send the report', (err as Error).message || 'Please try again.');
+    } finally {
+      setReporting(false);
     }
   };
 
@@ -447,6 +493,16 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         {/* Action Buttons */}
         {renderActionButtons()}
 
+        <Pressable
+          style={styles.reportButton}
+          onPress={() => setReportOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Report this profile"
+        >
+          <Ionicons name="flag-outline" size={16} color={palette.danger} />
+          <Text style={styles.reportButtonText}>Report this profile</Text>
+        </Pressable>
+
         {/* Basic Info */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Information</Text>
@@ -548,12 +604,99 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={reportOpen} transparent animationType="slide" onRequestClose={() => setReportOpen(false)}>
+        <Pressable style={styles.reportOverlay} onPress={() => setReportOpen(false)}>
+          <Pressable style={styles.reportSheet} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.reportTitle}>Report this profile</Text>
+            <Text style={styles.reportSubtitle}>
+              Tell us what is wrong. Our team reviews every report, and this member is hidden from you straight away.
+            </Text>
+
+            {REPORT_REASONS.map((item) => (
+              <Pressable
+                key={item.id}
+                style={[styles.reportReason, reportReason === item.id && styles.reportReasonActive]}
+                onPress={() => setReportReason(item.id)}
+              >
+                <Ionicons
+                  name={reportReason === item.id ? 'radio-button-on' : 'radio-button-off'}
+                  size={18}
+                  color={reportReason === item.id ? palette.primary : palette.muted}
+                />
+                <Text style={styles.reportReasonText}>{item.label}</Text>
+              </Pressable>
+            ))}
+
+            <TextInput
+              style={styles.reportInput}
+              value={reportDetails}
+              onChangeText={(text) => setReportDetails(text.slice(0, 2000))}
+              placeholder="Anything else we should know? (optional)"
+              placeholderTextColor={palette.muted}
+              multiline
+              textAlignVertical="top"
+            />
+
+            <View style={styles.reportActions}>
+              <Pressable style={styles.reportCancel} onPress={() => setReportOpen(false)}>
+                <Text style={styles.reportCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.reportSubmit, (!reportReason || reporting) && styles.reportSubmitDisabled]}
+                disabled={!reportReason || reporting}
+                onPress={submitReport}
+              >
+                <Text style={styles.reportSubmitText}>{reporting ? 'Sending…' : 'Send report'}</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 function createStyles(palette: ThemePalette, insetTop = 0) {
   return StyleSheet.create({
+    reportButton: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingVertical: 12, marginHorizontal: 16, marginTop: 4,
+    },
+    reportButtonText: { color: palette.danger, fontSize: 14, fontWeight: '600' },
+    reportOverlay: {
+      flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end',
+    },
+    reportSheet: {
+      backgroundColor: palette.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+      padding: 20, gap: 8, maxHeight: '88%',
+    },
+    reportTitle: { color: palette.text, fontSize: 19, fontWeight: '800', letterSpacing: -0.2 },
+    reportSubtitle: { color: palette.muted, fontSize: 13.5, lineHeight: 19, marginBottom: 6 },
+    reportReason: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      paddingVertical: 11, paddingHorizontal: 12,
+      borderRadius: 10, borderWidth: 1, borderColor: palette.border,
+    },
+    reportReasonActive: { borderColor: palette.primary, backgroundColor: palette.surface },
+    reportReasonText: { color: palette.text, fontSize: 14.5, flex: 1 },
+    reportInput: {
+      borderWidth: 1, borderColor: palette.border, borderRadius: 10,
+      padding: 12, minHeight: 78, color: palette.text, fontSize: 14.5, marginTop: 4,
+    },
+    reportActions: { flexDirection: 'row', gap: 10, marginTop: 10 },
+    reportCancel: {
+      flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center',
+      borderWidth: 1, borderColor: palette.border,
+    },
+    reportCancelText: { color: palette.text, fontWeight: '700', fontSize: 15 },
+    reportSubmit: {
+      flex: 1, paddingVertical: 13, borderRadius: 10, alignItems: 'center',
+      backgroundColor: palette.danger,
+    },
+    reportSubmitDisabled: { opacity: 0.5 },
+    reportSubmitText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+
     container: {
       flex: 1,
       backgroundColor: palette.bg,

@@ -2550,6 +2550,31 @@ if (!useSupabaseStorage) {
 // Serve locally stored photos. Harmless when Supabase is configured (dir is empty).
 app.use('/uploads', express.static(localUploadDir, { maxAge: '7d' }))
 
+/*
+ * Privacy policy.
+ *
+ * Google Play requires a publicly reachable privacy policy URL for any app
+ * that offers subscriptions, and the reviewer fetches it anonymously. It
+ * therefore sits outside /api, with no session check — everything under /api
+ * now requires a token.
+ *
+ * Served from this server rather than a separate host so the URL stays stable
+ * and costs nothing: the repository is private, so GitHub Pages would need a
+ * paid plan.
+ */
+const legalDir = path.join(path.resolve('server'), 'legal')
+
+app.get(['/privacy-policy', '/privacy'], (_request, response) => {
+  response.sendFile(path.join(legalDir, 'privacy-policy.html'), (error) => {
+    if (error) {
+      console.error('[legal] could not serve the privacy policy:', error.message)
+      if (!response.headersSent) {
+        response.status(500).type('text/plain').send('Privacy policy is temporarily unavailable.')
+      }
+    }
+  })
+})
+
 /**
  * Auth headers for the Supabase Storage REST API.
  *

@@ -1,0 +1,37 @@
+import { test, describe, before, after } from 'node:test'
+import assert from 'node:assert/strict'
+import { startServer } from './helpers/harness.mjs'
+
+let server
+before(async () => { server = await startServer() })
+after(async () => { await server?.stop() })
+
+describe('privacy policy', () => {
+  /*
+   * Google Play's reviewer fetches this anonymously, so it must not be caught
+   * by the session check that now covers every member-data route.
+   */
+  for (const route of ['/privacy-policy', '/privacy']) {
+    test(`${route} is public and returns the policy`, async () => {
+      const res = await fetch(`${server.base}${route}`)
+      assert.equal(res.status, 200, `${route} must be reachable without a token`)
+      assert.match(res.headers.get('content-type') || '', /text\/html/)
+
+      const html = await res.text()
+      assert.match(html, /Privacy Policy/i)
+      assert.match(html, /Chaudhary Samaj/i)
+      assert.match(html, /aurienlimited@gmail\.com/, 'must carry a working contact address')
+      assert.match(html, /Grievance|grievance/, 'Indian law requires a grievance contact')
+    })
+  }
+
+  test('the policy names where data is stored', async () => {
+    const html = await (await fetch(`${server.base}/privacy-policy`)).text()
+    assert.match(html, /Japan/, 'cross-border storage must be disclosed')
+  })
+
+  test('it does not leak anything from the environment', async () => {
+    const html = await (await fetch(`${server.base}/privacy-policy`)).text()
+    assert.ok(!/postgres:\/\/|postgresql:\/\/|xkeysib|sb_secret|JWT_SECRET/i.test(html))
+  })
+})

@@ -43,6 +43,9 @@ export async function startServer({ env = {}, nodeEnv = 'test' } = {}) {
     SMTP_HOST: '',
     SMTP_SERVICE: '',
     MSG91_AUTHKEY: '',
+    // The suite signs up far more accounts than a person would; the limiter
+    // itself is covered by its own test rather than by throttling every other.
+    AUTH_RATE_LIMIT_MAX: '100000',
     ...env,
   }
 

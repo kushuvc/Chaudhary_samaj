@@ -195,11 +195,16 @@ export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 
   const sendStart = Date.now()
   const transportLabel = useApi ? 'brevo-api' : transporter ? 'smtp' : 'dev'
   console.log(`[OTP SEND] start to=${to} purpose=${purpose} transport=${transportLabel}`)
-  const subject = purpose === 'login' ? 'Your login OTP code' : 'Your signup OTP code'
+  const subject =
+    purpose === 'login'
+      ? 'Your login OTP code'
+      : purpose === 'reset'
+        ? 'Reset your password'
+        : 'Your signup OTP code'
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
       <h2 style="color: #1d4ed8; margin-bottom: 8px;">Chaudhary Community Verification</h2>
-      <p style="margin-top: 0; color: #334155;">Use this one-time password to continue your ${purpose}:</p>
+      <p style="margin-top: 0; color: #334155;">${purpose === 'reset' ? 'Use this one-time password to reset your password:' : `Use this one-time password to continue your ${purpose}:`}</p>
       <div style="font-size: 28px; font-weight: 700; letter-spacing: 4px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 16px; border-radius: 8px; display: inline-block;">
         ${otpCode}
       </div>

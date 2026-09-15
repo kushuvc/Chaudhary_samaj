@@ -398,7 +398,7 @@ function generateOtpCode() {
 function requestEmailOtp(email, purpose) {
   const normalizedEmail = String(email || '').trim().toLowerCase()
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
-  if (!normalizedEmail || !['signup', 'login'].includes(normalizedPurpose)) {
+  if (!normalizedEmail || !['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     return { ok: false, statusCode: 400, error: 'Invalid email OTP request' }
   }
 
@@ -487,7 +487,7 @@ function verifyEmailOtp(email, purpose, otpCode) {
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
   const normalizedCode = String(otpCode || '').trim()
 
-  if (!normalizedEmail || !normalizedCode || !['signup', 'login'].includes(normalizedPurpose)) {
+  if (!normalizedEmail || !normalizedCode || !['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     return { ok: false, statusCode: 400, error: 'Invalid OTP verification request' }
   }
 
@@ -531,7 +531,7 @@ function invalidateActiveEmailOtps(email, purpose) {
   const normalizedEmail = String(email || '').trim().toLowerCase()
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
 
-  if (!normalizedEmail || !['signup', 'login'].includes(normalizedPurpose)) {
+  if (!normalizedEmail || !['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     return
   }
 
@@ -2047,6 +2047,7 @@ function getMatrimonyFilterOptions(userId) {
 export {
   database,
   databaseEngine,
+  hashPassword,
   getPublicProfiles,
   getSavedFiltersByUserId,
   getCurrentMemberPayload,

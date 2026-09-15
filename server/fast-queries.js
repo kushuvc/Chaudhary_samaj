@@ -416,7 +416,7 @@ export async function requestEmailOtpFast(email, purpose) {
   const normalizedEmail = normalizeOtpEmail(email)
   const normalizedPurpose = normalizeOtpPurpose(purpose)
 
-  if (!normalizedEmail || !['signup', 'login'].includes(normalizedPurpose)) {
+  if (!normalizedEmail || !['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     return { ok: false, statusCode: 400, error: 'Invalid email OTP request' }
   }
 
@@ -532,7 +532,7 @@ export async function invalidateActiveEmailOtpsFast(email, purpose) {
   const normalizedEmail = normalizeOtpEmail(email)
   const normalizedPurpose = normalizeOtpPurpose(purpose)
 
-  if (!normalizedEmail || !['signup', 'login'].includes(normalizedPurpose)) {
+  if (!normalizedEmail || !['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     return null
   }
 
@@ -550,10 +550,10 @@ export async function invalidateActiveEmailOtpsFast(email, purpose) {
   return true
 }
 
-export async function getPublicProfilesFast(currentUserId) {
+export async function getPublicProfilesFast(currentUserId, viewerGender = null) {
   if (!pool || !currentUserId) return null
 
-  const payload = { currentUserId }
+  const payload = { currentUserId, viewerGender }
   const cached = getCached('publicProfiles', payload)
   if (cached) return cached
 
@@ -571,9 +571,25 @@ export async function getPublicProfilesFast(currentUserId) {
       LEFT JOIN matrimony_profile_states s
         ON s.profile_id = p.id AND s.viewer_user_id = $1
       WHERE p.user_id != $1
+        /*
+         * Show only the opposite gender.
+         *
+         * This is a matrimony service, so a member browsing their own gender
+         * is never the intent — the listing used to return everyone. Done in
+         * SQL rather than in the client so it also holds for the detail route
+         * and the free-allowance ordering, which both read this same list.
+         *
+         * A viewer whose own gender is not recorded sees everyone, rather than
+         * an empty app.
+         */
+        AND (
+          $2::text IS NULL
+          OR $2 NOT IN ('male', 'female')
+          OR lower(p.gender) = CASE lower($2) WHEN 'male' THEN 'female' ELSE 'male' END
+        )
       ORDER BY p.compatibility_score DESC, p.created_at DESC
     `,
-    [currentUserId]
+    [currentUserId, viewerGender]
   )
 
   const mapped = (rows || []).map(mapPublicProfile)

@@ -48,6 +48,7 @@ import {
   getSavedFiltersByUserId,
   invalidateActiveEmailOtps,
   recordCommunityEventContribution,
+  hashPassword,
   requestEmailOtp,
   updateOwnedEventGuestRSVP,
   offerHelpOnRequest,
@@ -177,7 +178,9 @@ const globalLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  // Configurable so the test suite, which creates many accounts in seconds,
+  // is not throttled. Unset in production, where 30 is the security control.
+  max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 30,
   standardHeaders: true,
   legacyHeaders: false,
   store: new PostgresRateLimitStore({ prefix: 'auth' }),
@@ -591,7 +594,7 @@ async function verifyEmailOtpAsync(email, purpose, otpCode) {
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
   const normalizedCode = String(otpCode || '').trim()
 
-  if (!normalizedEmail || !normalizedCode || !['signup', 'login'].includes(normalizedPurpose)) {
+  if (!normalizedEmail || !normalizedCode || !['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     return { ok: false, statusCode: 400, error: 'Invalid OTP verification request' }
   }
 
@@ -679,6 +682,128 @@ function matchesReviewOtp(candidate) {
   return crypto.timingSafeEqual(given, expected)
 }
 
+/*
+ * Forgot password.
+ *
+ * Reuses the email OTP machinery under its own purpose, so the throttle, the
+ * attempt counter and the five-minute expiry all apply here too.
+ *
+ * The response is the same whether or not the address has an account. Saying
+ * "no account with that email" would turn this endpoint into a way to test
+ * which addresses are registered on a matrimony service, which is not
+ * something to hand out.
+ */
+app.post('/api/auth/password/forgot', async (request, response) => {
+  const email = String(request.body?.email || '').trim().toLowerCase()
+  const sameAnswer = {
+    success: true,
+    data: { message: 'If that email has an account, a reset code is on its way.' },
+  }
+
+  if (!email || !isValidEmail(email)) {
+    response.status(400).json({ success: false, error: 'Please enter a valid email address' })
+    return
+  }
+
+  try {
+    const rows = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [email])
+    if (rows.length === 0) {
+      console.log(`[reset] no account for ${email}; answering as if sent`)
+      response.json(sameAnswer)
+      return
+    }
+
+    await (databaseEngine === 'postgres'
+      ? invalidateActiveEmailOtpsFast(email, 'reset')
+      : invalidateActiveEmailOtps(email, 'reset'))
+
+    const otpRequest = databaseEngine === 'postgres'
+      ? await requestEmailOtpFast(email, 'reset')
+      : requestEmailOtp(email, 'reset')
+
+    if (!otpRequest.ok || !otpRequest.data) {
+      // Throttling is the usual cause, and that the caller should see.
+      response
+        .status(otpRequest.statusCode || 400)
+        .json({ success: false, error: otpRequest.error || 'Unable to send a reset code' })
+      return
+    }
+
+    const sendResult = await sendEmailOtp({
+      to: email,
+      otpCode: otpRequest.data.otpCode,
+      purpose: 'reset',
+      expiresInMinutes: 5,
+    })
+
+    if (sendResult.fallback && process.env.NODE_ENV === 'production') {
+      console.error('[reset] mailer is not configured; refusing to issue a code')
+      await (databaseEngine === 'postgres'
+        ? invalidateActiveEmailOtpsFast(email, 'reset')
+        : invalidateActiveEmailOtps(email, 'reset'))
+      response.status(503).json({ success: false, error: 'Password reset is temporarily unavailable.' })
+      return
+    }
+
+    response.json({
+      ...sameAnswer,
+      data: {
+        ...sameAnswer.data,
+        ...(process.env.NODE_ENV !== 'production' ? { debugOtp: otpRequest.data.otpCode } : {}),
+      },
+    })
+  } catch (err) {
+    console.error('[reset] request failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not start a password reset' })
+  }
+})
+
+/** Completes the reset: the code proves the address, then the password changes. */
+app.post('/api/auth/password/reset', async (request, response) => {
+  const email = String(request.body?.email || '').trim().toLowerCase()
+  const otp = String(request.body?.otp || '').trim()
+  const password = String(request.body?.password || '')
+
+  if (!email || !otp || !password) {
+    response.status(400).json({ success: false, error: 'Email, code and new password are required' })
+    return
+  }
+  if (password.length < 8 || password.length > 20) {
+    response.status(400).json({ success: false, error: 'Password must be between 8 and 20 characters' })
+    return
+  }
+
+  try {
+    const verified = await verifyEmailOtpAsync(email, 'reset', otp)
+    if (!verified.ok) {
+      response.status(verified.statusCode || 400).json({ success: false, error: verified.error })
+      return
+    }
+
+    const rows = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [email])
+    const user = rows[0]
+    if (!user) {
+      response.status(404).json({ success: false, error: 'Account not found for this email' })
+      return
+    }
+
+    const now = new Date().toISOString()
+    await pgQuery(
+      `INSERT INTO auth_accounts (user_id, password_hash, created_at, updated_at)
+       VALUES ($1, $2, $3, $3)
+       ON CONFLICT (user_id) DO UPDATE SET password_hash = $2, updated_at = $3`,
+      [user.id, hashPassword(password), now]
+    )
+
+    console.log(`[reset] password changed for ${email}`)
+    // A session here saves the member signing in again straight after.
+    response.json({ success: true, data: { authToken: issueAuthToken(user.id) } })
+  } catch (err) {
+    console.error('[reset] failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not reset the password' })
+  }
+})
+
 app.post('/api/auth/otp/verify', async (request, response) => {
   const { email, purpose, otp } = request.body || {}
 
@@ -753,7 +878,7 @@ app.post('/api/auth/otp/request', async (request, response) => {
     return
   }
 
-  if (!['signup', 'login'].includes(normalizedPurpose)) {
+  if (!['signup', 'login', 'reset'].includes(normalizedPurpose)) {
     response.status(400).json({ success: false, error: 'Invalid OTP purpose' })
     return
   }
@@ -1436,7 +1561,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
 
   let baseProfiles = null
   try {
-    baseProfiles = await getPublicProfilesFast(activeUserId)
+    baseProfiles = await getPublicProfilesFast(activeUserId, await genderOf(activeUserId))
   } catch {
     baseProfiles = null
   }
@@ -1505,20 +1630,21 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   // The ordering is deterministic (compatibility score, then age of profile), so
   // "the first N" is the same set on every request and matches what the detail
   // endpoint allows.
-  let subscribed = false
+  let access
   try {
-    subscribed = await hasActiveSubscription(activeUserId)
+    access = await resolveAccess(activeUserId)
   } catch (err) {
-    // Fail closed: if we cannot confirm a subscription, do not hand over data.
-    console.error('[paywall] subscription check failed:', err.message)
+    // Fail closed: if we cannot confirm access, do not hand over data.
+    console.error('[paywall] access check failed:', err.message)
     response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
     return
   }
 
-  const visible = subscribed
+  const freeLimit = access.rule.freeProfileLimit
+  const visible = access.entitled
     ? page
     : page.map((profile, index) =>
-        offset + index < FREE_PROFILE_LIMIT ? profile : lockedProfile(profile)
+        offset + index < freeLimit ? profile : lockedProfile(profile)
       )
 
   response.json({
@@ -1531,8 +1657,12 @@ app.get('/api/matrimony/profiles', async (request, response) => {
       hasMore: offset + page.length < profiles.length,
     },
     access: {
-      subscribed,
-      freeLimit: FREE_PROFILE_LIMIT,
+      subscribed: access.entitled,
+      freeLimit,
+      // Why they have access, so the app can say "free for you" rather than
+      // implying a payment that never happened.
+      reason: access.reason,
+      pricePaise: access.rule.pricePaise,
     },
   })
 })
@@ -1607,23 +1737,23 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
   }
 
   // Same paywall as the list: without a subscription, only the first
-  // FREE_PROFILE_LIMIT profiles of this member's ordering are readable.
+  // the free allowance of this member's ordering is readable.
   // Otherwise the list could be locked while the detail route handed over
   // everything to anyone who knew an id.
-  let subscribed = false
+  let access
   try {
-    subscribed = await hasActiveSubscription(activeUserId)
+    access = await resolveAccess(activeUserId)
   } catch (err) {
-    console.error('[paywall] subscription check failed:', err.message)
+    console.error('[paywall] access check failed:', err.message)
     response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
     return
   }
 
-  if (!subscribed) {
+  if (!access.entitled) {
     let allowedIds = []
     try {
-      const all = (await getPublicProfilesFast(activeUserId)) || []
-      allowedIds = all.slice(0, FREE_PROFILE_LIMIT).map((entry) => entry.id)
+      const all = (await getPublicProfilesFast(activeUserId, await genderOf(activeUserId))) || []
+      allowedIds = all.slice(0, access.rule.freeProfileLimit).map((entry) => entry.id)
     } catch (err) {
       console.error('[paywall] could not resolve the free allowance:', err.message)
       response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
@@ -1655,7 +1785,70 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
  * already been sent — so the whole member directory was readable by anyone
  * with an account, subscribed or not.
  */
-const FREE_PROFILE_LIMIT = 2
+/** Used when the rules table has no row for a gender, or cannot be read. */
+const DEFAULT_RULE = { isFree: false, pricePaise: 20000, freeProfileLimit: 2 }
+
+/*
+ * Subscription rules, per gender.
+ *
+ * Who pays, how much, and how many profiles they see before the paywall are
+ * all rows in subscription_rules rather than constants, so they can be changed
+ * from the admin screen without a deploy. Women are free at launch; that is a
+ * row, not a hardcoded rule, and can be switched off the same way.
+ *
+ * Cached briefly because the paywall consults it on every listing request. The
+ * write path clears the cache, so an admin change is visible immediately.
+ */
+const RULES_CACHE_KEY = 'subscriptionRules'
+const RULES_CACHE_MS = 30000
+
+async function loadSubscriptionRules() {
+  const cached = cacheGet(RULES_CACHE_KEY)
+  if (cached) return cached
+
+  const rows = await pgQuery(
+    'SELECT gender, is_free, price_paise, free_profile_limit FROM subscription_rules'
+  )
+
+  const rules = {}
+  for (const row of rows) {
+    rules[String(row.gender).toLowerCase()] = {
+      isFree: row.is_free === true || row.is_free === 1 || row.is_free === 't',
+      pricePaise: Number(row.price_paise) || DEFAULT_RULE.pricePaise,
+      freeProfileLimit: Number.isFinite(Number(row.free_profile_limit))
+        ? Number(row.free_profile_limit)
+        : DEFAULT_RULE.freeProfileLimit,
+    }
+  }
+
+  cacheSet(RULES_CACHE_KEY, rules, RULES_CACHE_MS)
+  return rules
+}
+
+function invalidateSubscriptionRules() {
+  cacheInvalidate(RULES_CACHE_KEY)
+}
+
+async function ruleForGender(gender) {
+  const key = String(gender || '').trim().toLowerCase()
+  try {
+    const rules = await loadSubscriptionRules()
+    return rules[key] || DEFAULT_RULE
+  } catch (err) {
+    // Fail closed on the paid side: an unreadable rules table must not hand
+    // out free access, but it must also not crash the listing.
+    console.error('[rules] could not read subscription_rules:', err.message)
+    return DEFAULT_RULE
+  }
+}
+
+async function genderOf(userId) {
+  const rows = await pgQuery(
+    'SELECT gender FROM matrimony_profiles WHERE user_id = $1 LIMIT 1',
+    [userId]
+  )
+  return String(rows[0]?.gender || '').trim().toLowerCase()
+}
 
 async function hasActiveSubscription(userId) {
   if (!userId) return false
@@ -1666,6 +1859,27 @@ async function hasActiveSubscription(userId) {
     [userId]
   )
   return rows.length > 0
+}
+
+/**
+ * Whether this member sees the whole directory.
+ *
+ * Either their gender is free under the current rules, or they hold a live
+ * subscription. Returns the rule too, so callers get the free-profile limit
+ * that applies to this member rather than one global constant.
+ */
+async function resolveAccess(userId) {
+  if (!userId) return { entitled: false, rule: DEFAULT_RULE, reason: 'anonymous' }
+
+  const gender = await genderOf(userId)
+  const rule = await ruleForGender(gender)
+
+  if (rule.isFree) {
+    return { entitled: true, rule, reason: 'free-for-gender' }
+  }
+
+  const subscribed = await hasActiveSubscription(userId)
+  return { entitled: subscribed, rule, reason: subscribed ? 'subscribed' : 'none' }
 }
 
 /**
@@ -2434,6 +2648,22 @@ app.put('/api/matrimony/me', async (request, response) => {
   const { user = {}, profile = {}, matrimony = {} } = request.body || {}
   const now = new Date().toISOString()
 
+  /*
+   * Gender is fixed at signup.
+   *
+   * The listing shows only the opposite gender, so letting someone flip theirs
+   * afterwards would silently swap the entire directory they can see — and,
+   * once the rules make one gender free, would be a way to grant yourself free
+   * access. It is dropped here rather than rejected so an older client that
+   * still sends the field keeps working.
+   */
+  for (const bag of [profile, matrimony, user]) {
+    if (bag && typeof bag === 'object') {
+      delete bag.gender
+      delete bag.Gender
+    }
+  }
+
   // Debug: log what photos look like
   let photosDebug = 'undefined'
   try {
@@ -2947,8 +3177,33 @@ app.get('/api/payments/subscription', async (request, response) => {
       return
     }
 
+    // The rules decide whether this member pays at all, so the app can show
+    // "included for you" instead of a price they will never be charged.
+    let access = { entitled: false, rule: DEFAULT_RULE, reason: 'none' }
+    try {
+      access = await resolveAccess(activeUserId)
+    } catch (accessErr) {
+      console.error('[subscription] access check failed:', accessErr.message)
+    }
+
+    const plan = {
+      pricePaise: access.rule.pricePaise,
+      freeProfileLimit: access.rule.freeProfileLimit,
+      freeForYou: access.rule.isFree,
+    }
+
     if (!result || result.length === 0) {
-      response.json({ success: true, data: { hasSubscription: false } })
+      response.json({
+        success: true,
+        data: {
+          hasSubscription: false,
+          // Entitled without a subscription row means their gender is free
+          // under the current rules.
+          entitled: access.entitled,
+          reason: access.reason,
+          plan,
+        },
+      })
       return
     }
 
@@ -2957,7 +3212,10 @@ app.get('/api/payments/subscription', async (request, response) => {
       success: true,
       data: {
         hasSubscription: true,
-        plan: sub.plan,
+        entitled: true,
+        reason: access.reason,
+        plan,
+        plan_name: sub.plan,
         amount: sub.amount,
         startedAt: sub.started_at,
         expiresAt: sub.expires_at
@@ -3559,6 +3817,80 @@ app.put('/api/settings', async (request, response) => {
 })
 
 // Admin Dashboard APIs
+/*
+ * Subscription rules — read and write.
+ *
+ * Who pays and how much is data, not code, so it can change without a deploy.
+ * Reading is admin-only because it is an operations screen; members see the
+ * part that applies to them through /api/payments/subscription.
+ */
+app.get('/api/admin/subscription-rules', requireAdmin, async (_request, response) => {
+  try {
+    const rows = await pgQuery(
+      `SELECT gender, is_free, price_paise, free_profile_limit, updated_at
+       FROM subscription_rules ORDER BY gender`
+    )
+    response.json({ success: true, data: rows })
+  } catch (err) {
+    console.error('[admin/rules] read failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not read subscription rules' })
+  }
+})
+
+app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, response) => {
+  const gender = String(request.params.gender || '').trim().toLowerCase()
+  if (!['male', 'female'].includes(gender)) {
+    response.status(400).json({ success: false, error: 'Gender must be male or female' })
+    return
+  }
+
+  const { isFree, pricePaise, freeProfileLimit } = request.body || {}
+
+  if (isFree !== undefined && typeof isFree !== 'boolean') {
+    response.status(400).json({ success: false, error: 'isFree must be true or false' })
+    return
+  }
+  if (pricePaise !== undefined && (!Number.isInteger(pricePaise) || pricePaise < 0)) {
+    response.status(400).json({ success: false, error: 'pricePaise must be a whole number of paise' })
+    return
+  }
+  if (
+    freeProfileLimit !== undefined &&
+    (!Number.isInteger(freeProfileLimit) || freeProfileLimit < 0)
+  ) {
+    response.status(400).json({ success: false, error: 'freeProfileLimit must be zero or more' })
+    return
+  }
+
+  try {
+    const rows = await pgQuery(
+      `INSERT INTO subscription_rules (gender, is_free, price_paise, free_profile_limit, updated_at)
+       VALUES ($1, COALESCE($2, false), COALESCE($3, 20000), COALESCE($4, 2), NOW()::text)
+       ON CONFLICT (gender) DO UPDATE SET
+         is_free = COALESCE($2, subscription_rules.is_free),
+         price_paise = COALESCE($3, subscription_rules.price_paise),
+         free_profile_limit = COALESCE($4, subscription_rules.free_profile_limit),
+         updated_at = NOW()::text
+       RETURNING gender, is_free, price_paise, free_profile_limit, updated_at`,
+      [
+        gender,
+        isFree === undefined ? null : isFree,
+        pricePaise === undefined ? null : pricePaise,
+        freeProfileLimit === undefined ? null : freeProfileLimit,
+      ]
+    )
+
+    // Drop the cache so the change is live on the next request rather than up
+    // to 30 seconds later.
+    invalidateSubscriptionRules()
+    console.log(`[admin/rules] ${gender} updated: ${JSON.stringify(rows[0])}`)
+    response.json({ success: true, data: rows[0] })
+  } catch (err) {
+    console.error('[admin/rules] write failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not update subscription rules' })
+  }
+})
+
 app.get('/api/admin/stats', requireAdmin, async (request, response) => {
   try {
     // Get total users count

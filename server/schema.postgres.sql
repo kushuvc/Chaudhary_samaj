@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS auth_accounts (
 CREATE TABLE IF NOT EXISTS auth_email_otps (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL,
-  purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'login')),
+  purpose TEXT NOT NULL CHECK (purpose IN ('signup', 'login', 'reset')),
   otp_code TEXT NOT NULL,
   expires_at TEXT NOT NULL,
   attempts INTEGER NOT NULL DEFAULT 0,

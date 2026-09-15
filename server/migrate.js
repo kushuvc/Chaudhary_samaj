@@ -116,6 +116,24 @@ const migrations = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(status)`,
+  // Widen the OTP purposes to admit password resets. The constraint is
+  // recreated rather than altered because Postgres has no ALTER CHECK.
+  `ALTER TABLE auth_email_otps DROP CONSTRAINT IF EXISTS auth_email_otps_purpose_check`,
+  `ALTER TABLE auth_email_otps ADD CONSTRAINT auth_email_otps_purpose_check
+     CHECK (purpose IN ('signup', 'login', 'reset'))`,
+  `CREATE TABLE IF NOT EXISTS subscription_rules (
+    gender TEXT PRIMARY KEY,
+    is_free BOOLEAN NOT NULL DEFAULT false,
+    price_paise INTEGER NOT NULL DEFAULT 20000,
+    free_profile_limit INTEGER NOT NULL DEFAULT 2,
+    updated_at TEXT
+  )`,
+  // Seed both genders once. ON CONFLICT DO NOTHING so changing the rules later
+  // in the admin screen is never undone by a redeploy running this again.
+  `INSERT INTO subscription_rules (gender, is_free, price_paise, free_profile_limit, updated_at)
+   VALUES ('male', false, 20000, 2, NOW()::text),
+          ('female', true, 20000, 2, NOW()::text)
+   ON CONFLICT (gender) DO NOTHING`,
   `CREATE TABLE IF NOT EXISTS user_settings (
     user_id TEXT PRIMARY KEY,
     language TEXT NOT NULL DEFAULT 'en-IN',

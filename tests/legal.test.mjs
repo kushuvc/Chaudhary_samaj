@@ -6,6 +6,30 @@ let server
 before(async () => { server = await startServer() })
 after(async () => { await server?.stop() })
 
+describe('landing page', () => {
+  /*
+   * A payment KYC reviewer fetches this anonymously, and an API origin that
+   * answers 404 at the root does not read as a business website.
+   */
+  test('/ is public and describes the business', async () => {
+    const res = await fetch(`${server.base}/`)
+    assert.equal(res.status, 200, 'the root must not be a 404')
+    assert.match(res.headers.get('content-type') || '', /text\/html/)
+
+    const html = await res.text()
+    assert.match(html, /Chaudhary Samaj/)
+    assert.match(html, /200/, 'the price must be stated')
+    assert.match(html, /aurienlimited@gmail\.com/)
+    assert.match(html, /cancel/i, 'subscription cancellation terms must be stated')
+    assert.match(html, /privacy-policy/, 'must link to the privacy policy')
+  })
+
+  test('the landing page leaks nothing from the environment', async () => {
+    const html = await (await fetch(`${server.base}/`)).text()
+    assert.ok(!/postgres:\/\/|postgresql:\/\/|xkeysib|sb_secret|JWT_SECRET/i.test(html))
+  })
+})
+
 describe('privacy policy', () => {
   /*
    * Google Play's reviewer fetches this anonymously, so it must not be caught

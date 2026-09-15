@@ -2631,6 +2631,24 @@ app.use('/uploads', express.static(localUploadDir, { maxAge: '7d' }))
  */
 const legalDir = path.join(path.resolve('server'), 'legal')
 
+/*
+ * Public landing page.
+ *
+ * BillDesk's cross-border KYC asks for a business website, and an API origin
+ * that answers 404 at the root is not one. It also gives the app a public
+ * page to point at from the Play listing.
+ */
+app.get('/', (_request, response) => {
+  response.sendFile(path.join(legalDir, 'index.html'), (error) => {
+    if (error) {
+      console.error('[legal] could not serve the landing page:', error.message)
+      if (!response.headersSent) {
+        response.status(500).type('text/plain').send('Temporarily unavailable.')
+      }
+    }
+  })
+})
+
 app.get(['/privacy-policy', '/privacy'], (_request, response) => {
   response.sendFile(path.join(legalDir, 'privacy-policy.html'), (error) => {
     if (error) {

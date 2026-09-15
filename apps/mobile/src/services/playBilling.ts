@@ -42,6 +42,14 @@ export function usePlayBilling(onEntitled: () => void) {
 
   // Keeps the listeners from calling back into an unmounted screen.
   const mounted = useRef(true);
+
+  /*
+   * Play Billing v5+ will not open a subscription purchase without an offer
+   * token, and the token is only available on the product returned by
+   * fetchProducts. Holding it in a ref keeps `buy` stable while still seeing
+   * the value fetched after mount.
+   */
+  const offersRef = useRef<Array<{ sku: string; offerToken: string }>>([]);
   const onEntitledRef = useRef(onEntitled);
   onEntitledRef.current = onEntitled;
 
@@ -106,6 +114,15 @@ export function usePlayBilling(onEntitled: () => void) {
         const products = await fetchProducts({ skus: [PREMIUM_PRODUCT_ID], type: 'subs' });
         if (!mounted.current) return;
 
+        const subscription = products?.[0] as
+          | { subscriptionOffers?: Array<{ offerTokenAndroid?: string | null }> }
+          | undefined;
+
+        offersRef.current = (subscription?.subscriptionOffers ?? [])
+          .map((offer) => offer?.offerTokenAndroid)
+          .filter((token): token is string => Boolean(token))
+          .map((offerToken) => ({ sku: PREMIUM_PRODUCT_ID, offerToken }));
+
         setState((prev) => ({
           ...prev,
           available: true,
@@ -144,8 +161,18 @@ export function usePlayBilling(onEntitled: () => void) {
       // Resolves when Play accepts the request; the actual result arrives on
       // the purchase listener above.
       // Platform key is `google` (the SDK vendor), not `android`.
+      //
+      // subscriptionOffers carries the offer token for the base plan. Play
+      // Billing v5+ refuses to open the purchase sheet without it, and leaving
+      // it out fails at the payment step rather than at startup — the worst
+      // place to find out.
+      const subscriptionOffers = offersRef.current;
+      if (!subscriptionOffers.length) {
+        throw new Error('This subscription is not available to purchase yet. Please try again shortly.');
+      }
+
       await requestPurchase({
-        request: { google: { skus: [PREMIUM_PRODUCT_ID] } },
+        request: { google: { skus: [PREMIUM_PRODUCT_ID], subscriptionOffers } },
         type: 'subs',
       });
     } catch (err) {

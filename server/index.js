@@ -2629,7 +2629,10 @@ app.use('/uploads', express.static(localUploadDir, { maxAge: '7d' }))
  * and costs nothing: the repository is private, so GitHub Pages would need a
  * paid plan.
  */
-const legalDir = path.join(path.resolve('server'), 'legal')
+// One copy of these pages, published two ways: this server serves them, and
+// render.yaml also deploys the same directory as a static site so a custom
+// domain can point at it without paying to upgrade the API.
+const siteDir = path.resolve('site')
 
 /*
  * Public landing page.
@@ -2639,7 +2642,7 @@ const legalDir = path.join(path.resolve('server'), 'legal')
  * page to point at from the Play listing.
  */
 app.get('/', (_request, response) => {
-  response.sendFile(path.join(legalDir, 'index.html'), (error) => {
+  response.sendFile(path.join(siteDir, 'index.html'), (error) => {
     if (error) {
       console.error('[legal] could not serve the landing page:', error.message)
       if (!response.headersSent) {
@@ -2650,7 +2653,7 @@ app.get('/', (_request, response) => {
 })
 
 app.get(['/privacy-policy', '/privacy'], (_request, response) => {
-  response.sendFile(path.join(legalDir, 'privacy-policy.html'), (error) => {
+  response.sendFile(path.join(siteDir, 'privacy-policy.html'), (error) => {
     if (error) {
       console.error('[legal] could not serve the privacy policy:', error.message)
       if (!response.headersSent) {

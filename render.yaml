@@ -78,3 +78,23 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+
+  # Public website: the landing page and privacy policy.
+  #
+  # A separate static site because custom domains are not available on free
+  # web services, but they are free on static sites — so a real domain can
+  # point here without paying to upgrade the API. The same pages are also
+  # served by the API itself, so both URLs work.
+  - type: web
+    name: chaudhary-samaj-site
+    runtime: static
+    rootDir: site
+    buildCommand: ""
+    staticPublishPath: .
+    routes:
+      - type: rewrite
+        source: /privacy-policy
+        destination: /privacy-policy.html
+      - type: rewrite
+        source: /privacy
+        destination: /privacy-policy.html

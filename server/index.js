@@ -14,6 +14,7 @@ import { PostgresRateLimitStore } from './rate-limit-store.js'
 import {
   acknowledgeSubscription,
   getSubscriptionFromPlay,
+  describePlayBillingHealth,
   isPlayBillingConfigured,
   isValidRtdnToken,
 } from './play-billing.js'
@@ -4079,6 +4080,14 @@ app.put('/api/admin/reports/:id', requireAdmin, async (request, response) => {
   } catch (err) {
     console.error('[admin/reports] update failed:', err.message)
     response.status(500).json({ success: false, error: 'Could not update the report' })
+  }
+})
+
+app.get('/api/admin/play/health', requireAdmin, async (_request, response) => {
+  try {
+    response.json({ success: true, data: await describePlayBillingHealth() })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
   }
 })
 

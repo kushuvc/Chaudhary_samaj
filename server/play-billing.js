@@ -107,6 +107,65 @@ async function getAccessToken() {
  * Uses the subscriptionsv2 endpoint, which reports the subscription state
  * directly rather than making callers infer it from expiry timestamps.
  */
+/**
+ * Reports which part of the Play setup is wrong, without revealing the key.
+ *
+ * Verification answered the same way for a mangled JSON key, a service
+ * account Google will not authenticate, and a missing package name — leaving
+ * no way to tell them apart except by guessing.
+ */
+export async function describePlayBillingHealth() {
+  const result = {
+    hasCredentials: Boolean(process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.PLAY_SERVICE_ACCOUNT_FILE),
+    packageName: packageName || null,
+    jsonParses: false,
+    clientEmail: null,
+    hasPrivateKey: false,
+    privateKeyLooksWrapped: false,
+    canAuthenticate: false,
+    error: null,
+  }
+
+  if (!result.hasCredentials) {
+    result.error = 'PLAY_SERVICE_ACCOUNT_JSON is not set'
+    return result
+  }
+  if (!result.packageName) {
+    result.error = 'PLAY_PACKAGE_NAME is not set'
+    return result
+  }
+
+  let account
+  try {
+    account = loadServiceAccount()
+    result.jsonParses = true
+  } catch (err) {
+    result.error = err.message
+    return result
+  }
+
+  result.clientEmail = account.client_email || null
+  const key = String(account.private_key || '')
+  result.hasPrivateKey = key.length > 0
+  // A key pasted through a form that ate the newlines arrives as one line and
+  // will never sign anything.
+  result.privateKeyLooksWrapped = key.includes('\n') || key.split('\n').length > 2
+
+  if (!result.hasPrivateKey) {
+    result.error = 'The key file has no private_key field'
+    return result
+  }
+
+  try {
+    await getAccessToken()
+    result.canAuthenticate = true
+  } catch (err) {
+    result.error = err.message
+  }
+
+  return result
+}
+
 export async function getSubscriptionFromPlay(purchaseToken) {
   if (!isPlayBillingConfigured()) {
     throw new Error('Play billing is not configured')

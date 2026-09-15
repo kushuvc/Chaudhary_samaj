@@ -98,3 +98,6 @@ services:
       - type: rewrite
         source: /privacy
         destination: /privacy-policy.html
+      - type: rewrite
+        source: /delete-account
+        destination: /delete-account.html

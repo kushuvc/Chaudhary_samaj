@@ -59,3 +59,22 @@ describe('privacy policy', () => {
     assert.ok(!/postgres:\/\/|postgresql:\/\/|xkeysib|sb_secret|JWT_SECRET/i.test(html))
   })
 })
+
+describe('account deletion page', () => {
+  /*
+   * Play requires a public URL that names the app, gives the steps, and says
+   * what is deleted and what is kept with a retention period.
+   */
+  test('/delete-account is public and meets the listed requirements', async () => {
+    const res = await fetch(`${server.base}/delete-account`)
+    assert.equal(res.status, 200)
+
+    const html = await res.text()
+    assert.match(html, /Chaudhary Samaj/, 'must name the app')
+    assert.match(html, /Settings/, 'must give the in-app steps')
+    assert.match(html, /Delete Account/i)
+    assert.match(html, /aurienlimited@gmail\.com/, 'must offer a route without the app')
+    assert.match(html, /8 years|30 days/, 'must state a retention period')
+    assert.match(html, /What is kept/i, 'must say what is retained')
+  })
+})

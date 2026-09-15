@@ -712,6 +712,17 @@ export const api = {
     return url as string;
   },
 
+  /**
+   * Permanently delete the signed-in account.
+   *
+   * The Settings screen promises this deletes everything, and Play requires
+   * that it actually does — it previously only called logout(), leaving every
+   * row in place.
+   */
+  deleteAccount: async (): Promise<void> => {
+    await request<{ success: boolean }>('/auth/account', { method: 'DELETE' });
+  },
+
   deletePhoto: async (url: string): Promise<void> => {
     await request<{ success: boolean }>('/upload/photo', {
       method: 'DELETE',

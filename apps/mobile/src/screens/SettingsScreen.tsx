@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { AppLanguage } from '../context/LanguageContext';
 import { InlineError } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
+import { api } from '../services/api';
 import { loadJson, saveJson } from '../services/localData';
 import { radius, spacing, type } from '../theme';
 import type {
@@ -396,10 +397,16 @@ export function SettingsScreen() {
                   setDeleting(true);
                   setDeleteError(null);
                   try {
-                    await logout();
+                    // Delete first, then end the session. Signing out on its
+                    // own used to be the whole of this handler, so the warning
+                    // above was untrue and nothing was ever removed.
+                    await api.deleteAccount();
                     setShowDeleteModal(false);
-                  } catch {
-                    setDeleteError('Failed to delete account. Please try again.');
+                    await logout();
+                  } catch (err) {
+                    setDeleteError(
+                      (err as Error).message || 'Failed to delete account. Please try again.'
+                    );
                   } finally {
                     setDeleting(false);
                   }

@@ -2652,6 +2652,17 @@ app.get('/', (_request, response) => {
   })
 })
 
+app.get('/delete-account', (_request, response) => {
+  response.sendFile(path.join(siteDir, 'delete-account.html'), (error) => {
+    if (error) {
+      console.error('[legal] could not serve the deletion page:', error.message)
+      if (!response.headersSent) {
+        response.status(500).type('text/plain').send('Temporarily unavailable.')
+      }
+    }
+  })
+})
+
 app.get(['/privacy-policy', '/privacy'], (_request, response) => {
   response.sendFile(path.join(siteDir, 'privacy-policy.html'), (error) => {
     if (error) {

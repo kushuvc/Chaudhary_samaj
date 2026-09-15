@@ -118,7 +118,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
         }}
         eyebrow="Verify"
         title="Enter the 6-digit code"
-        subtitle={`Sent to ${email.trim()}`}
+        subtitle={`Sent to ${email.trim()}. Not in your inbox? Check the spam or junk folder — it can land there.`}
         footer={
           <>
             <PrimaryButton

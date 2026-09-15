@@ -8,6 +8,7 @@ import {
   StepScaffold,
 } from '../components/ui';
 import { CITIES, COUNTRIES, STATES } from '../constants/signupOptions';
+import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 
 export interface LocationDetailsData {
   country: string;
@@ -19,11 +20,14 @@ export interface LocationDetailsData {
 }
 
 interface SignupLocationDetailsScreenProps {
+  /** Who the profile is being created for, so the copy can address them. */
+  subject?: ProfileSubject;
   onBack: () => void;
   onNext: (data: LocationDetailsData) => void;
 }
 
-export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDetailsScreenProps) {
+export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupLocationDetailsScreenProps) {
+  const subject = subjectProp ?? subjectFor(null);
   const [country, setCountry] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
   const [city, setCity] = useState<string | null>(null);
@@ -49,8 +53,8 @@ export function SignupLocationDetailsScreen({ onBack, onNext }: SignupLocationDe
       step={3}
       totalSteps={5}
       eyebrow="Location details"
-      title="Where are you based?"
-      subtitle="Matches nearby show up first, and your native place helps families connect."
+      title={`Where ${subject.verb} ${subject.pronoun} based?`}
+      subtitle={`Matches nearby show up first, and ${subject.possessive} native place helps families connect.`}
       footer={
         <PrimaryButton
           label="Continue"

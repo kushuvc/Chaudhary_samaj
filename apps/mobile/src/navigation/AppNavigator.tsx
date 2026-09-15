@@ -32,6 +32,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { AnimatedTabBar } from '../components/AnimatedTabBar';
 import { useAppLanguage } from '../context/LanguageContext';
 import { api } from '../services/api';
+import { subjectFor } from '../constants/profileSubject';
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
@@ -89,6 +90,13 @@ function AuthFlow() {
     starDetails?: StarDetailsData;
     photos?: Photo[];
   }>({});
+
+  // Who the signup questions are about, so each step can address them by
+
+  // relationship rather than always saying "you".
+
+  const signupSubject = subjectFor(signupData.profileTypeData?.profileType);
+
 
   const patch = (next: Partial<typeof signupData>) => setSignupData((prev) => ({ ...prev, ...next }));
 
@@ -222,6 +230,7 @@ function AuthFlow() {
     case 'signup-personal':
       return (
         <SignupPersonalDetailsScreen
+          subject={signupSubject}
           onBack={() => setAuthMode('signup-basic')}
           onNext={(data) => {
             patch({ personalDetails: data });
@@ -232,6 +241,7 @@ function AuthFlow() {
     case 'signup-religious':
       return (
         <SignupReligiousDetailsScreen
+          subject={signupSubject}
           onBack={() => setAuthMode('signup-personal')}
           onNext={(data) => {
             patch({ religiousDetails: data });
@@ -242,6 +252,7 @@ function AuthFlow() {
     case 'signup-location':
       return (
         <SignupLocationDetailsScreen
+          subject={signupSubject}
           onBack={() => setAuthMode('signup-religious')}
           onNext={(data) => {
             patch({ locationDetails: data });
@@ -262,6 +273,7 @@ function AuthFlow() {
     case 'signup-additional':
       return (
         <SignupAdditionalDetailsScreen
+          subject={signupSubject}
           onBack={() => setAuthMode('signup-professional')}
           onSubmit={async (data) => {
             patch({ additionalDetails: data });
@@ -313,6 +325,7 @@ function AuthFlow() {
     case 'signup-eating-habits':
       return (
         <SignupEatingHabitsScreen
+          subject={signupSubject}
           onBack={() => setAuthMode('signup-star')}
           onNext={async (habit) => {
             patch({ eatingHabit: habit });
@@ -325,6 +338,7 @@ function AuthFlow() {
     case 'signup-interests':
       return (
         <SignupInterestsScreen
+          subject={signupSubject}
           onBack={() => setAuthMode('signup-eating-habits')}
           onNext={async (data) => {
             patch({ interests: data });

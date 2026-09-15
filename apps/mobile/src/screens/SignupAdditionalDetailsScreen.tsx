@@ -12,6 +12,7 @@ import {
 } from '../components/ui';
 import { useAppTheme } from '../context/ThemeContext';
 import { FAMILY_STATUSES, FAMILY_TYPES, FAMILY_WEALTH, OCCUPATIONS } from '../constants/signupOptions';
+import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 
 export interface AdditionalDetailsData {
   familyStatus: string;
@@ -26,6 +27,8 @@ export interface AdditionalDetailsData {
 }
 
 interface SignupAdditionalDetailsScreenProps {
+  /** Who the profile is being created for, so the copy can address them. */
+  subject?: ProfileSubject;
   onBack: () => void;
   onSubmit: (data: AdditionalDetailsData) => void;
 }
@@ -34,7 +37,8 @@ const MIN_BIO = 50;
 
 const SIBLING_OPTIONS = ['None', '1', '2', '3', '4', '5 or more'].map((item) => ({ id: item, label: item }));
 
-export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditionalDetailsScreenProps) {
+export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, onSubmit }: SignupAdditionalDetailsScreenProps) {
+  const subject = subjectProp ?? subjectFor(null);
   const { palette } = useAppTheme();
   const [familyStatus, setFamilyStatus] = useState<string | null>(null);
   const [familyType, setFamilyType] = useState<string | null>(null);
@@ -55,7 +59,7 @@ export function SignupAdditionalDetailsScreen({ onBack, onSubmit }: SignupAdditi
       step={5}
       totalSteps={5}
       eyebrow="Additional details"
-      title="Family and your story"
+      title={`Family and ${subject.possessive} story`}
       subtitle="The last step before we create your account."
       footer={
         <PrimaryButton

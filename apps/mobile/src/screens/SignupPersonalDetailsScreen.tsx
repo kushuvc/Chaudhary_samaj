@@ -12,6 +12,7 @@ import {
   StepScaffold,
 } from '../components/ui';
 import { HEIGHTS, MARITAL_STATUSES, PHYSICAL_STATUSES } from '../constants/signupOptions';
+import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 
 export interface PersonalDetailsData {
   gender: string;
@@ -22,6 +23,8 @@ export interface PersonalDetailsData {
 }
 
 interface SignupPersonalDetailsScreenProps {
+  /** Who the profile is being created for, so the copy can address them. */
+  subject?: ProfileSubject;
   onBack: () => void;
   onNext: (data: PersonalDetailsData) => void;
 }
@@ -66,7 +69,8 @@ function calculateAge(day: string | null, month: string | null, year: string | n
   return age;
 }
 
-export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDetailsScreenProps) {
+export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupPersonalDetailsScreenProps) {
+  const subject = subjectProp ?? subjectFor(null);
   const [gender, setGender] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -84,8 +88,8 @@ export function SignupPersonalDetailsScreen({ onBack, onNext }: SignupPersonalDe
       step={1}
       totalSteps={5}
       eyebrow="Personal details"
-      title="Tell us about yourself"
-      subtitle="These basics power the matches you'll see."
+      title={`Tell us about ${subject.full}`}
+      subtitle={`These basics power the matches ${subject.isSelf ? "you'll" : `${subject.pronoun}'ll`} see.`}
       footer={
         <PrimaryButton
           label="Continue"

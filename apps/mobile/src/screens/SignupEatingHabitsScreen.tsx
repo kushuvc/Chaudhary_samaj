@@ -2,23 +2,27 @@ import React, { useState } from 'react';
 import { View } from 'react-native';
 import { OptionCard, PrimaryButton, StepScaffold, TextButton } from '../components/ui';
 import { EATING_HABITS } from '../constants/signupOptions';
+import { subjectFor, capitalise, type ProfileSubject } from '../constants/profileSubject';
 
 export type EatingHabit = 'vegetarian' | 'non_vegetarian' | 'eggetarian';
 
 interface SignupEatingHabitsScreenProps {
+  /** Who the profile is being created for, so the copy can address them. */
+  subject?: ProfileSubject;
   onBack: () => void;
   onNext: (habit: EatingHabit) => void;
   onSkip: () => void;
 }
 
-export function SignupEatingHabitsScreen({ onBack, onNext, onSkip }: SignupEatingHabitsScreenProps) {
+export function SignupEatingHabitsScreen({ subject: subjectProp, onBack, onNext, onSkip }: SignupEatingHabitsScreenProps) {
+  const subject = subjectProp ?? subjectFor(null);
   const [habit, setHabit] = useState<EatingHabit | null>(null);
 
   return (
     <StepScaffold
       onBack={onBack}
       eyebrow="Lifestyle"
-      title="Your eating habits"
+      title={`${capitalise(subject.possessive)} eating habits`}
       subtitle="Many families consider this when shortlisting."
       footer={
         <>

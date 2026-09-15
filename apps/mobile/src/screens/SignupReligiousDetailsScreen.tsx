@@ -11,6 +11,7 @@ import {
   StepScaffold,
 } from '../components/ui';
 import { CASTES, DOSH_OPTIONS, RELIGIONS, SUBCASTES } from '../constants/signupOptions';
+import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 
 export interface ReligiousDetailsData {
   religion: string;
@@ -21,11 +22,14 @@ export interface ReligiousDetailsData {
 }
 
 interface SignupReligiousDetailsScreenProps {
+  /** Who the profile is being created for, so the copy can address them. */
+  subject?: ProfileSubject;
   onBack: () => void;
   onNext: (data: ReligiousDetailsData) => void;
 }
 
-export function SignupReligiousDetailsScreen({ onBack, onNext }: SignupReligiousDetailsScreenProps) {
+export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupReligiousDetailsScreenProps) {
+  const subject = subjectProp ?? subjectFor(null);
   const [religion, setReligion] = useState<string | null>(null);
   const [caste, setCaste] = useState<string | null>(null);
   const [subcaste, setSubcaste] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export function SignupReligiousDetailsScreen({ onBack, onNext }: SignupReligious
       totalSteps={5}
       eyebrow="Religious details"
       title="Faith and community"
-      subtitle="Used to find matches who share your background."
+      subtitle={`Used to find matches who share ${subject.possessive} background.`}
       footer={
         <PrimaryButton
           label="Continue"

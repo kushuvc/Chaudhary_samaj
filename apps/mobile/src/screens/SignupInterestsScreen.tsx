@@ -11,6 +11,7 @@ import {
 } from '../components/ui';
 import { useAppTheme } from '../context/ThemeContext';
 import { CUISINES, HOBBIES, MUSIC_GENRES, SPORTS } from '../constants/signupOptions';
+import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 
 export interface InterestsData {
   hobbies: string[];
@@ -20,6 +21,8 @@ export interface InterestsData {
 }
 
 interface SignupInterestsScreenProps {
+  /** Who the profile is being created for, so the copy can address them. */
+  subject?: ProfileSubject;
   onBack: () => void;
   onNext: (data: InterestsData) => void;
   onSkip: () => void;
@@ -58,7 +61,8 @@ const TABS: { id: TabId; label: string; heading: string; caption: string; option
   },
 ];
 
-export function SignupInterestsScreen({ onBack, onNext, onSkip }: SignupInterestsScreenProps) {
+export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, onSkip }: SignupInterestsScreenProps) {
+  const subject = subjectProp ?? subjectFor(null);
   const { palette } = useAppTheme();
   const [activeTab, setActiveTab] = useState<TabId>('hobbies');
   const [data, setData] = useState<InterestsData>({ hobbies: [], music: [], sports: [], cuisine: [] });
@@ -82,8 +86,8 @@ export function SignupInterestsScreen({ onBack, onNext, onSkip }: SignupInterest
     <StepScaffold
       onBack={onBack}
       eyebrow="Interests"
-      title="What are you into?"
-      subtitle="These appear on your profile and help spark conversations."
+      title={`What ${subject.verb} ${subject.pronoun} into?`}
+      subtitle={`These appear on ${subject.possessive} profile and help spark conversations.`}
       footer={
         <>
           <PrimaryButton

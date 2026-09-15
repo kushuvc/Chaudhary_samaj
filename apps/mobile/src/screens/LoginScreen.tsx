@@ -97,7 +97,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
       }
       // The server answers the same way whether or not the address has an
       // account, so the wording here must not imply one exists.
-      setNotice('If that email has an account, a reset code is on its way.');
+      setNotice('If that email has an account, a reset code is on its way. Not in your inbox? Check the spam or junk folder — it can land there.');
       setCode('');
       setStage('reset');
     } catch (err) {
@@ -258,7 +258,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
             {devCode ? <Callout icon="flask-outline" text={`Test mode code: ${devCode}`} /> : null}
             {notice ? <Callout icon="mail-outline" text={notice} /> : null}
 
-            <Field label="6-digit code">
+            <Field label="6-digit code" hint="Not in your inbox? Check the spam or junk folder — it can land there.">
               <Input
                 placeholder="000000"
                 value={code}
@@ -295,7 +295,11 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
           <>
             {devCode ? <Callout icon="flask-outline" text={`Test mode code: ${devCode}`} /> : null}
 
-            <Field label="6-digit code" hint={`Sent to ${email.trim()}`} error={error}>
+            <Field
+              label="6-digit code"
+              hint={`Sent to ${email.trim()}. Not in your inbox? Check the spam or junk folder — it can land there.`}
+              error={error}
+            >
               <Input
                 placeholder="000000"
                 value={code}

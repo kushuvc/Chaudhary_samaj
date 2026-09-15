@@ -3624,6 +3624,32 @@ app.post('/api/payments/play/verify', async (request, response) => {
       data: { active: true, plan: 'premium', startedAt, expiresAt },
     })
   } catch (err) {
+    /*
+     * A rejected purchase token is the buyer's problem and they can retry.
+     * Rejected credentials are ours, and telling a paying member their
+     * purchase is invalid when the fault is our service account would be both
+     * wrong and alarming.
+     */
+    if (err?.code === 'PLAY_AUTH_FAILED') {
+      console.error('[play] GOOGLE REJECTED OUR CREDENTIALS:', err.message)
+      response.status(503).json({
+        success: false,
+        code: 'PLAY_AUTH_FAILED',
+        error: 'We could not reach Google to confirm this purchase. Please contact support.',
+      })
+      return
+    }
+
+    if (err?.code === 'PLAY_TOKEN_INVALID') {
+      console.warn('[play] token rejected by Google:', err.message)
+      response.status(400).json({
+        success: false,
+        code: 'PLAY_TOKEN_INVALID',
+        error: 'This purchase could not be verified.',
+      })
+      return
+    }
+
     console.error('[play] verify failed:', err.message)
     response.status(500).json({ success: false, error: 'Could not verify the purchase.' })
   }

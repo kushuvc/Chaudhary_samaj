@@ -87,7 +87,11 @@ async function getAccessToken() {
 
   const payload = await response.json().catch(() => ({}))
   if (!response.ok || !payload.access_token) {
-    throw new Error(payload.error_description || 'Could not obtain a Google access token')
+    // Tagged so the API can say "our credentials are wrong" rather than
+    // blaming the buyer's purchase token — the two need very different fixes.
+    const authError = new Error(payload.error_description || 'Could not obtain a Google access token')
+    authError.code = 'PLAY_AUTH_FAILED'
+    throw authError
   }
 
   cachedToken = {
@@ -123,7 +127,14 @@ export async function getSubscriptionFromPlay(purchaseToken) {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.error?.message || `Play API responded ${response.status}`)
+    const apiError = new Error(payload?.error?.message || `Play API responded ${response.status}`)
+    // 401/403 from Google means the service account is not authorised for this
+    // package; 404/400 means the token itself is no good.
+    apiError.code = response.status === 401 || response.status === 403
+      ? 'PLAY_AUTH_FAILED'
+      : 'PLAY_TOKEN_INVALID'
+    apiError.status = response.status
+    throw apiError
   }
 
   // ACTIVE and IN_GRACE_PERIOD both mean the member should keep access. A

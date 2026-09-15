@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Pressable,
   FlatList,
@@ -12,6 +12,7 @@ import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PhotoManager } from '../components/PhotoManager';
 import type { Photo } from './SignupManagePhotosScreen';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
+import { KeyboardScrollContext, useKeyboardAwareScroll } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -162,10 +163,16 @@ function LabeledInput({
   numberOfLines,
   autoCapitalize,
 }: LabeledInputProps) {
+  // Reports focus so the scroll container can lift this field above the
+  // keyboard, the same way the shared Input does on the signup steps.
+  const shellRef = useRef<View>(null);
+  const keyboardScroll = useContext(KeyboardScrollContext);
+
   return (
-    <View style={styles.fieldGroup}>
+    <View ref={shellRef} style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
+        onFocus={() => keyboardScroll?.onInputFocus(shellRef.current)}
         value={value}
         onChangeText={onChangeText}
         editable={editable}
@@ -181,12 +188,12 @@ function LabeledInput({
 }
 
 export function ProfileScreen() {
-  console.log('[ProfileScreen] Component mounted');
   const { session, logout } = useAuth();
   console.log('[ProfileScreen] Session:', session ? 'Authenticated' : 'Not authenticated');
   const { t } = useAppLanguage();
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const keyboardScroll = useKeyboardAwareScroll();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -368,11 +375,18 @@ export function ProfileScreen() {
 
   return (
     <ScrollView
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
+      {...keyboardScroll.scrollProps}
+      automaticallyAdjustKeyboardInsets
       style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + 12 },
+        keyboardScroll.keyboardHeight > 0 && {
+          paddingBottom: keyboardScroll.keyboardHeight + 24,
+        },
+      ]}
     >
+      <KeyboardScrollContext.Provider value={keyboardScroll.contextValue}>
       <View style={styles.headerRow}>
         <ScreenTitle title={t('profile')} subtitle={t('profileSubtitle')} />
         <PrimaryButton
@@ -785,6 +799,7 @@ export function ProfileScreen() {
       <Pressable style={styles.logoutButton} onPress={() => logout()}>
         <Text style={styles.logoutButtonText}>{t('logoutLabel')}</Text>
       </Pressable>
+      </KeyboardScrollContext.Provider>
     </ScrollView>
   );
 }

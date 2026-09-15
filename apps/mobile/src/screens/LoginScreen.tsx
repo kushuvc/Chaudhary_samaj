@@ -5,7 +5,16 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { Callout, Field, GradientFill, Input, PrimaryButton, TextButton } from '../components/ui';
+import {
+  Callout,
+  Field,
+  GradientFill,
+  Input,
+  KeyboardScrollContext,
+  PrimaryButton,
+  TextButton,
+  useKeyboardAwareScroll,
+} from '../components/ui';
 import { radius, shadow, spacing } from '../theme';
 
 interface LoginScreenProps {
@@ -17,6 +26,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
   const { requestOtp, verifyOtp, login, loginWithToken } = useAuth();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const keyboardScroll = useKeyboardAwareScroll();
 
   /*
    * Four stages rather than two: members can sign in with the password they
@@ -163,11 +173,15 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
       </View>
 
       <ScrollView
+        {...keyboardScroll.scrollProps}
         style={styles.sheet}
-        contentContainerStyle={styles.sheetInner}
-        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[
+          styles.sheetInner,
+          keyboardScroll.keyboardHeight > 0 && { paddingBottom: keyboardScroll.keyboardHeight + 24 },
+        ]}
         automaticallyAdjustKeyboardInsets
       >
+        <KeyboardScrollContext.Provider value={keyboardScroll.contextValue}>
         {stage === 'signIn' ? (
           <>
             <Field label="Email address" error={emailError}>
@@ -334,6 +348,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
             <Text style={styles.footerLink}>Create a profile</Text>
           </Pressable>
         </View>
+        </KeyboardScrollContext.Provider>
       </ScrollView>
     </View>
   );

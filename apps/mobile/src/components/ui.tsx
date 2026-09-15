@@ -171,6 +171,66 @@ function useKeyboard() {
   return keyboard;
 }
 
+/**
+ * Lets a screen with its own ScrollView behave like the signup steps.
+ *
+ * Wrap the scroll view's children in the provider and give it the handlers
+ * this returns; any Input inside will then be scrolled clear of the keyboard.
+ */
+export function useKeyboardAwareScroll() {
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  const focusedInput = useRef<View | null>(null);
+  const keyboard = useKeyboard();
+
+  const reveal = useCallback((keyboardTop: number) => {
+    const node = focusedInput.current;
+    if (!node || keyboardTop <= 0) return;
+
+    node.measureInWindow((_x, y, _width, height) => {
+      const margin = 72;
+      const visibleBottom = keyboardTop - margin;
+      const inputBottom = y + height;
+      if (inputBottom <= visibleBottom) return;
+
+      scrollRef.current?.scrollTo({
+        y: Math.max(scrollY.current + (inputBottom - visibleBottom), 0),
+        animated: true,
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    reveal(keyboard.screenY);
+  }, [keyboard.screenY, reveal]);
+
+  const onInputFocus = useCallback(
+    (node: View | null) => {
+      focusedInput.current = node;
+      reveal(keyboard.screenY);
+    },
+    [keyboard.screenY, reveal]
+  );
+
+  const contextValue = useMemo(() => ({ onInputFocus }), [onInputFocus]);
+
+  return {
+    scrollRef,
+    contextValue,
+    keyboardHeight: keyboard.height,
+    scrollProps: {
+      ref: scrollRef,
+      onScroll: (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+        scrollY.current = event.nativeEvent.contentOffset.y;
+      },
+      scrollEventThrottle: 16,
+      keyboardShouldPersistTaps: 'handled' as const,
+    },
+  };
+}
+
+export { KeyboardScrollContext };
+
 export function StepScaffold({
   onBack,
   step,

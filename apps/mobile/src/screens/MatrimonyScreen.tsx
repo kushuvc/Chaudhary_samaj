@@ -585,14 +585,10 @@ export function MatrimonyScreen() {
             </View>
 
             {/* Gender */}
-            <FilterSection
-              title={t('genderLabel')}
-              allLabel={t('allGenders')}
-              selectedValue={filters.gender}
-              options={filterOptions.genders}
-              onSelect={(value) => setFilters((prev) => ({ ...prev, gender: value }))}
-              styles={styles}
-            />
+            {/*
+              * No gender filter: the server returns only the opposite gender,
+              * so the control could only ever select "all of them" or "none".
+              */}
 
             {/* Education */}
             <FilterSection

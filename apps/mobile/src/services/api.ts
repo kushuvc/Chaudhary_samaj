@@ -79,6 +79,17 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => {
   onUnauthorized = handler;
 };
 
+export interface SubscriptionStatus {
+  hasSubscription: boolean;
+  entitled?: boolean;
+  reason?: 'free-for-gender' | 'subscribed' | 'none' | 'anonymous';
+  plan?: { pricePaise: number; freeProfileLimit: number; freeForYou: boolean };
+  plan_name?: string;
+  amount?: number;
+  startedAt?: string;
+  expiresAt?: string;
+}
+
 export interface ApiError extends Error {
   status?: number;
   /** Machine-readable error code from the server, e.g. PHONE_ALREADY_REGISTERED. */
@@ -719,6 +730,26 @@ export const api = {
    * that it actually does — it previously only called logout(), leaving every
    * row in place.
    */
+  /** Starts a password reset. Answers the same way for unknown addresses. */
+  forgotPassword: async (email: string): Promise<{ message?: string; debugOtp?: string }> => {
+    const response = await request<{ data?: { message?: string; debugOtp?: string } }>(
+      '/auth/password/forgot',
+      { method: 'POST', body: JSON.stringify({ email }) }
+    );
+    return response.data || {};
+  },
+
+  /** Completes a reset and returns a session, so no second sign-in is needed. */
+  resetPassword: async (email: string, otp: string, password: string): Promise<string> => {
+    const response = await request<{ data?: { authToken?: string } }>('/auth/password/reset', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, password }),
+    });
+    const token = response.data?.authToken;
+    if (!token) throw new Error('The reset did not return a session. Please sign in.');
+    return token;
+  },
+
   deleteAccount: async (): Promise<void> => {
     await request<{ success: boolean }>('/auth/account', { method: 'DELETE' });
   },
@@ -731,8 +762,15 @@ export const api = {
   },
 
   // Payment APIs
-  getSubscriptionStatus: async (): Promise<{ hasSubscription: boolean; plan?: string; amount?: number; expiresAt?: string }> => {
-    const response = await request<{ data: { hasSubscription: boolean; plan?: string; amount?: number; expiresAt?: string } }>('/payments/subscription');
+  /**
+   * Subscription status, plus the rule that applies to this member.
+   *
+   * `entitled` can be true without a subscription when the member's gender is
+   * free under the current rules, and `plan` carries the live price — both are
+   * set from the admin screen, so nothing about pricing is hardcoded here.
+   */
+  getSubscriptionStatus: async (): Promise<SubscriptionStatus> => {
+    const response = await request<{ data: SubscriptionStatus }>('/payments/subscription');
     return response.data;
   },
 

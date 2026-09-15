@@ -19,13 +19,9 @@ import { api } from '../services/api';
 import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
 
-interface SubscriptionData {
-  hasSubscription: boolean;
-  plan?: string;
-  amount?: number;
-  startedAt?: string;
-  expiresAt?: string;
-}
+import type { SubscriptionStatus } from '../services/api';
+
+type SubscriptionData = SubscriptionStatus;
 
 const PLAN = {
   name: 'Monthly',
@@ -155,7 +151,7 @@ export function SubscriptionsScreen() {
     if (processing) return;
     try {
       setProcessing(true);
-      const link = await api.createPaymentLink('premium', PLAN.amount);
+      const link = await api.createPaymentLink('premium', priceRupees);
       pendingLinkIdRef.current = link.id;
 
       const opened = await Linking.canOpenURL(link.short_url);
@@ -188,6 +184,19 @@ export function SubscriptionsScreen() {
   };
 
   const isActive = Boolean(subscription?.hasSubscription);
+
+  /*
+   * Free for this member because of the rules, not because they paid. Shown
+   * differently from an active subscription: there is nothing to cancel, no
+   * expiry, and no price to quote.
+   */
+  const freeForMember = Boolean(subscription?.plan?.freeForYou) && !isActive;
+
+  // The live price from the server, so an admin change is reflected without
+  // shipping a new build.
+  const priceRupees = subscription?.plan?.pricePaise
+    ? Math.round(subscription.plan.pricePaise / 100)
+    : PLAN.amount;
   const daysLeft = isActive && subscription?.expiresAt
     ? Math.ceil((new Date(subscription.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -208,7 +217,19 @@ export function SubscriptionsScreen() {
       >
         <Text style={styles.screenTitle}>Membership</Text>
 
-        {isActive ? (
+        {freeForMember ? (
+          <View style={styles.activeCard}>
+            <GradientFill colors={palette.gradient} borderRadius={radius.lg} />
+            <View style={styles.activeBadge}>
+              <Ionicons name="gift" size={16} color="#FFFFFF" />
+              <Text style={styles.activeBadgeText}>Included</Text>
+            </View>
+            <Text style={styles.activeTitle}>Full access, free</Text>
+            <Text style={styles.activeSubtitle}>
+              Every profile is unlocked for you — nothing to pay, nothing to cancel.
+            </Text>
+          </View>
+        ) : isActive ? (
           <View style={styles.activeCard}>
             <GradientFill colors={palette.gradient} borderRadius={radius.lg} />
             <View style={styles.activeBadge}>
@@ -268,7 +289,7 @@ export function SubscriptionsScreen() {
 
               <View style={styles.priceRow}>
                 <Text style={styles.priceCurrency}>₹</Text>
-                <Text style={styles.priceAmount}>{PLAN.amount}</Text>
+                <Text style={styles.priceAmount}>{priceRupees}</Text>
                 <Text style={styles.pricePeriod}>/ month</Text>
               </View>
 
@@ -289,7 +310,7 @@ export function SubscriptionsScreen() {
                     label={
                       play.purchasing
                         ? 'Opening Google Play…'
-                        : `Subscribe — ${play.product?.displayPrice || `₹${PLAN.amount}`}`
+                        : `Subscribe — ${play.product?.displayPrice || `₹${priceRupees}`}`
                     }
                     onPress={play.buy}
                     disabled={play.purchasing || play.loading}
@@ -299,7 +320,7 @@ export function SubscriptionsScreen() {
               ) : (
                 <>
                   <PrimaryButton
-                    label={processing ? 'Opening checkout…' : `Subscribe — ₹${PLAN.amount}`}
+                    label={processing ? 'Opening checkout…' : `Subscribe — ₹${priceRupees}`}
                     onPress={handlePurchase}
                     disabled={processing}
                   />

@@ -457,11 +457,17 @@ export function ProfileScreen() {
       {/* Personal Details from Signup */}
       <SectionCard>
         <Text style={styles.sectionTitle}>Personal Details</Text>
+        {/*
+          * Gender is fixed at signup. The directory shows only the opposite
+          * gender, so changing it would swap everything a member can see, and
+          * the server drops the field from updates anyway — leaving the input
+          * editable would just lose the edit silently.
+          */}
         <LabeledInput
           label="Gender"
           value={profile.gender || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, gender: value }))}
-          editable={isEditing}
+          onChangeText={() => {}}
+          editable={false}
           placeholder="Not set"
           styles={styles}
         />

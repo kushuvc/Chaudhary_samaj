@@ -316,6 +316,21 @@ export function SubscriptionsScreen() {
                     disabled={play.purchasing || play.loading}
                   />
                   {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
+
+                  {/*
+                    * For anyone who paid but never got access — the purchase
+                    * exists at Google, so this asks for it again rather than
+                    * leaving them to buy twice.
+                    */}
+                  <Pressable
+                    style={styles.restoreButton}
+                    disabled={play.restoring}
+                    onPress={() => void play.restore()}
+                  >
+                    <Text style={styles.restoreButtonText}>
+                      {play.restoring ? 'Checking…' : 'Already paid? Restore purchase'}
+                    </Text>
+                  </Pressable>
                 </>
               ) : (
                 <>
@@ -460,6 +475,8 @@ function createStyles(palette: ThemePalette) {
       marginTop: spacing.xs,
     },
     footnoteText: { fontSize: 12.5, color: palette.muted },
+    restoreButton: { paddingVertical: 12, alignItems: 'center' },
+    restoreButtonText: { color: palette.primary, fontSize: 14, fontWeight: '600' },
     playError: { fontSize: 13, color: palette.danger, marginTop: spacing.sm, textAlign: 'center' },
   });
 }

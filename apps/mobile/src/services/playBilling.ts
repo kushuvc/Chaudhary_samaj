@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import {
   endConnection,
   fetchProducts,
+  getAvailablePurchases,
   initConnection,
   isUserCancelledError,
   purchaseErrorListener,
@@ -19,6 +20,8 @@ interface PlayBillingState {
   available: boolean;
   loading: boolean;
   purchasing: boolean;
+  /** True while re-checking the store for a purchase we never confirmed. */
+  restoring: boolean;
   product: { displayPrice?: string; title?: string } | null;
   error: string | null;
 }
@@ -36,6 +39,7 @@ export function usePlayBilling(onEntitled: () => void) {
     available: false,
     loading: true,
     purchasing: false,
+    restoring: false,
     product: null,
     error: null,
   });
@@ -111,6 +115,26 @@ export function usePlayBilling(onEntitled: () => void) {
           }));
         });
 
+        /*
+         * Pick up anything bought but never confirmed, before showing the
+         * plan. A member who has already paid should not be looking at a
+         * Subscribe button.
+         */
+        try {
+          const outstanding = await getAvailablePurchases();
+          for (const purchase of outstanding ?? []) {
+            const token = (purchase as Purchase).purchaseToken;
+            if (!token) continue;
+            const result = await api.verifyPlayPurchase(token);
+            if (result.active) {
+              onEntitledRef.current();
+              break;
+            }
+          }
+        } catch {
+          // Not fatal: the buy flow and the manual restore both still work.
+        }
+
         const products = await fetchProducts({ skus: [PREMIUM_PRODUCT_ID], type: 'subs' });
         if (!mounted.current) return;
 
@@ -155,6 +179,65 @@ export function usePlayBilling(onEntitled: () => void) {
     };
   }, []);
 
+  /*
+   * Re-check the store for a purchase we never confirmed.
+   *
+   * purchaseUpdatedListener only fires for a purchase made in this session, so
+   * if verification failed at the moment of buying — a cold server, a dropped
+   * connection — nothing ever retried and the member stayed unsubscribed
+   * despite having paid. Play keeps the purchase until it is acknowledged, so
+   * asking the store for it is the recovery path.
+   */
+  const restore = useCallback(async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return false;
+
+    setState((prev) => ({ ...prev, restoring: true, error: null }));
+    try {
+      const purchases = await getAvailablePurchases();
+      const tokens = (purchases ?? [])
+        .map((purchase) => (purchase as Purchase).purchaseToken)
+        .filter((token): token is string => Boolean(token));
+
+      if (!tokens.length) {
+        if (mounted.current) {
+          setState((prev) => ({
+            ...prev,
+            restoring: false,
+            error: 'We could not find a purchase on this Google account.',
+          }));
+        }
+        return false;
+      }
+
+      for (const token of tokens) {
+        const result = await api.verifyPlayPurchase(token);
+        if (result.active) {
+          if (mounted.current) setState((prev) => ({ ...prev, restoring: false, error: null }));
+          onEntitledRef.current();
+          return true;
+        }
+      }
+
+      if (mounted.current) {
+        setState((prev) => ({
+          ...prev,
+          restoring: false,
+          error: 'We found a purchase but it is not active yet. Please try again shortly.',
+        }));
+      }
+      return false;
+    } catch (err) {
+      if (mounted.current) {
+        setState((prev) => ({
+          ...prev,
+          restoring: false,
+          error: (err as Error).message || 'Could not restore the purchase.',
+        }));
+      }
+      return false;
+    }
+  }, []);
+
   const buy = useCallback(async () => {
     setState((prev) => ({ ...prev, purchasing: true, error: null }));
     try {
@@ -184,5 +267,5 @@ export function usePlayBilling(onEntitled: () => void) {
     }
   }, []);
 
-  return { ...state, buy };
+  return { ...state, buy, restore };
 }

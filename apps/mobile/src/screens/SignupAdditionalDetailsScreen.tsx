@@ -13,6 +13,7 @@ import {
 import { useAppTheme } from '../context/ThemeContext';
 import { FAMILY_STATUSES, FAMILY_TYPES, FAMILY_WEALTH, OCCUPATIONS } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface AdditionalDetailsData {
   familyStatus: string;
@@ -38,6 +39,7 @@ const MIN_BIO = 50;
 const SIBLING_OPTIONS = ['None', '1', '2', '3', '4', '5 or more'].map((item) => ({ id: item, label: item }));
 
 export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, onSubmit }: SignupAdditionalDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null);
   const { palette } = useAppTheme();
   const [familyStatus, setFamilyStatus] = useState<string | null>(null);
@@ -58,12 +60,12 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       onBack={onBack}
       step={5}
       totalSteps={5}
-      eyebrow="Additional details"
+      eyebrow={t('suAdditionalDetails')}
       title={`Family and ${subject.possessive} story`}
-      subtitle="The last step before we create your account."
+      subtitle={t('suTheLastStepBeforeWeCreate')}
       footer={
         <PrimaryButton
-          label="Continue"
+          label={t('suContinue')}
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
@@ -85,7 +87,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       }
     >
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Family status" />
+        <SectionHeading title={t('suFamilyStatus')} />
         <ChipGroup>
           {FAMILY_STATUSES.map((option) => (
             <Chip
@@ -99,7 +101,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       </View>
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Family type" />
+        <SectionHeading title={t('suFamilyType')} />
         <ChipGroup>
           {FAMILY_TYPES.map((option) => (
             <Chip
@@ -113,7 +115,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       </View>
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Family wealth" />
+        <SectionHeading title={t('suFamilyWealth')} />
         <ChipGroup>
           {FAMILY_WEALTH.map((option) => (
             <Chip
@@ -126,41 +128,41 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
         </ChipGroup>
       </View>
 
-      <SectionHeading title="Parents" caption="Optional." />
+      <SectionHeading title={t('suParents')} caption="Optional." />
 
-      <Field label="Father's name">
-        <Input value={fatherName} onChangeText={setFatherName} placeholder="Full name" autoCapitalize="words" />
+      <Field label={t('suFatherSName')}>
+        <Input value={fatherName} onChangeText={setFatherName} placeholder={t('suFullName')} autoCapitalize="words" />
       </Field>
 
-      <Field label="Father's occupation">
+      <Field label={t('suFatherSOccupation')}>
         <Select
           value={fatherOccupation}
-          placeholder="Select occupation"
-          title="Father's occupation"
+          placeholder={t('suSelectOccupation')}
+          title={t('suFatherSOccupation')}
           options={OCCUPATIONS.map((item) => ({ id: item, label: item }))}
           onChange={setFatherOccupation}
         />
       </Field>
 
-      <Field label="Mother's name">
-        <Input value={motherName} onChangeText={setMotherName} placeholder="Full name" autoCapitalize="words" />
+      <Field label={t('suMotherSName')}>
+        <Input value={motherName} onChangeText={setMotherName} placeholder={t('suFullName')} autoCapitalize="words" />
       </Field>
 
-      <Field label="Mother's occupation">
+      <Field label={t('suMotherSOccupation')}>
         <Select
           value={motherOccupation}
-          placeholder="Select occupation"
-          title="Mother's occupation"
+          placeholder={t('suSelectOccupation')}
+          title={t('suMotherSOccupation')}
           options={OCCUPATIONS.map((item) => ({ id: item, label: item }))}
           onChange={setMotherOccupation}
         />
       </Field>
 
-      <Field label="Number of siblings">
+      <Field label={t('suNumberOfSiblings')}>
         <Select
           value={siblings}
-          placeholder="Select"
-          title="Siblings"
+          placeholder={t('suSelect')}
+          title={t('suSiblings')}
           options={SIBLING_OPTIONS}
           onChange={setSiblings}
           searchable={false}
@@ -168,7 +170,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       </Field>
 
       <Field
-        label="A few words about yourself"
+        label={t('suAFewWordsAboutYourself')}
         hint={
           bioRemaining > 0
             ? `${bioRemaining} more character${bioRemaining === 1 ? '' : 's'} needed`
@@ -178,7 +180,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
         <Input
           value={bio}
           onChangeText={setBio}
-          placeholder="Share your interests, what you value, and what you're looking for."
+          placeholder={t('suShareYourInterestsWhatYouValue')}
           multiline
           maxLength={1000}
           autoCapitalize="sentences"

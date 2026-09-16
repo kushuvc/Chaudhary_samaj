@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { OptionCard, PrimaryButton, StepScaffold, TextButton } from '../components/ui';
 import { EATING_HABITS } from '../constants/signupOptions';
 import { subjectFor, capitalise, type ProfileSubject } from '../constants/profileSubject';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export type EatingHabit = 'vegetarian' | 'non_vegetarian' | 'eggetarian';
 
@@ -15,23 +16,24 @@ interface SignupEatingHabitsScreenProps {
 }
 
 export function SignupEatingHabitsScreen({ subject: subjectProp, onBack, onNext, onSkip }: SignupEatingHabitsScreenProps) {
+  const { t } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null);
   const [habit, setHabit] = useState<EatingHabit | null>(null);
 
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Lifestyle"
+      eyebrow={t('suLifestyle')}
       title={`${capitalise(subject.possessive)} eating habits`}
-      subtitle="Many families consider this when shortlisting."
+      subtitle={t('suManyFamiliesConsiderThisWhenShortlisting')}
       footer={
         <>
           <PrimaryButton
-            label="Save and continue"
+            label={t('suSaveAndContinue')}
             disabled={!habit}
             onPress={() => habit && onNext(habit)}
           />
-          <TextButton label="I'll do this later" onPress={onSkip} />
+          <TextButton label={t('suILlDoThisLater')} onPress={onSkip} />
         </>
       }
     >

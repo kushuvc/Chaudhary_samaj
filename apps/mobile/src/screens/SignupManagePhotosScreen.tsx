@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
 import { PrimaryButton, SectionHeading, StepScaffold, TextButton } from '../components/ui';
 import { api } from '../services/api';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface Photo {
   id: string;
@@ -27,6 +28,7 @@ const benefits = [
 ];
 
 export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePhotosScreenProps) {
+  const { t } = useAppLanguage();
   const { palette } = useAppTheme();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -99,16 +101,16 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Photos"
-      title="Add a photo"
-      subtitle="Profiles with a clear photo get noticed first. You can add up to six."
+      eyebrow={t('suPhotos')}
+      title={t('suAddAPhoto')}
+      subtitle={t('suProfilesWithAClearPhotoGet')}
       footer={
         <>
           <PrimaryButton
             label={uploaded.length > 0 ? `Continue with ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'}` : 'Add a photo'}
             onPress={uploaded.length > 0 ? () => onComplete(uploaded) : pickAndUpload}
           />
-          <TextButton label="I'll do this later" onPress={() => onComplete(uploaded)} />
+          <TextButton label={t('suILlDoThisLater')} onPress={() => onComplete(uploaded)} />
         </>
       }
     >
@@ -124,7 +126,7 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
       </View>
 
       <SectionHeading
-        title="Your photos"
+        title={t('suYourPhotos')}
         caption={photos.length > 0 ? 'Tap a photo to make it your main one.' : undefined}
       />
 
@@ -163,7 +165,7 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
         {photos.length < MAX_PHOTOS ? (
           <Pressable style={styles.addTile} onPress={pickAndUpload}>
             <Ionicons name="add" size={26} color={palette.primary} />
-            <Text style={styles.addTileText}>Add photo</Text>
+            <Text style={styles.addTileText}>{t('suAddPhoto')}</Text>
           </Pressable>
         ) : null}
       </View>

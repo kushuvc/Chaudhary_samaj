@@ -10,6 +10,7 @@ import {
   StepScaffold,
 } from '../components/ui';
 import { MOTHER_TONGUES, PROFILE_TYPES } from '../constants/signupOptions';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export type ProfileType = 'myself' | 'son' | 'daughter' | 'brother' | 'sister' | 'friend' | 'relative';
 
@@ -24,6 +25,7 @@ interface SignupProfileTypeScreenProps {
 }
 
 export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScreenProps) {
+  const { t } = useAppLanguage();
   const [selectedType, setSelectedType] = useState<ProfileType | null>(null);
   const [motherTongue, setMotherTongue] = useState<string | null>(null);
 
@@ -32,12 +34,12 @@ export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScr
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Get started"
-      title="Who is this profile for?"
-      subtitle="This helps us set the right tone and show relevant matches."
+      eyebrow={t('suGetStarted')}
+      title={t('suWhoIsThisProfileFor')}
+      subtitle={t('suThisHelpsUsSetTheRight')}
       footer={
         <PrimaryButton
-          label="Start registration"
+          label={t('suStartRegistration')}
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
@@ -49,12 +51,12 @@ export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScr
       }
     >
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Creating this profile for" />
+        <SectionHeading title={t('suCreatingThisProfileFor')} />
         <ChipGroup>
           {PROFILE_TYPES.map((type) => (
             <Chip
               key={type.id}
-              label={type.label}
+              label={t(type.label)}
               icon={type.icon}
               selected={selectedType === type.id}
               onPress={() => setSelectedType(type.id as ProfileType)}
@@ -63,11 +65,11 @@ export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScr
         </ChipGroup>
       </View>
 
-      <Field label="Mother tongue">
+      <Field label={t('suMotherTongue')}>
         <Select
           value={motherTongue}
-          placeholder="Select mother tongue"
-          title="Mother tongue"
+          placeholder={t('suSelectMotherTongue')}
+          title={t('suMotherTongue')}
           options={MOTHER_TONGUES.map((item) => ({ id: item, label: item }))}
           onChange={setMotherTongue}
         />

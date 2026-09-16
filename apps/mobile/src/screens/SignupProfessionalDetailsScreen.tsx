@@ -14,6 +14,7 @@ import {
   INCOME_RANGES_INR,
   OCCUPATIONS,
 } from '../constants/signupOptions';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface ProfessionalDetailsData {
   education: string;
@@ -29,6 +30,7 @@ interface SignupProfessionalDetailsScreenProps {
 }
 
 export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfessionalDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const [education, setEducation] = useState<string | null>(null);
   const [employmentType, setEmploymentType] = useState<string | null>(null);
   const [occupation, setOccupation] = useState<string | null>(null);
@@ -51,12 +53,12 @@ export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfes
       onBack={onBack}
       step={4}
       totalSteps={5}
-      eyebrow="Professional details"
-      title="Education and work"
-      subtitle="Many members filter on these, so it's worth being accurate."
+      eyebrow={t('suProfessionalDetails')}
+      title={t('suEducationAndWork')}
+      subtitle={t('suManyMembersFilterOnTheseSo')}
       footer={
         <PrimaryButton
-          label="Continue"
+          label={t('suContinue')}
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
@@ -73,21 +75,21 @@ export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfes
         />
       }
     >
-      <Field label="Highest education">
+      <Field label={t('suHighestEducation')}>
         <Select
           value={education}
-          placeholder="Select your education"
-          title="Education"
+          placeholder={t('suSelectYourEducation')}
+          title={t('suEducation')}
           options={EDUCATION_LEVELS.map((item) => ({ id: item, label: item }))}
           onChange={setEducation}
         />
       </Field>
 
-      <Field label="Employment type">
+      <Field label={t('suEmploymentType')}>
         <Select
           value={employmentType}
-          placeholder="Select employment type"
-          title="Employment type"
+          placeholder={t('suSelectEmploymentType')}
+          title={t('suEmploymentType')}
           options={EMPLOYMENT_TYPES.map((item) => ({ id: item, label: item }))}
           onChange={(next) => {
             setEmploymentType(next);
@@ -98,11 +100,11 @@ export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfes
         />
       </Field>
 
-      <Field label="Occupation">
+      <Field label={t('suOccupation')}>
         <Select
           value={occupation}
-          placeholder="Select your occupation"
-          title="Occupation"
+          placeholder={t('suSelectYourOccupation')}
+          title={t('suOccupation')}
           options={OCCUPATIONS.map((item) => ({ id: item, label: item }))}
           onChange={setOccupation}
         />
@@ -110,13 +112,13 @@ export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfes
 
       {!notWorking ? (
         <>
-          <SectionHeading title="Annual income" caption="Shown as a range — never an exact figure." />
+          <SectionHeading title={t('suAnnualIncome')} caption="Shown as a range — never an exact figure." />
 
-          <Field label="Currency">
+          <Field label={t('suCurrency')}>
             <Select
               value={incomeCurrency}
-              placeholder="Select currency"
-              title="Currency"
+              placeholder={t('suSelectCurrency')}
+              title={t('suCurrency')}
               options={INCOME_CURRENCIES}
               onChange={(next) => {
                 setIncomeCurrency(next);
@@ -126,11 +128,11 @@ export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfes
             />
           </Field>
 
-          <Field label="Income range">
+          <Field label={t('suIncomeRange')}>
             <Select
               value={annualIncome}
-              placeholder="Select your annual income"
-              title="Annual income"
+              placeholder={t('suSelectYourAnnualIncome')}
+              title={t('suAnnualIncome')}
               options={incomeOptions}
               onChange={setAnnualIncome}
               disabled={!incomeCurrency}

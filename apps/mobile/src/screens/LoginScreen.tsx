@@ -243,7 +243,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
           </>
         ) : stage === 'forgot' ? (
           <>
-            <Field label="Email address" hint={t('loginResetHint')} error={emailError}>
+            <Field label={t('loginEmailLabel')} hint={t('loginResetHint')} error={emailError}>
               <Input
                 placeholder="you@example.com"
                 value={email}
@@ -305,7 +305,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
               />
             </View>
 
-            <TextButton label="Back to sign in" onPress={backToSignIn} />
+            <TextButton label={t('loginBackToSignIn')} onPress={backToSignIn} />
           </>
         ) : (
           <>

@@ -9,6 +9,7 @@ import {
 } from '../components/ui';
 import { CITIES, COUNTRIES, STATES } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface LocationDetailsData {
   country: string;
@@ -27,6 +28,7 @@ interface SignupLocationDetailsScreenProps {
 }
 
 export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupLocationDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null);
   const [country, setCountry] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
@@ -52,12 +54,12 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
       onBack={onBack}
       step={3}
       totalSteps={5}
-      eyebrow="Location details"
+      eyebrow={t('suLocationDetails')}
       title={`Where ${subject.verb} ${subject.pronoun} based?`}
       subtitle={`Matches nearby show up first, and ${subject.possessive} native place helps families connect.`}
       footer={
         <PrimaryButton
-          label="Continue"
+          label={t('suContinue')}
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
@@ -68,11 +70,11 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
         />
       }
     >
-      <Field label="Country you live in">
+      <Field label={t('suCountryYouLiveIn')}>
         <Select
           value={country}
-          placeholder="Select country"
-          title="Country"
+          placeholder={t('suSelectCountry')}
+          title={t('suCountry')}
           options={COUNTRIES.map((item) => ({ id: item, label: item }))}
           onChange={(next) => {
             setCountry(next);
@@ -82,11 +84,11 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
         />
       </Field>
 
-      <Field label="State" hint={!country ? 'Choose a country first' : undefined}>
+      <Field label={t('suState')} hint={!country ? 'Choose a country first' : undefined}>
         <Select
           value={state}
-          placeholder="Select state"
-          title="State"
+          placeholder={t('suSelectState')}
+          title={t('suState')}
           options={stateOptions}
           onChange={(next) => {
             setState(next);
@@ -96,28 +98,28 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
         />
       </Field>
 
-      <Field label="City" hint={!state ? 'Choose a state first' : undefined}>
+      <Field label={t('suCity')} hint={!state ? 'Choose a state first' : undefined}>
         <Select
           value={city}
-          placeholder="Select city"
-          title="City"
+          placeholder={t('suSelectCity')}
+          title={t('suCity')}
           options={cityOptions}
           onChange={setCity}
           disabled={!state}
         />
       </Field>
 
-      <SectionHeading title="Native place" caption="Optional, but useful for family introductions." />
+      <SectionHeading title={t('suNativePlace')} caption="Optional, but useful for family introductions." />
 
-      <Field label="Area or village">
+      <Field label={t('suAreaOrVillage')}>
         <Input value={village} onChangeText={setVillage} placeholder="e.g. Vastrapur" autoCapitalize="words" />
       </Field>
 
-      <Field label="Native city">
+      <Field label={t('suNativeCity')}>
         <Input value={nativeCity} onChangeText={setNativeCity} placeholder="e.g. Mehsana" autoCapitalize="words" />
       </Field>
 
-      <Field label="Native village">
+      <Field label={t('suNativeVillage')}>
         <Input
           value={nativeVillage}
           onChangeText={setNativeVillage}

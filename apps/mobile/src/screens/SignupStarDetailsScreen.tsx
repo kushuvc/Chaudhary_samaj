@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Field, PrimaryButton, Select, StepScaffold, TextButton } from '../components/ui';
 import { NAKSHATRAS, RAASIS } from '../constants/signupOptions';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface StarDetailsData {
   nakshatra: string;
@@ -14,6 +15,7 @@ interface SignupStarDetailsScreenProps {
 }
 
 export function SignupStarDetailsScreen({ onBack, onNext, onSkip }: SignupStarDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const [nakshatra, setNakshatra] = useState<string | null>(null);
   const [raasi, setRaasi] = useState<string | null>(null);
 
@@ -22,13 +24,13 @@ export function SignupStarDetailsScreen({ onBack, onNext, onSkip }: SignupStarDe
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Horoscope"
-      title="Add star details"
-      subtitle="Optional. Helps members who match on nakshatra and raasi."
+      eyebrow={t('suHoroscope')}
+      title={t('suAddStarDetails')}
+      subtitle={t('suOptionalHelpsMembersWhoMatchOn')}
       footer={
         <>
           <PrimaryButton
-            label="Save and continue"
+            label={t('suSaveAndContinue')}
             disabled={!canContinue}
             onPress={() => {
               if (nakshatra && raasi) {
@@ -36,25 +38,25 @@ export function SignupStarDetailsScreen({ onBack, onNext, onSkip }: SignupStarDe
               }
             }}
           />
-          <TextButton label="I'll do this later" onPress={onSkip} />
+          <TextButton label={t('suILlDoThisLater')} onPress={onSkip} />
         </>
       }
     >
-      <Field label="Star / Nakshatra">
+      <Field label={t('suStarNakshatra')}>
         <Select
           value={nakshatra}
-          placeholder="Select your nakshatra"
-          title="Star / Nakshatra"
+          placeholder={t('suSelectYourNakshatra')}
+          title={t('suStarNakshatra')}
           options={NAKSHATRAS.map((item) => ({ id: item, label: item }))}
           onChange={setNakshatra}
         />
       </Field>
 
-      <Field label="Raasi">
+      <Field label={t('suRaasi')}>
         <Select
           value={raasi}
-          placeholder="Select your raasi"
-          title="Raasi"
+          placeholder={t('suSelectYourRaasi')}
+          title={t('suRaasi')}
           options={RAASIS.map((item) => ({ id: item, label: item }))}
           onChange={setRaasi}
         />

@@ -12,6 +12,7 @@ import {
 import { useAppTheme } from '../context/ThemeContext';
 import { CUISINES, HOBBIES, MUSIC_GENRES, SPORTS } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface InterestsData {
   hobbies: string[];
@@ -62,6 +63,7 @@ const TABS: { id: TabId; label: string; heading: string; caption: string; option
 ];
 
 export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, onSkip }: SignupInterestsScreenProps) {
+  const { t } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null);
   const { palette } = useAppTheme();
   const [activeTab, setActiveTab] = useState<TabId>('hobbies');
@@ -85,7 +87,7 @@ export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, on
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Interests"
+      eyebrow={t('suInterests')}
       title={`What ${subject.verb} ${subject.pronoun} into?`}
       subtitle={`These appear on ${subject.possessive} profile and help spark conversations.`}
       footer={
@@ -95,7 +97,7 @@ export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, on
             disabled={totalSelected === 0}
             onPress={() => onNext(data)}
           />
-          <TextButton label="I'll do this later" onPress={onSkip} />
+          <TextButton label={t('suILlDoThisLater')} onPress={onSkip} />
         </>
       }
     >

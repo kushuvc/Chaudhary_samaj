@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
 import { Callout, Field, Input, PrimaryButton, StepScaffold, TextButton } from '../components/ui';
 import { api } from '../services/api';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface BasicDetailsData {
   fullName: string;
@@ -28,6 +29,7 @@ function isValidEmail(email: string) {
 }
 
 export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }: SignupBasicDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const { palette } = useAppTheme();
   const styles = createStyles(palette);
 
@@ -116,13 +118,13 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
           setOtp('');
           setError(null);
         }}
-        eyebrow="Verify"
-        title="Enter the 6-digit code"
+        eyebrow={t('suVerify')}
+        title={t('suEnterThe6DigitCode')}
         subtitle={`Sent to ${email.trim()}. Not in your inbox? Check the spam or junk folder — it can land there.`}
         footer={
           <>
             <PrimaryButton
-              label="Verify and create account"
+              label={t('suVerifyAndCreateAccount')}
               disabled={otp.length !== 6}
               loading={loading}
               onPress={handleVerify}
@@ -133,7 +135,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
       >
         {mockOtpHint ? <Callout icon="flask-outline" text={`Test mode code: ${mockOtpHint}`} /> : null}
 
-        <Field label="One-time password" error={error}>
+        <Field label={t('suOneTimePassword')} error={error}>
           <Input
             value={otp}
             onChangeText={(text) => setOtp(text.replace(/\D/g, '').slice(0, 6))}
@@ -149,29 +151,29 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Account"
-      title="Create your login"
-      subtitle="We'll email you a one-time code to confirm your address."
+      eyebrow={t('suAccount')}
+      title={t('suCreateYourLogin')}
+      subtitle={t('suWeLlEmailYouAOne')}
       footer={
         <>
           <PrimaryButton
-            label="Email me a code"
+            label={t('suEmailMeACode')}
             icon="arrow-forward"
             disabled={!detailsValid}
             loading={sending}
             onPress={handleSendOtp}
           />
           <Text style={styles.legal}>
-            By registering you agree to the Terms &amp; Conditions and Privacy Policy.
+            {t('suTermsNotice')}
           </Text>
         </>
       }
     >
-      <Field label="Full name">
-        <Input value={fullName} onChangeText={setFullName} placeholder="Your name" autoCapitalize="words" />
+      <Field label={t('suFullName')}>
+        <Input value={fullName} onChangeText={setFullName} placeholder={t('suYourName')} autoCapitalize="words" />
       </Field>
 
-      <Field label="Email address" hint="Used for account recovery and notifications.">
+      <Field label={t('suEmailAddress')} hint={t('suUsedForAccountRecoveryAndNotifications')}>
         <Input
           value={email}
           onChangeText={setEmail}
@@ -183,14 +185,18 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
       </Field>
 
       <Field
-        label="Create password"
-        hint={`Between ${PASSWORD_MIN} and ${PASSWORD_MAX} characters.`}
-        error={password.length > 0 && !passwordValid ? `Use ${PASSWORD_MIN}–${PASSWORD_MAX} characters` : null}
+        label={t('suCreatePassword')}
+        hint={t('suPasswordRange', { min: PASSWORD_MIN, max: PASSWORD_MAX })}
+        error={
+          password.length > 0 && !passwordValid
+            ? t('suPasswordRangeError', { min: PASSWORD_MIN, max: PASSWORD_MAX })
+            : null
+        }
       >
         <Input value={password} onChangeText={setPassword} placeholder="••••••••" secureTextEntry maxLength={PASSWORD_MAX} />
       </Field>
 
-      <Field label="Mobile number" hint="Used for matches to contact you.">
+      <Field label={t('suMobileNumber')} hint={t('suUsedForMatchesToContactYou')}>
         <Input
           value={phone}
           onChangeText={(text) => setPhone(text.replace(/\D/g, '').slice(0, 10))}
@@ -211,8 +217,9 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
           {agreeToTerms ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
         </View>
         <Text style={styles.termsLabel}>
-          I agree to the <Text style={styles.termsLink}>Terms &amp; Conditions</Text> and{' '}
-          <Text style={styles.termsLink}>Privacy Policy</Text>.
+          {t('suTermsAgree')}<Text style={styles.termsLink}>{t('suTermsConditions')}</Text>
+          {t('suTermsAnd')}
+          <Text style={styles.termsLink}>{t('suTermsPrivacy')}</Text>
         </Text>
       </Pressable>
 

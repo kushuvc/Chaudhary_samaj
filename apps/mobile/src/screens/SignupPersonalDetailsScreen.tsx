@@ -13,6 +13,7 @@ import {
 } from '../components/ui';
 import { HEIGHTS, MARITAL_STATUSES, PHYSICAL_STATUSES } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface PersonalDetailsData {
   gender: string;
@@ -70,6 +71,7 @@ function calculateAge(day: string | null, month: string | null, year: string | n
 }
 
 export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupPersonalDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null);
   const [gender, setGender] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
@@ -87,12 +89,12 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
       onBack={onBack}
       step={1}
       totalSteps={5}
-      eyebrow="Personal details"
+      eyebrow={t('suPersonalDetails')}
       title={`Tell us about ${subject.full}`}
       subtitle={`These basics power the matches ${subject.isSelf ? "you'll" : `${subject.pronoun}'ll`} see.`}
       footer={
         <PrimaryButton
-          label="Continue"
+          label={t('suContinue')}
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
@@ -110,16 +112,16 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
       }
     >
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Gender" />
+        <SectionHeading title={t('suGender')} />
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <OptionCard
-            label="Male"
+            label={t('suMale')}
             icon="male-outline"
             selected={gender === 'male'}
             onPress={() => setGender('male')}
           />
           <OptionCard
-            label="Female"
+            label={t('suFemale')}
             icon="female-outline"
             selected={gender === 'female'}
             onPress={() => setGender('female')}
@@ -128,33 +130,33 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
       </View>
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Date of birth" caption="You must be at least 18." />
+        <SectionHeading title={t('suDateOfBirth')} caption="You must be at least 18." />
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <View style={{ flex: 1 }}>
-            <Select value={day} placeholder="Day" title="Day" options={DAY_OPTIONS} onChange={setDay} />
+            <Select value={day} placeholder={t('suDay')} title={t('suDay')} options={DAY_OPTIONS} onChange={setDay} />
           </View>
           <View style={{ flex: 1.4 }}>
-            <Select value={month} placeholder="Month" title="Month" options={MONTH_OPTIONS} onChange={setMonth} />
+            <Select value={month} placeholder={t('suMonth')} title={t('suMonth')} options={MONTH_OPTIONS} onChange={setMonth} />
           </View>
           <View style={{ flex: 1 }}>
-            <Select value={year} placeholder="Year" title="Year" options={YEAR_OPTIONS} onChange={setYear} />
+            <Select value={year} placeholder={t('suYear')} title={t('suYear')} options={YEAR_OPTIONS} onChange={setYear} />
           </View>
         </View>
         {age !== null ? <Callout icon="calendar-outline" text={`You are ${age} years old`} /> : null}
       </View>
 
-      <Field label="Height">
+      <Field label={t('suHeight')}>
         <Select
           value={height}
-          placeholder="Select your height"
-          title="Height"
+          placeholder={t('suSelectYourHeight')}
+          title={t('suHeight')}
           options={HEIGHTS}
           onChange={setHeight}
         />
       </Field>
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Physical status" />
+        <SectionHeading title={t('suPhysicalStatus')} />
         <ChipGroup>
           {PHYSICAL_STATUSES.map((option) => (
             <Chip
@@ -168,7 +170,7 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
       </View>
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Marital status" />
+        <SectionHeading title={t('suMaritalStatus')} />
         <ChipGroup>
           {MARITAL_STATUSES.map((option) => (
             <Chip

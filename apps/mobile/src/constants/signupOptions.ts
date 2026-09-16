@@ -203,12 +203,19 @@ export const CUISINES = [
   'Punjabi', 'Rajasthani', 'South Indian', 'Spanish', 'Sushi', 'Thai',
 ];
 
+/*
+ * Labels are translation keys, not text.
+ *
+ * Who the profile is for is the first choice a member makes, so it follows
+ * the language they picked. The reference lists further down this file —
+ * castes, education, occupations — stay in English on purpose.
+ */
 export const PROFILE_TYPES = [
-  { id: 'myself', label: 'Myself', icon: 'person-outline' as const },
-  { id: 'son', label: 'Son', icon: 'man-outline' as const },
-  { id: 'daughter', label: 'Daughter', icon: 'woman-outline' as const },
-  { id: 'brother', label: 'Brother', icon: 'people-outline' as const },
-  { id: 'sister', label: 'Sister', icon: 'people-outline' as const },
-  { id: 'friend', label: 'Friend', icon: 'happy-outline' as const },
-  { id: 'relative', label: 'Relative', icon: 'people-circle-outline' as const },
+  { id: 'myself', label: 'suRelMyself', icon: 'person-outline' as const },
+  { id: 'son', label: 'suRelSon', icon: 'man-outline' as const },
+  { id: 'daughter', label: 'suRelDaughter', icon: 'woman-outline' as const },
+  { id: 'brother', label: 'suRelBrother', icon: 'people-outline' as const },
+  { id: 'sister', label: 'suRelSister', icon: 'people-outline' as const },
+  { id: 'friend', label: 'suRelFriend', icon: 'happy-outline' as const },
+  { id: 'relative', label: 'suRelRelative', icon: 'people-circle-outline' as const },
 ];

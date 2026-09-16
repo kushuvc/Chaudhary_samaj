@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Field, PrimaryButton, Select, StepScaffold, TextButton } from '../components/ui';
 import { BIRTH_TIME_SLOTS, CITIES, COUNTRIES, STATES } from '../constants/signupOptions';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface HoroscopeData {
   dateOfBirth: string;
@@ -28,6 +29,7 @@ const PLACE_OPTIONS = (() => {
 })();
 
 export function SignupHoroscopeScreen({ onBack, onNext, onSkip, dateOfBirth }: SignupHoroscopeScreenProps) {
+  const { t } = useAppLanguage();
   const [timeOfBirth, setTimeOfBirth] = useState<string | null>(null);
   const [placeOfBirth, setPlaceOfBirth] = useState<string | null>(null);
 
@@ -36,13 +38,13 @@ export function SignupHoroscopeScreen({ onBack, onNext, onSkip, dateOfBirth }: S
   return (
     <StepScaffold
       onBack={onBack}
-      eyebrow="Horoscope"
-      title="Add horoscope details"
-      subtitle="Optional. Families who match kundli will look for this."
+      eyebrow={t('suHoroscope')}
+      title={t('suAddHoroscopeDetails')}
+      subtitle={t('suOptionalFamiliesWhoMatchKundliWill')}
       footer={
         <>
           <PrimaryButton
-            label="Save and continue"
+            label={t('suSaveAndContinue')}
             disabled={!canContinue}
             onPress={() => {
               if (timeOfBirth && placeOfBirth) {
@@ -50,31 +52,31 @@ export function SignupHoroscopeScreen({ onBack, onNext, onSkip, dateOfBirth }: S
               }
             }}
           />
-          <TextButton label="I'll do this later" onPress={onSkip} />
+          <TextButton label={t('suILlDoThisLater')} onPress={onSkip} />
         </>
       }
     >
       {dateOfBirth ? (
-        <Field label="Date of birth" hint="Taken from your personal details.">
+        <Field label={t('suDateOfBirth')} hint={t('suTakenFromYourPersonalDetails')}>
           <Select value={dateOfBirth} placeholder={dateOfBirth} options={[]} onChange={() => {}} disabled />
         </Field>
       ) : null}
 
-      <Field label="Time of birth">
+      <Field label={t('suTimeOfBirth')}>
         <Select
           value={timeOfBirth}
-          placeholder="Select your time of birth"
-          title="Time of birth"
+          placeholder={t('suSelectYourTimeOfBirth')}
+          title={t('suTimeOfBirth')}
           options={BIRTH_TIME_SLOTS.map((slot) => ({ id: slot, label: slot }))}
           onChange={setTimeOfBirth}
         />
       </Field>
 
-      <Field label="Place of birth">
+      <Field label={t('suPlaceOfBirth')}>
         <Select
           value={placeOfBirth}
-          placeholder="Select your place of birth"
-          title="Place of birth"
+          placeholder={t('suSelectYourPlaceOfBirth')}
+          title={t('suPlaceOfBirth')}
           options={PLACE_OPTIONS}
           onChange={setPlaceOfBirth}
         />

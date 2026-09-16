@@ -12,6 +12,7 @@ import {
 } from '../components/ui';
 import { CASTES, DOSH_OPTIONS, RELIGIONS, SUBCASTES } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
+import { useAppLanguage } from '../context/LanguageContext';
 
 export interface ReligiousDetailsData {
   religion: string;
@@ -29,6 +30,7 @@ interface SignupReligiousDetailsScreenProps {
 }
 
 export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupReligiousDetailsScreenProps) {
+  const { t } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null);
   const [religion, setReligion] = useState<string | null>(null);
   const [caste, setCaste] = useState<string | null>(null);
@@ -48,12 +50,12 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
       onBack={onBack}
       step={2}
       totalSteps={5}
-      eyebrow="Religious details"
-      title="Faith and community"
+      eyebrow={t('suReligiousDetails')}
+      title={t('suFaithAndCommunity')}
       subtitle={`Used to find matches who share ${subject.possessive} background.`}
       footer={
         <PrimaryButton
-          label="Continue"
+          label={t('suContinue')}
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
@@ -64,21 +66,21 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
         />
       }
     >
-      <Field label="Religion">
+      <Field label={t('suReligion')}>
         <Select
           value={religion}
-          placeholder="Select religion"
-          title="Religion"
+          placeholder={t('suSelectReligion')}
+          title={t('suReligion')}
           options={RELIGIONS.map((item) => ({ id: item, label: item }))}
           onChange={setReligion}
         />
       </Field>
 
-      <Field label="Caste">
+      <Field label={t('suCaste')}>
         <Select
           value={caste}
-          placeholder="Select caste"
-          title="Caste"
+          placeholder={t('suSelectCaste')}
+          title={t('suCaste')}
           options={CASTES.map((item) => ({ id: item, label: item }))}
           onChange={(next) => {
             setCaste(next);
@@ -87,11 +89,11 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
         />
       </Field>
 
-      <Field label="Subcaste" hint={!caste ? 'Choose a caste first' : undefined}>
+      <Field label={t('suSubcaste')} hint={!caste ? 'Choose a caste first' : undefined}>
         <Select
           value={subcaste}
-          placeholder="Select subcaste"
-          title="Subcaste"
+          placeholder={t('suSelectSubcaste')}
+          title={t('suSubcaste')}
           options={subcasteOptions}
           onChange={setSubcaste}
           disabled={!caste}
@@ -99,13 +101,13 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
       </Field>
 
       <Checkbox
-        label="Open to marry from any subcaste"
+        label={t('suOpenToMarryFromAnySubcaste')}
         checked={openToAnySubcaste}
         onPress={() => setOpenToAnySubcaste((prev) => !prev)}
       />
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title="Do you have any dosh?" caption="Optional — leave as No if unsure." />
+        <SectionHeading title={t('suDoYouHaveAnyDosh')} caption="Optional — leave as No if unsure." />
         <ChipGroup>
           {DOSH_OPTIONS.map((option) => (
             <Chip

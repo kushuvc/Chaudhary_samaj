@@ -9,13 +9,57 @@ interface LanguageContextValue {
   language: AppLanguage | null;
   ready: boolean;
   setLanguage: (next: AppLanguage) => Promise<void>;
-  t: (key: TranslationKey) => string;
+  /**
+   * Translate a key, optionally substituting {placeholders}.
+   *
+   * The signup steps address the person the profile is for — "Tell us about
+   * your daughter" — so those strings need a value dropped into them rather
+   * than one fixed sentence per relationship.
+   */
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string;
 }
 
 const STORAGE_KEY = 'chaudhary_mobile_app_language';
 
 const translations: Record<AppLanguage, Record<string, string>> = {
   'en-IN': {
+    welcomeTagline: "One place for matches, events, business and everything the community shares.",
+    welcomeVerified: "Verified community profiles",
+    welcomeMatches: "Matches based on what matters to you",
+    welcomeControl: "You control who sees your details",
+    welcomeCreate: "Create your profile",
+    welcomeAlready: "Already a member? ",
+    welcomeLogIn: "Log in",
+    loginTitle: "Welcome back",
+    loginSubtitle: "Sign in to pick up where you left off.",
+    loginEmailLabel: "Email address",
+    loginEmailPlaceholder: "you@example.com",
+    loginEmailInvalid: "Enter a valid email address.",
+    loginPasswordLabel: "Password",
+    loginPasswordPlaceholder: "Your password",
+    loginButton: "Log in",
+    loginForgot: "Forgot password?",
+    loginOr: "or",
+    loginCodeInstead: "Email me a code instead",
+    loginCodeLabel: "6-digit code",
+    loginCodeSentTo: "Sent to {email}. Not in your inbox? Check the spam or junk folder — it can land there.",
+    loginSpamHint: "Not in your inbox? Check the spam or junk folder — it can land there.",
+    loginDifferentEmail: "Use a different email",
+    loginBackToSignIn: "Back to sign in",
+    loginSendResetCode: "Send reset code",
+    loginResetHint: "We'll send a code to reset your password.",
+    loginNewPassword: "New password",
+    loginNewPasswordHint: "Between 8 and 20 characters.",
+    loginSetNewPassword: "Set new password",
+    loginNewHere: "New here? ",
+    loginCreateProfile: "Create a profile",
+    loginResetNotice: "If that email has an account, a reset code is on its way. Not in your inbox? Check the spam or junk folder — it can land there.",
+    loginNoAccount: "No account exists with this email. Create a profile first.",
+    loginSendFailed: "Could not send the code. Please try again.",
+    loginSignInFailed: "Could not sign in. Please check your details.",
+    loginCodeFailed: "That code did not work. Please try again.",
+    loginResetFailed: "Could not start the reset. Please try again.",
+    testModeCode: "Test mode code: {code}",
     home: 'Home',
     matrimony: 'Matrimony',
     events: 'Events',
@@ -336,6 +380,43 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     deleteForever: 'Yes, Delete Forever',
   },
   'hi-IN': {
+    welcomeTagline: "मैच, कार्यक्रम, व्यापार और समुदाय की हर बात — सब एक जगह।",
+    welcomeVerified: "सत्यापित समुदाय प्रोफ़ाइल",
+    welcomeMatches: "आपके लिए जो मायने रखता है, उसके आधार पर मैच",
+    welcomeControl: "आपकी जानकारी कौन देखे, यह आप तय करें",
+    welcomeCreate: "अपनी प्रोफ़ाइल बनाएँ",
+    welcomeAlready: "पहले से सदस्य हैं? ",
+    welcomeLogIn: "लॉग इन करें",
+    loginTitle: "वापसी पर स्वागत है",
+    loginSubtitle: "जहाँ छोड़ा था वहीं से शुरू करने के लिए साइन इन करें।",
+    loginEmailLabel: "ईमेल पता",
+    loginEmailPlaceholder: "you@example.com",
+    loginEmailInvalid: "मान्य ईमेल पता दर्ज करें।",
+    loginPasswordLabel: "पासवर्ड",
+    loginPasswordPlaceholder: "आपका पासवर्ड",
+    loginButton: "लॉग इन करें",
+    loginForgot: "पासवर्ड भूल गए?",
+    loginOr: "या",
+    loginCodeInstead: "इसके बजाय मुझे कोड ईमेल करें",
+    loginCodeLabel: "6 अंकों का कोड",
+    loginCodeSentTo: "{email} पर भेजा गया। इनबॉक्स में नहीं है? स्पैम या जंक फ़ोल्डर देखें — वह वहाँ जा सकता है।",
+    loginSpamHint: "इनबॉक्स में नहीं है? स्पैम या जंक फ़ोल्डर देखें — वह वहाँ जा सकता है।",
+    loginDifferentEmail: "दूसरा ईमेल इस्तेमाल करें",
+    loginBackToSignIn: "साइन इन पर वापस जाएँ",
+    loginSendResetCode: "रीसेट कोड भेजें",
+    loginResetHint: "आपका पासवर्ड रीसेट करने के लिए हम कोड भेजेंगे।",
+    loginNewPassword: "नया पासवर्ड",
+    loginNewPasswordHint: "8 से 20 अक्षरों के बीच।",
+    loginSetNewPassword: "नया पासवर्ड सेट करें",
+    loginNewHere: "नए हैं? ",
+    loginCreateProfile: "प्रोफ़ाइल बनाएँ",
+    loginResetNotice: "यदि उस ईमेल का खाता है, तो रीसेट कोड भेजा जा रहा है। इनबॉक्स में नहीं है? स्पैम फ़ोल्डर देखें।",
+    loginNoAccount: "इस ईमेल से कोई खाता नहीं है। पहले प्रोफ़ाइल बनाएँ।",
+    loginSendFailed: "कोड नहीं भेजा जा सका। कृपया फिर से कोशिश करें।",
+    loginSignInFailed: "साइन इन नहीं हो सका। कृपया अपनी जानकारी जाँचें।",
+    loginCodeFailed: "वह कोड काम नहीं आया। कृपया फिर से कोशिश करें।",
+    loginResetFailed: "रीसेट शुरू नहीं हो सका। कृपया फिर से कोशिश करें।",
+    testModeCode: "टेस्ट मोड कोड: {code}",
     home: 'होम',
     matrimony: 'वैवाहिक',
     events: 'कार्यक्रम',
@@ -656,6 +737,43 @@ const translations: Record<AppLanguage, Record<string, string>> = {
     deleteForever: 'हाँ, हमेशा के लिए हटाएं',
   },
   'gu-IN': {
+    welcomeTagline: "મેચ, કાર્યક્રમો, વ્યવસાય અને સમુદાયની દરેક વાત — બધું એક જગ્યાએ.",
+    welcomeVerified: "ચકાસાયેલ સમુદાય પ્રોફાઇલ",
+    welcomeMatches: "તમારા માટે જે મહત્વનું છે તેના આધારે મેચ",
+    welcomeControl: "તમારી વિગતો કોણ જુએ તે તમે નક્કી કરો",
+    welcomeCreate: "તમારી પ્રોફાઇલ બનાવો",
+    welcomeAlready: "પહેલેથી સભ્ય છો? ",
+    welcomeLogIn: "લૉગ ઇન કરો",
+    loginTitle: "ફરી સ્વાગત છે",
+    loginSubtitle: "જ્યાં છોડ્યું હતું ત્યાંથી શરૂ કરવા સાઇન ઇન કરો.",
+    loginEmailLabel: "ઈમેલ સરનામું",
+    loginEmailPlaceholder: "you@example.com",
+    loginEmailInvalid: "માન્ય ઈમેલ સરનામું દાખલ કરો.",
+    loginPasswordLabel: "પાસવર્ડ",
+    loginPasswordPlaceholder: "તમારો પાસવર્ડ",
+    loginButton: "લૉગ ઇન કરો",
+    loginForgot: "પાસવર્ડ ભૂલી ગયા?",
+    loginOr: "અથવા",
+    loginCodeInstead: "તેના બદલે મને કોડ ઈમેલ કરો",
+    loginCodeLabel: "6 અંકનો કોડ",
+    loginCodeSentTo: "{email} પર મોકલ્યો. ઇનબૉક્સમાં નથી? સ્પામ કે જંક ફોલ્ડર જુઓ — તે ત્યાં જઈ શકે છે.",
+    loginSpamHint: "ઇનબૉક્સમાં નથી? સ્પામ કે જંક ફોલ્ડર જુઓ — તે ત્યાં જઈ શકે છે.",
+    loginDifferentEmail: "બીજું ઈમેલ વાપરો",
+    loginBackToSignIn: "સાઇન ઇન પર પાછા જાઓ",
+    loginSendResetCode: "રીસેટ કોડ મોકલો",
+    loginResetHint: "તમારો પાસવર્ડ રીસેટ કરવા અમે કોડ મોકલીશું.",
+    loginNewPassword: "નવો પાસવર્ડ",
+    loginNewPasswordHint: "8 થી 20 અક્ષરોની વચ્ચે.",
+    loginSetNewPassword: "નવો પાસવર્ડ સેટ કરો",
+    loginNewHere: "નવા છો? ",
+    loginCreateProfile: "પ્રોફાઇલ બનાવો",
+    loginResetNotice: "જો તે ઈમેલનું ખાતું હશે, તો રીસેટ કોડ મોકલાઈ રહ્યો છે. ઇનબૉક્સમાં નથી? સ્પામ ફોલ્ડર જુઓ.",
+    loginNoAccount: "આ ઈમેલથી કોઈ ખાતું નથી. પહેલા પ્રોફાઇલ બનાવો.",
+    loginSendFailed: "કોડ મોકલી શકાયો નથી. કૃપા કરી ફરી પ્રયાસ કરો.",
+    loginSignInFailed: "સાઇન ઇન થઈ શક્યું નથી. કૃપા કરી તમારી વિગતો તપાસો.",
+    loginCodeFailed: "તે કોડ કામ ન આવ્યો. કૃપા કરી ફરી પ્રયાસ કરો.",
+    loginResetFailed: "રીસેટ શરૂ થઈ શક્યું નથી. કૃપા કરી ફરી પ્રયાસ કરો.",
+    testModeCode: "ટેસ્ટ મોડ કોડ: {code}",
     home: 'હોમ',
     matrimony: 'લગ્ન',
     events: 'કાર્યક્રમો',
@@ -1014,9 +1132,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     language,
     ready,
     setLanguage,
-    t: (key) => {
+    t: (key, params) => {
       const active = language ?? 'en-IN';
-      return translations[active][key] || translations['en-IN'][key] || key;
+      const template = translations[active][key] || translations['en-IN'][key] || key;
+      if (!params) return template;
+      return template.replace(/\{(\w+)\}/g, (match, name) =>
+        params[name] === undefined ? match : String(params[name])
+      );
     },
   }), [language, ready]);
 

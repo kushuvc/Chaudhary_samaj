@@ -1813,7 +1813,43 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     }
   }
 
-  response.json({ success: true, data: profile })
+  /*
+   * Whether the caller has already sent, received or matched with this member.
+   *
+   * The detail screen decides which action to offer from this, and it was
+   * never sent — so the button stayed on "Send Interest" however many times
+   * you had already sent one, and each tap made another request the server
+   * then refused with a 409.
+   */
+  let interestStatus
+  try {
+    const rows = await pgQuery(
+      `SELECT i.status, i.sender_id
+       FROM matrimony_interests i
+       JOIN matrimony_profiles p ON p.id = $2
+       WHERE (i.sender_id = $1 AND i.receiver_id = p.user_id)
+          OR (i.receiver_id = $1 AND i.sender_id = p.user_id)
+       ORDER BY i.updated_at DESC NULLS LAST, i.created_at DESC
+       LIMIT 1`,
+      [activeUserId, request.params.id]
+    )
+    const row = rows[0]
+    if (row) {
+      interestStatus = row.status === 'accepted'
+        ? 'accepted'
+        : row.status === 'declined'
+          ? 'declined'
+          : row.sender_id === activeUserId
+            ? 'sent'
+            : 'received'
+    }
+  } catch (err) {
+    // Not worth failing the whole profile over; the button falls back to
+    // offering to send, and the server still refuses a duplicate.
+    console.warn('[interest status] lookup failed:', err.message)
+  }
+
+  response.json({ success: true, data: { ...profile, interestStatus } })
 })
 
 /* ------------------------------------------------------------------ */

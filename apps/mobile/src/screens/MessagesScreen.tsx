@@ -18,6 +18,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useKeyboard } from '../components/ui';
 
 interface Match {
   id: string;
@@ -81,6 +82,44 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   useEffect(() => {
     loadMatches();
   }, [loadMatches]);
+
+  const keyboard = useKeyboard();
+
+  /*
+   * Poll while a chat is open.
+   *
+   * Messages were fetched once when the chat opened and again only after you
+   * sent one, so the other person's replies never arrived — you had to close
+   * and reopen the app to see them. Polling is not elegant, but it is the
+   * whole of "the chat works" and needs no new infrastructure.
+   */
+  useEffect(() => {
+    if (view !== 'chat' || !selectedMatch) return;
+
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const data = await api.getMessages(selectedMatch.id);
+        if (cancelled) return;
+        // Only touch state when something actually changed, so the list does
+        // not re-render — and fight the scroll position — every few seconds.
+        setMessages((current) =>
+          current.length === data.length &&
+          current[current.length - 1]?.id === data[data.length - 1]?.id
+            ? current
+            : data
+        );
+      } catch {
+        // A failed poll is not worth showing; the next one may succeed.
+      }
+    };
+
+    const timer = setInterval(tick, 4000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [view, selectedMatch]);
 
   const loadMessages = async (match: Match) => {
     if (!FEATURES.CHAT_FREE) {
@@ -200,7 +239,15 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   if (view === 'chat' && selectedMatch) {
     return (
       <KeyboardAvoidingView
-        style={styles.container}
+        /*
+         * Android gets the padding explicitly: behavior undefined is a no-op
+         * there, so the keyboard drew straight over the input you were typing
+         * into.
+         */
+        style={[
+          styles.container,
+          Platform.OS === 'android' && keyboard.height > 0 && { paddingBottom: keyboard.height },
+        ]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
@@ -211,7 +258,8 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
           </Pressable>
           <View style={styles.chatHeaderInfo}>
             <Text style={styles.chatHeaderName}>{selectedMatch.name}</Text>
-            <Text style={styles.chatHeaderStatus}>Online</Text>
+            {/* No presence tracking exists, so claiming "Online" was fiction. */}
+            <Text style={styles.chatHeaderStatus}>Matched</Text>
           </View>
           <Pressable
             style={styles.moreButton}
@@ -219,11 +267,10 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
               showAlert(
                 selectedMatch.name,
                 'What would you like to do?',
-                [
-                  { text: 'View Profile', onPress: () => {} },
-                  { text: 'Clear Chat', style: 'destructive', onPress: () => setMessages([]) },
-                  { text: 'Cancel', style: 'cancel' },
-                ]
+                // "Clear Chat" only emptied the local array — it looked like
+                // a delete and came back on the next poll. Removed rather than
+                // left pretending.
+                [{ text: 'Close', style: 'cancel' }]
               );
             }}
           >
@@ -238,7 +285,8 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
           renderItem={renderMessageItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
         />
 
         {error ? <InlineError message={error} /> : null}

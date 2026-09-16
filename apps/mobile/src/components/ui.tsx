@@ -149,7 +149,7 @@ const KeyboardScrollContext = createContext<KeyboardScrollValue | null>(null);
  * a field is covered. Deriving that from the screen height instead was off by
  * the system bars — enough to conclude a hidden field was visible.
  */
-function useKeyboard() {
+export function useKeyboard() {
   const [keyboard, setKeyboard] = useState({ height: 0, screenY: 0 });
 
   useEffect(() => {

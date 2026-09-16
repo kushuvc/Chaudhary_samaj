@@ -75,6 +75,62 @@ describe('expressing interest', () => {
   })
 })
 
+describe('interest status on a profile', () => {
+  /*
+   * The detail screen picks its action from this. It was never sent, so the
+   * button stayed on "Send Interest" however many had already been sent, and
+   * every tap made a request the server then refused.
+   */
+  test('a profile reports no interest before one is sent', async () => {
+    const viewer = await signUpUser(server, { gender: 'male' })
+    await signUpUser(server, { gender: 'female' })
+    const list = await server.request('GET', '/api/matrimony/profiles', { token: viewer.token })
+    const target = list.body.data.find((p) => !p.isLocked)
+
+    const res = await server.request('GET', `/api/matrimony/profiles/${target.id}`, { token: viewer.token })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.interestStatus, undefined)
+  })
+
+  test('it reports "sent" afterwards', async () => {
+    const viewer = await signUpUser(server, { gender: 'male' })
+    await signUpUser(server, { gender: 'female' })
+    const list = await server.request('GET', '/api/matrimony/profiles', { token: viewer.token })
+    const target = list.body.data.find((p) => !p.isLocked)
+
+    await server.request('POST', `/api/matrimony/profiles/${target.id}/interest`, { token: viewer.token })
+    const res = await server.request('GET', `/api/matrimony/profiles/${target.id}`, { token: viewer.token })
+    assert.equal(res.body.data.interestStatus, 'sent')
+  })
+
+  test('the receiver sees it as "received"', async () => {
+    const sender = await signUpUser(server, { gender: 'male' })
+    const receiver = await signUpUser(server, { gender: 'female' })
+
+    const senderList = await server.request('GET', '/api/matrimony/profiles', { token: sender.token })
+    const receiverProfile = senderList.body.data.find((p) => !p.isLocked)
+    await server.request('POST', `/api/matrimony/profiles/${receiverProfile.id}/interest`, { token: sender.token })
+
+    const receiverList = await server.request('GET', '/api/matrimony/profiles', { token: receiver.token })
+    const senderProfile = receiverList.body.data.find((p) => !p.isLocked)
+    const res = await server.request('GET', `/api/matrimony/profiles/${senderProfile.id}`, { token: receiver.token })
+    assert.equal(res.body.data.interestStatus, 'received')
+  })
+
+  test('a second send is refused', async () => {
+    const viewer = await signUpUser(server, { gender: 'male' })
+    await signUpUser(server, { gender: 'female' })
+    const list = await server.request('GET', '/api/matrimony/profiles', { token: viewer.token })
+    const target = list.body.data.find((p) => !p.isLocked)
+
+    const first = await server.request('POST', `/api/matrimony/profiles/${target.id}/interest`, { token: viewer.token })
+    assert.ok(first.status < 400)
+    const second = await server.request('POST', `/api/matrimony/profiles/${target.id}/interest`, { token: viewer.token })
+    assert.equal(second.status, 409)
+    assert.match(second.body.error, /already/i)
+  })
+})
+
 describe('messaging', () => {
   test('reading messages requires authentication', async () => {
     const res = await server.request('GET', '/api/matrimony/matches/any-id/messages')

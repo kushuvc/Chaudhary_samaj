@@ -15,6 +15,7 @@ import type { AppLanguage } from '../context/LanguageContext';
 import { InlineError } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
 import { api } from '../services/api';
+import { useKeyboard } from '../components/ui';
 import { loadJson, saveJson } from '../services/localData';
 import { radius, spacing, type } from '../theme';
 import type {
@@ -64,6 +65,7 @@ export function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { language, setLanguage, t } = useAppLanguage();
   const { logout } = useAuth();
+  const keyboard = useKeyboard();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [account, setAccount] = useState<MobileAccountSettings>(defaultAccount);
   const [notifications, setNotifications] = useState<MobileNotificationSettings>(defaultNotifications);
@@ -329,7 +331,17 @@ export function SettingsScreen() {
       {/* Delete Account Modal */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setShowDeleteModal(false)}>
-          <View style={[styles.deleteModalSheet, { backgroundColor: palette.cardBg }]}>
+          {/*
+            * The confirmation box asks you to type DELETE, and the keyboard
+            * covered the very field it was asking about.
+            */}
+          <View
+            style={[
+              styles.deleteModalSheet,
+              { backgroundColor: palette.cardBg },
+              keyboard.height > 0 && { marginBottom: keyboard.height },
+            ]}
+          >
             <Text style={[styles.deleteModalTitle, { color: palette.danger }]}>{t('deleteAccountTitle')}</Text>
             <Text style={[styles.deleteModalWarning, { color: palette.text }]}>{t('deleteAccountWarning')}</Text>
             <Text style={[styles.deleteModalLabel, { color: palette.text }]}>{t('typeDeleteToConfirm')}</Text>

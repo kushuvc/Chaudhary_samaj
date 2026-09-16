@@ -82,7 +82,19 @@ export function DashboardScreen() {
   const userName = session?.user?.name || 'Member';
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('greetingMorning') : hour < 17 ? t('greetingAfternoon') : t('greetingEvening');
-  const profileComplete = myProfile && myProfile.age && myProfile.location;
+  /*
+   * /matrimony/me answers { user, profile, matrimony, preferences } — age
+   * lives under matrimony, location under profile. Reading them from the top
+   * level found neither, so a filled-in profile reported "Age not set,
+   * Location not set" and stayed flagged incomplete for ever.
+   */
+  const myAge = myProfile?.matrimony?.age ?? myProfile?.profile?.age ?? myProfile?.age;
+  const myLocation =
+    myProfile?.profile?.location ??
+    myProfile?.matrimony?.location ??
+    myProfile?.location ??
+    myProfile?.profile?.city;
+  const profileComplete = Boolean(myAge && myLocation);
 
   return (
     <ScrollView
@@ -210,7 +222,7 @@ export function DashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.myProfileName}>{userName}</Text>
             <Text style={styles.myProfileMeta}>
-              {myProfile?.age ? `${myProfile.age} yrs` : 'Age not set'} • {myProfile?.location || 'Location not set'}
+              {myAge ? `${myAge} yrs` : 'Age not set'} • {myLocation || 'Location not set'}
             </Text>
             <View style={styles.myProfileStatus}>
               <View style={[styles.myProfileDot, { backgroundColor: profileComplete ? palette.accent : palette.violet }]} />

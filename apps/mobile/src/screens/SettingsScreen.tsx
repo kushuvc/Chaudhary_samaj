@@ -257,49 +257,10 @@ export function SettingsScreen() {
 
       </SectionCard>
 
-      <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('notificationPreferences')}</Text>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('communityAnnouncements')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('communityAnnouncements')}</Text>
-          <Switch
-            value={notifications.communityAnnouncements}
-            onValueChange={() => toggleNotification('communityAnnouncements')}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('matrimonyMatches')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('matrimonyMatchAlerts')}</Text>
-          <Switch
-            value={notifications.matrimonyMatches}
-            onValueChange={() => toggleNotification('matrimonyMatches')}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('eventReminders')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('eventReminders')}</Text>
-          <Switch
-            value={notifications.eventReminders}
-            onValueChange={() => toggleNotification('eventReminders')}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('securityAlerts')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('securityAlerts')}</Text>
-          <Switch
-            value={notifications.securityAlerts}
-            onValueChange={() => toggleNotification('securityAlerts')}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => toggleNotification('marketingUpdates')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('marketingUpdates')}</Text>
-          <Switch
-            value={notifications.marketingUpdates}
-            onValueChange={() => toggleNotification('marketingUpdates')}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
-      </SectionCard>
+      {/*
+        * Notification preferences removed: the app sends no notifications,
+        * so every switch here was a promise it could not keep.
+        */}
 
       <SectionCard>
         <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('privacyAndSecurity')}</Text>
@@ -327,14 +288,11 @@ export function SettingsScreen() {
             trackColor={{ false: palette.border, true: palette.primary }}
           />
         </Pressable>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => togglePrivacy('twoFactorEnabled')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('twoFactorAuth')}</Text>
-          <Switch
-            value={privacy.twoFactorEnabled}
-            onValueChange={() => togglePrivacy('twoFactorEnabled')}
-            trackColor={{ false: palette.border, true: palette.primary }}
-          />
-        </Pressable>
+        {/*
+          * Two-factor auth removed: the server has no column for it, so the
+          * switch flipped and changed nothing. Sign-in already uses an emailed
+          * code, which is the second factor.
+          */}
       </SectionCard>
 
       {/* Danger Zone */}

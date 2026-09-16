@@ -168,6 +168,18 @@ function LabeledInput({
   const shellRef = useRef<View>(null);
   const keyboardScroll = useContext(KeyboardScrollContext);
 
+  /*
+   * While viewing, show only what is filled in.
+   *
+   * The profile renders every field the schema has, but signup asks for a
+   * fraction of them, so the rest sat there as empty rows and made the screen
+   * look padded with things that were never asked. They come back in edit
+   * mode, so nothing becomes unfillable.
+   */
+  if (!editable && !String(value ?? '').trim()) {
+    return null;
+  }
+
   return (
     <View ref={shellRef} style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>

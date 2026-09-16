@@ -66,6 +66,46 @@ describe('settings', () => {
     assert.equal(data.privacy.profileSearchable, false)
   })
 
+  /*
+   * The app only ever sends the fields it changed. Every column is NOT NULL,
+   * so a partial first save used to violate the constraint and fail with a
+   * 500 while the screen looked like it had worked.
+   */
+  test('a partial save works on a member with no settings row yet', async () => {
+    const fresh = await signUpUser(server)
+
+    const res = await server.request('PUT', '/api/settings', {
+      token: fresh.token,
+      body: { language: 'gu-IN', privacy: { profileSearchable: false } },
+    })
+    assert.ok(res.status < 400, `partial save failed ${res.status}: ${JSON.stringify(res.body)}`)
+
+    const read = await server.request('GET', '/api/settings', { token: fresh.token })
+    assert.equal(read.status, 200)
+    assert.equal(read.body.data.language, 'gu-IN')
+    assert.equal(read.body.data.privacy.profileSearchable, false)
+    // Untouched fields take their defaults rather than becoming null.
+    assert.equal(read.body.data.timezone, 'Asia/Kolkata')
+    assert.equal(read.body.data.privacy.showLocationPublicly, true)
+  })
+
+  test('a second partial save leaves the untouched fields alone', async () => {
+    const fresh = await signUpUser(server)
+    await server.request('PUT', '/api/settings', {
+      token: fresh.token,
+      body: { language: 'hi-IN', privacy: { showPhoneToConnections: true } },
+    })
+    await server.request('PUT', '/api/settings', {
+      token: fresh.token,
+      body: { privacy: { profileSearchable: false } },
+    })
+
+    const read = await server.request('GET', '/api/settings', { token: fresh.token })
+    assert.equal(read.body.data.language, 'hi-IN', 'the earlier language must survive')
+    assert.equal(read.body.data.privacy.showPhoneToConnections, true)
+    assert.equal(read.body.data.privacy.profileSearchable, false)
+  })
+
   test('writing settings requires authentication', async () => {
     const res = await server.request('PUT', '/api/settings', { body: { language: 'en-IN' } })
     assert.equal(res.status, 401)

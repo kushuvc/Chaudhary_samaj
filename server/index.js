@@ -3877,7 +3877,23 @@ app.put('/api/settings', async (request, response) => {
         notif_event_reminders, notif_security_alerts, notif_marketing_updates,
         privacy_show_phone, privacy_show_location, privacy_searchable,
         updated_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      /*
+       * Defaults on insert, COALESCE on update.
+       *
+       * Every column here is NOT NULL, and a partial save — which is all the
+       * app ever sends — passed null for the untouched ones. On a member's
+       * first save there was no existing row to fall back on, so the insert
+       * violated the constraint and the whole save failed with a 500. The
+       * settings screen appeared to work and silently changed nothing.
+       */
+      ) VALUES (
+        $1,
+        COALESCE($2, 'en-IN'), COALESCE($3, 'Asia/Kolkata'), COALESCE($4, true),
+        COALESCE($5, true), COALESCE($6, true), COALESCE($7, true),
+        COALESCE($8, true), COALESCE($9, false),
+        COALESCE($10, false), COALESCE($11, true), COALESCE($12, true),
+        $13
+      )
       ON CONFLICT (user_id) DO UPDATE SET
         language = COALESCE($2, user_settings.language),
         timezone = COALESCE($3, user_settings.timezone),

@@ -4,19 +4,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
 import { GradientFill, PrimaryButton } from '../components/ui';
+import { useAppLanguage } from '../context/LanguageContext';
 
 interface WelcomeScreenProps {
   onCreateProfile: () => void;
   onLogin: () => void;
 }
 
+// Keys rather than text: these are rendered through t() below, so the list
+// follows the language the member chose on the first screen.
 const highlights = [
-  { icon: 'shield-checkmark-outline' as const, label: 'Verified community profiles' },
-  { icon: 'sparkles-outline' as const, label: 'Matches based on what matters to you' },
-  { icon: 'lock-closed-outline' as const, label: 'You control who sees your details' },
+  { icon: 'shield-checkmark-outline' as const, label: 'welcomeVerified' },
+  { icon: 'sparkles-outline' as const, label: 'welcomeMatches' },
+  { icon: 'lock-closed-outline' as const, label: 'welcomeControl' },
 ];
 
 export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) {
+  const { t } = useAppLanguage();
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -31,7 +35,7 @@ export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) 
           </View>
           <Text style={styles.heroTitle}>Chaudhary Samaj</Text>
           <Text style={styles.heroSubtitle}>
-            One place for matches, events, business and everything the community shares.
+            {t('welcomeTagline')}
           </Text>
         </View>
       </View>
@@ -43,17 +47,17 @@ export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) 
               <View style={styles.highlightIcon}>
                 <Ionicons name={item.icon} size={17} color={palette.primary} />
               </View>
-              <Text style={styles.highlightLabel}>{item.label}</Text>
+              <Text style={styles.highlightLabel}>{t(item.label)}</Text>
             </View>
           ))}
         </View>
 
         <View style={[styles.actions, { paddingBottom: Math.max(insets.bottom, 18) }]}>
-          <PrimaryButton label="Create your profile" onPress={onCreateProfile} icon="arrow-forward" />
+          <PrimaryButton label={t('welcomeCreate')} onPress={onCreateProfile} icon="arrow-forward" />
 
           <Pressable accessibilityRole="button" style={styles.loginButton} onPress={onLogin}>
             <Text style={styles.loginLabel}>
-              Already a member? <Text style={styles.loginLabelStrong}>Log in</Text>
+              {t('welcomeAlready')}<Text style={styles.loginLabelStrong}>{t('welcomeLogIn')}</Text>
             </Text>
           </Pressable>
         </View>

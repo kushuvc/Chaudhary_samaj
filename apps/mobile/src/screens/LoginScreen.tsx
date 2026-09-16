@@ -16,6 +16,7 @@ import {
   useKeyboardAwareScroll,
 } from '../components/ui';
 import { radius, shadow, spacing } from '../theme';
+import { useAppLanguage } from '../context/LanguageContext';
 
 interface LoginScreenProps {
   onPhoneLogin?: () => void;
@@ -25,6 +26,7 @@ interface LoginScreenProps {
 export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
   const { requestOtp, verifyOtp, login, loginWithToken } = useAuth();
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const keyboardScroll = useKeyboardAwareScroll();
 
@@ -47,7 +49,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
   // Any deliverable-looking address. The account used to be restricted to
   // Gmail, which locked out anyone on Outlook, Yahoo or a work domain.
   const emailValid = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email.trim());
-  const emailError = touched && email.length > 0 && !emailValid ? 'Enter a valid email address.' : undefined;
+  const emailError = touched && email.length > 0 && !emailValid ? t('loginEmailInvalid') : undefined;
 
   const handleSendCode = async () => {
     setTouched(true);
@@ -67,8 +69,8 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
       const message = (err as Error).message || '';
       setError(
         message.toLowerCase().includes('not found')
-          ? 'No account exists with this email. Create a profile first.'
-          : message || 'Could not send the code. Please try again.'
+          ? t('loginNoAccount')
+          : message || t('loginSendFailed')
       );
     } finally {
       setSubmitting(false);
@@ -86,7 +88,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
     try {
       await login({ email: email.trim(), password });
     } catch (err) {
-      setError((err as Error).message || 'Could not sign in. Please check your details.');
+      setError((err as Error).message || t('loginSignInFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -107,11 +109,11 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
       }
       // The server answers the same way whether or not the address has an
       // account, so the wording here must not imply one exists.
-      setNotice('If that email has an account, a reset code is on its way. Not in your inbox? Check the spam or junk folder — it can land there.');
+      setNotice(t('loginResetNotice'));
       setCode('');
       setStage('reset');
     } catch (err) {
-      setError((err as Error).message || 'Could not start the reset. Please try again.');
+      setError((err as Error).message || t('loginResetFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -128,7 +130,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
       const token = await api.resetPassword(email.trim(), code, newPassword);
       await loginWithToken(token, '');
     } catch (err) {
-      setError((err as Error).message || 'That code did not work. Please try again.');
+      setError((err as Error).message || t('loginCodeFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -167,8 +169,8 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
           <View style={styles.logoBadge}>
             <Ionicons name="infinite" size={26} color="#FFFFFF" />
           </View>
-          <Text style={styles.heroTitle}>Welcome back</Text>
-          <Text style={styles.heroSub}>Sign in to pick up where you left off.</Text>
+          <Text style={styles.heroTitle}>{t('loginTitle')}</Text>
+          <Text style={styles.heroSub}>{t('loginSubtitle')}</Text>
         </View>
       </View>
 
@@ -184,9 +186,9 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
         <KeyboardScrollContext.Provider value={keyboardScroll.contextValue}>
         {stage === 'signIn' ? (
           <>
-            <Field label="Email address" error={emailError}>
+            <Field label={t('loginEmailLabel')} error={emailError}>
               <Input
-                placeholder="you@example.com"
+                placeholder={t('loginEmailPlaceholder')}
                 value={email}
                 onChangeText={setEmail}
                 onBlur={() => setTouched(true)}
@@ -196,9 +198,9 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
               />
             </Field>
 
-            <Field label="Password">
+            <Field label={t('loginPasswordLabel')}>
               <Input
-                placeholder="Your password"
+                placeholder={t('loginPasswordPlaceholder')}
                 value={password}
                 onChangeText={setPassword}
                 autoCapitalize="none"
@@ -210,7 +212,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
 
             <View style={styles.cta}>
               <PrimaryButton
-                label="Log in"
+                label={t('loginButton')}
                 icon="arrow-forward"
                 disabled={!emailValid || password.length < 1}
                 loading={submitting}
@@ -218,11 +220,11 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
               />
             </View>
 
-            <TextButton label="Forgot password?" onPress={() => { setError(null); setStage('forgot'); }} />
+            <TextButton label={t('loginForgot')} onPress={() => { setError(null); setStage('forgot'); }} />
 
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
+              <Text style={styles.dividerText}>{t('loginOr')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -236,12 +238,12 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
               onPress={handleSendCode}
             >
               <Ionicons name="mail-outline" size={18} color={palette.primary} />
-              <Text style={styles.phoneButtonText}>Email me a code instead</Text>
+              <Text style={styles.phoneButtonText}>{t('loginCodeInstead')}</Text>
             </Pressable>
           </>
         ) : stage === 'forgot' ? (
           <>
-            <Field label="Email address" hint="We'll send a code to reset your password." error={emailError}>
+            <Field label="Email address" hint={t('loginResetHint')} error={emailError}>
               <Input
                 placeholder="you@example.com"
                 value={email}
@@ -257,7 +259,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
 
             <View style={styles.cta}>
               <PrimaryButton
-                label="Send reset code"
+                label={t('loginSendResetCode')}
                 icon="arrow-forward"
                 disabled={!emailValid}
                 loading={submitting}
@@ -265,14 +267,14 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
               />
             </View>
 
-            <TextButton label="Back to sign in" onPress={backToSignIn} />
+            <TextButton label={t('loginBackToSignIn')} onPress={backToSignIn} />
           </>
         ) : stage === 'reset' ? (
           <>
-            {devCode ? <Callout icon="flask-outline" text={`Test mode code: ${devCode}`} /> : null}
+            {devCode ? <Callout icon="flask-outline" text={t('testModeCode', { code: devCode })} /> : null}
             {notice ? <Callout icon="mail-outline" text={notice} /> : null}
 
-            <Field label="6-digit code" hint="Not in your inbox? Check the spam or junk folder — it can land there.">
+            <Field label={t('loginCodeLabel')} hint={t('loginSpamHint')}>
               <Input
                 placeholder="000000"
                 value={code}
@@ -282,9 +284,9 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
               />
             </Field>
 
-            <Field label="New password" hint="Between 8 and 20 characters.">
+            <Field label={t('loginNewPassword')} hint={t('loginNewPasswordHint')}>
               <Input
-                placeholder="New password"
+                placeholder={t('loginNewPassword')}
                 value={newPassword}
                 onChangeText={(text) => setNewPassword(text.slice(0, 20))}
                 autoCapitalize="none"
@@ -296,7 +298,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
 
             <View style={styles.cta}>
               <PrimaryButton
-                label="Set new password"
+                label={t('loginSetNewPassword')}
                 disabled={code.length !== 6 || newPassword.length < 8}
                 loading={submitting}
                 onPress={handleReset}
@@ -310,8 +312,8 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
             {devCode ? <Callout icon="flask-outline" text={`Test mode code: ${devCode}`} /> : null}
 
             <Field
-              label="6-digit code"
-              hint={`Sent to ${email.trim()}. Not in your inbox? Check the spam or junk folder — it can land there.`}
+              label={t('loginCodeLabel')}
+              hint={t('loginCodeSentTo', { email: email.trim() })}
               error={error}
             >
               <Input
@@ -325,14 +327,14 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
 
             <View style={styles.cta}>
               <PrimaryButton
-                label="Log in"
+                label={t('loginButton')}
                 disabled={code.length !== 6}
                 loading={submitting}
                 onPress={handleVerify}
               />
             </View>
 
-            <TextButton label="Use a different email" onPress={backToSignIn} />
+            <TextButton label={t('loginDifferentEmail')} onPress={backToSignIn} />
           </>
         )}
 
@@ -343,9 +345,9 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
           */}
 
         <View style={styles.footerRow}>
-          <Text style={styles.footerText}>New here? </Text>
+          <Text style={styles.footerText}>{t('loginNewHere')}</Text>
           <Pressable onPress={onSignup} hitSlop={8}>
-            <Text style={styles.footerLink}>Create a profile</Text>
+            <Text style={styles.footerLink}>{t('loginCreateProfile')}</Text>
           </Pressable>
         </View>
         </KeyboardScrollContext.Provider>

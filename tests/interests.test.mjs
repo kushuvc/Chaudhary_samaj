@@ -66,6 +66,18 @@ describe('expressing interest', () => {
     assert.notEqual(res.status, 200, 'only the receiver may respond')
   })
 
+  /*
+   * Anything falsy counted as a decline, so a malformed request quietly
+   * rejected an interest and reported success.
+   */
+  test('responding without an explicit accept is refused', async () => {
+    const res = await server.request('PUT', '/api/matrimony/interests/whatever', {
+      token: bob.token,
+      body: { status: 'accepted' },
+    })
+    assert.equal(res.status, 400)
+  })
+
   test('an unknown interest id does not 500', async () => {
     const res = await server.request('PUT', '/api/matrimony/interests/does-not-exist', {
       token: bob.token,

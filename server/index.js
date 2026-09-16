@@ -2262,6 +2262,21 @@ app.put('/api/matrimony/interests/:id', async (request, response) => {
   const { accept } = request.body || {}
   const { id } = request.params
 
+  /*
+   * Require an explicit boolean.
+   *
+   * Anything falsy counted as a decline, so a request that simply omitted the
+   * field — or spelled it differently — quietly rejected someone's interest
+   * and reported success.
+   */
+  if (typeof accept !== 'boolean') {
+    response.status(400).json({
+      success: false,
+      error: 'accept must be true or false',
+    })
+    return
+  }
+
   const newStatus = accept ? 'accepted' : 'declined'
   const now = new Date().toISOString()
 

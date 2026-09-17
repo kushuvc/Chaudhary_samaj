@@ -31,40 +31,40 @@ interface SignupInterestsScreenProps {
 
 type TabId = keyof InterestsData;
 
-const TABS: { id: TabId; label: string; heading: string; caption: string; options: string[] }[] = [
+const TABS: { id: TabId; labelKey: string; headingKey: string; captionKey: string; options: string[] }[] = [
   {
     id: 'hobbies',
-    label: 'Hobbies',
-    heading: 'Hobbies & interests',
-    caption: 'Pick anything you genuinely enjoy.',
+    labelKey: 'fldHobbies',
+    headingKey: 'suHobbiesTitle',
+    captionKey: 'suHobbiesSub',
     options: HOBBIES,
   },
   {
     id: 'music',
-    label: 'Music',
-    heading: 'Music you listen to',
-    caption: 'Choose the genres you come back to.',
+    labelKey: 'fldMusic',
+    headingKey: 'suMusicTitle',
+    captionKey: 'suMusicSub',
     options: MUSIC_GENRES,
   },
   {
     id: 'sports',
-    label: 'Sports',
-    heading: 'Sports & fitness',
-    caption: 'Activities, games, or ways you stay active.',
+    labelKey: 'fldSports',
+    headingKey: 'suSportsTitle',
+    captionKey: 'suSportsSub',
     options: SPORTS,
   },
   {
     id: 'cuisine',
-    label: 'Food',
-    heading: 'Favourite cuisine',
-    caption: 'What you love to eat, or cook.',
+    labelKey: 'subFoodTab',
+    headingKey: 'suCuisineTitle',
+    captionKey: 'suCuisineSub',
     options: CUISINES,
   },
 ];
 
 export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, onSkip }: SignupInterestsScreenProps) {
-  const { t } = useAppLanguage();
-  const subject = subjectProp ?? subjectFor(null);
+  const { t, language } = useAppLanguage();
+  const subject = subjectProp ?? subjectFor(null, language);
   const { palette } = useAppTheme();
   const [activeTab, setActiveTab] = useState<TabId>('hobbies');
   const [data, setData] = useState<InterestsData>({ hobbies: [], music: [], sports: [], cuisine: [] });
@@ -93,7 +93,7 @@ export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, on
       footer={
         <>
           <PrimaryButton
-            label={totalSelected > 0 ? `Save ${totalSelected} selected` : 'Save and continue'}
+            label={totalSelected > 0 ? `Save ${totalSelected} selected` : t('actSaveContinue')}
             disabled={totalSelected === 0}
             onPress={() => onNext(data)}
           />
@@ -104,14 +104,15 @@ export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, on
       <SegmentedTabs
         tabs={TABS.map((item) => ({
           id: item.id,
-          label: data[item.id].length > 0 ? `${item.label} (${data[item.id].length})` : item.label,
+          label:
+            data[item.id].length > 0 ? `${t(item.labelKey)} (${data[item.id].length})` : t(item.labelKey),
         }))}
         active={activeTab}
         onChange={(id) => setActiveTab(id as TabId)}
       />
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title={tab.heading} caption={tab.caption} />
+        <SectionHeading title={t(tab.headingKey)} caption={t(tab.captionKey)} />
         <ChipGroup>
           {tab.options.map((option) => (
             <Chip

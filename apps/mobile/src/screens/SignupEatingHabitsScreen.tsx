@@ -16,8 +16,8 @@ interface SignupEatingHabitsScreenProps {
 }
 
 export function SignupEatingHabitsScreen({ subject: subjectProp, onBack, onNext, onSkip }: SignupEatingHabitsScreenProps) {
-  const { t } = useAppLanguage();
-  const subject = subjectProp ?? subjectFor(null);
+  const { t, language } = useAppLanguage();
+  const subject = subjectProp ?? subjectFor(null, language);
   const [habit, setHabit] = useState<EatingHabit | null>(null);
 
   return (

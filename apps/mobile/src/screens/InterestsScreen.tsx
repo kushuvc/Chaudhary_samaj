@@ -83,17 +83,17 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   const handleAccept = async (interest: Interest) => {
     if (!FEATURES.ACCEPT_INTEREST_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to accept interests.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradeAccept'));
       return;
     }
 
     try {
       setActionId(interest.id);
       await api.respondToInterest(interest.id, true);
-      showAlert('Success', `You accepted ${interest.name}'s interest!`);
+      showAlert(t('lblSuccess'), `You accepted ${interest.name}'s interest!`);
       await loadInterests();
     } catch (err) {
-      showAlert('Error', (err as Error).message || 'Failed to accept interest');
+      showAlert(t('lblError'), (err as Error).message || t('inAcceptFailed'));
     } finally {
       setActionId(null);
     }
@@ -101,26 +101,26 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   const handleDecline = async (interest: Interest) => {
     if (!FEATURES.DECLINE_INTEREST_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to decline interests.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradeDecline'));
       return;
     }
 
     showAlert(
-      'Decline Interest',
-      `Are you sure you want to decline ${interest.name}'s interest?`,
+      t('inDeclineConfirmTitle'),
+      t('inDeclineConfirmBody', { name: interest.name }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('actCancel'), style: 'cancel' },
         {
-          text: 'Decline',
+          text: t('actDecline'),
           style: 'destructive',
           onPress: async () => {
             try {
               setActionId(interest.id);
               await api.respondToInterest(interest.id, false);
-              showAlert('Declined', `You declined ${interest.name}'s interest.`);
+              showAlert(t('lblDeclined'), `You declined ${interest.name}'s interest.`);
               await loadInterests();
             } catch (err) {
-              showAlert('Error', (err as Error).message || 'Failed to decline interest');
+              showAlert(t('lblError'), (err as Error).message || t('inDeclineFailed'));
             } finally {
               setActionId(null);
             }
@@ -132,7 +132,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   const handleMessage = (interest: Interest) => {
     if (!FEATURES.CHAT_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to chat with matches.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradeChat'));
       return;
     }
     if (onMessage) {
@@ -148,8 +148,8 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Yesterday';
+    if (diffDays === 0) return t('lblToday');
+    if (diffDays === 1) return t('lblYesterday');
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
     return date.toLocaleDateString();
@@ -174,9 +174,9 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
           </View>
           <View style={[styles.statusBadge, styles[`status${interest.status}`]]}>
             <Text style={styles.statusText}>
-              {interest.status === 'pending' && 'Pending'}
-              {interest.status === 'accepted' && 'Matched'}
-              {interest.status === 'declined' && 'Declined'}
+              {interest.status === 'pending' && t('lblPending')}
+              {interest.status === 'accepted' && t('lblMatched')}
+              {interest.status === 'declined' && t('lblDeclined')}
             </Text>
           </View>
         </View>
@@ -190,7 +190,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
             }}
           >
             <Ionicons name="eye-outline" size={18} color={palette.primary} />
-            <Text style={styles.viewButtonText}>View Profile</Text>
+            <Text style={styles.viewButtonText}>{t('actViewProfile')}</Text>
           </Pressable>
 
           {isReceived && isPending && (
@@ -202,7 +202,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
               >
                 <Ionicons name="checkmark" size={18} color="#FFFFFF" />
                 <Text style={styles.acceptButtonText}>
-                  {isActionLoading ? '...' : 'Accept'}
+                  {isActionLoading ? '...' : t('actAccept')}
                 </Text>
               </Pressable>
               <Pressable
@@ -211,7 +211,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
                 disabled={isActionLoading}
               >
                 <Ionicons name="close" size={18} color={palette.danger} />
-                <Text style={styles.declineButtonText}>Decline</Text>
+                <Text style={styles.declineButtonText}>{t('actDecline')}</Text>
               </Pressable>
             </>
           )}
@@ -222,7 +222,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
               onPress={() => handleMessage(interest)}
             >
               <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.messageButtonText}>Message</Text>
+              <Text style={styles.messageButtonText}>{t('actMessage')}</Text>
             </Pressable>
           )}
         </View>
@@ -236,7 +236,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   const acceptedSent = sent.filter(s => s.status === 'accepted').length;
 
   if (loading) {
-    return <ScreenLoader message="Loading interests..." />;
+    return <ScreenLoader message={t('loadingInterests')} />;
   }
 
   return (
@@ -247,24 +247,24 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
             <Ionicons name="arrow-back" size={24} color={palette.text} />
           </Pressable>
         )}
-        <Text style={styles.headerTitle}>My Interests</Text>
+        <Text style={styles.headerTitle}>{t('secMyInterests')}</Text>
       </View>
 
       {/* Stats */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{pendingReceived}</Text>
-          <Text style={styles.statLabel}>Received</Text>
+          <Text style={styles.statLabel}>{t('lblReceived')}</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{sent.length}</Text>
-          <Text style={styles.statLabel}>Sent</Text>
+          <Text style={styles.statLabel}>{t('lblSent')}</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{acceptedReceived + acceptedSent}</Text>
-          <Text style={styles.statLabel}>Matches</Text>
+          <Text style={styles.statLabel}>{t('lblMatches')}</Text>
         </View>
       </View>
 
@@ -275,7 +275,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
           onPress={() => setActiveTab('received')}
         >
           <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>
-            Received ({received.length})
+            {t('lblReceived')} ({received.length})
           </Text>
           {pendingReceived > 0 && (
             <View style={styles.badge}>
@@ -288,7 +288,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
           onPress={() => setActiveTab('sent')}
         >
           <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>
-            Sent ({sent.length})
+            {t('lblSent')} ({sent.length})
           </Text>
         </Pressable>
       </View>
@@ -301,11 +301,11 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
         {currentList.length === 0 ? (
           <EmptyState
-            title={activeTab === 'received' ? 'No Interests Received' : 'No Interests Sent'}
+            title={activeTab === 'received' ? t('inNoneReceived') : t('inNoneSent')}
             subtitle={
               activeTab === 'received'
-                ? 'When someone sends you an interest, it will appear here.'
-                : 'Browse profiles and send interests to connect with matches.'
+                ? t('inNoneReceivedBody')
+                : t('inNoneSentBody')
             }
           />
         ) : (

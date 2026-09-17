@@ -123,7 +123,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
 
   const loadMessages = async (match: Match) => {
     if (!FEATURES.CHAT_FREE) {
-      setError('Upgrade to premium to chat with matches.');
+      setError(t('mpUpgradeChat'));
       return;
     }
 
@@ -134,26 +134,26 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
       setSelectedMatch(match);
       setView('chat');
     } catch (err) {
-      const msg = (err as Error).message || 'Unable to load messages. Please try again.';
+      const msg = (err as Error).message || t('msgLoadFailed');
       setError(msg);
-      showAlert('Failed to Load Chat', msg);
+      showAlert(t('msgLoadFailedTitle'), msg);
     }
   };
 
   const sendMessage = async () => {
     if (!selectedMatch) {
-      showAlert('No Match Selected', 'Please select a match to send a message.');
+      showAlert(t('msgNoMatchTitle'), t('msgNoMatchBody'));
       return;
     }
     if (!newMessage.trim()) {
-      showAlert('Empty Message', 'Please type a message before sending.');
+      showAlert(t('msgEmptyTitleAlert'), t('msgEmptyBodyAlert'));
       return;
     }
     if (sending) return;
 
     if (!FEATURES.SEND_MESSAGE_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to send messages.');
-      setError('Upgrade to premium to send messages.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradeSendMessage'));
+      setError(t('mpUpgradeSendMessage'));
       return;
     }
 
@@ -169,9 +169,9 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (err) {
-      const msg = (err as Error).message || 'Failed to send message. Please try again.';
+      const msg = (err as Error).message || t('msgSendFailed');
       setError(msg);
-      showAlert('Send Failed', msg);
+      showAlert(t('msgSendFailedTitle'), msg);
     } finally {
       setSending(false);
     }
@@ -191,7 +191,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return formatTime(dateString);
-    if (diffDays === 1) return 'Yesterday';
+    if (diffDays === 1) return t('lblYesterday');
     if (diffDays < 7) return `${diffDays}d ago`;
     return date.toLocaleDateString();
   };
@@ -204,7 +204,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
       <View style={styles.matchInfo}>
         <Text style={styles.matchName}>{item.name}</Text>
         <Text style={styles.lastMessage} numberOfLines={1}>
-          {item.lastMessage || 'Start chatting...'}
+          {item.lastMessage || t('msgStartChatting')}
         </Text>
       </View>
       <View style={styles.matchMeta}>
@@ -232,7 +232,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading matches..." />;
+    return <ScreenLoader message={t('loadingMatches')} />;
   }
 
   // Chat View
@@ -259,18 +259,18 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
           <View style={styles.chatHeaderInfo}>
             <Text style={styles.chatHeaderName}>{selectedMatch.name}</Text>
             {/* No presence tracking exists, so claiming "Online" was fiction. */}
-            <Text style={styles.chatHeaderStatus}>Matched</Text>
+            <Text style={styles.chatHeaderStatus}>{t('lblMatched')}</Text>
           </View>
           <Pressable
             style={styles.moreButton}
             onPress={() => {
               showAlert(
                 selectedMatch.name,
-                'What would you like to do?',
+                t('msgWhatWouldYouLike'),
                 // "Clear Chat" only emptied the local array — it looked like
                 // a delete and came back on the next poll. Removed rather than
                 // left pretending.
-                [{ text: 'Close', style: 'cancel' }]
+                [{ text: t('actClose'), style: 'cancel' }]
               );
             }}
           >
@@ -297,7 +297,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
             style={styles.input}
             value={newMessage}
             onChangeText={setNewMessage}
-            placeholder="Type a message..."
+            placeholder={t('msgInputPlaceholder')}
             multiline
           />
           <Pressable
@@ -321,15 +321,15 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
             <Ionicons name="arrow-back" size={24} color={palette.text} />
           </Pressable>
         )}
-        <Text style={styles.headerTitle}>Messages</Text>
+        <Text style={styles.headerTitle}>{t('messages')}</Text>
       </View>
 
       {error ? <InlineError message={error} /> : null}
 
       {matches.length === 0 ? (
         <EmptyState
-          title="No Messages Yet"
-          subtitle="When you match with someone, you can chat with them here. Send interests to find your match!"
+          title={t('msgEmptyTitle')}
+          subtitle={t('msgEmptyBody')}
         />
       ) : (
         <FlatList

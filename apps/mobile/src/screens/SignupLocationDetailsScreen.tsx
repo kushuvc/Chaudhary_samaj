@@ -28,8 +28,8 @@ interface SignupLocationDetailsScreenProps {
 }
 
 export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupLocationDetailsScreenProps) {
-  const { t } = useAppLanguage();
-  const subject = subjectProp ?? subjectFor(null);
+  const { t, language } = useAppLanguage();
+  const subject = subjectProp ?? subjectFor(null, language);
   const [country, setCountry] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
   const [city, setCity] = useState<string | null>(null);
@@ -84,7 +84,7 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
         />
       </Field>
 
-      <Field label={t('suState')} hint={!country ? 'Choose a country first' : undefined}>
+      <Field label={t('suState')} hint={!country ? t('suChooseCountryFirst') : undefined}>
         <Select
           value={state}
           placeholder={t('suSelectState')}
@@ -98,7 +98,7 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
         />
       </Field>
 
-      <Field label={t('suCity')} hint={!state ? 'Choose a state first' : undefined}>
+      <Field label={t('suCity')} hint={!state ? t('suChooseStateFirst') : undefined}>
         <Select
           value={city}
           placeholder={t('suSelectCity')}
@@ -109,21 +109,21 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
         />
       </Field>
 
-      <SectionHeading title={t('suNativePlace')} caption="Optional, but useful for family introductions." />
+      <SectionHeading title={t('suNativePlace')} caption={t('hintOptionalFamily')} />
 
       <Field label={t('suAreaOrVillage')}>
-        <Input value={village} onChangeText={setVillage} placeholder="e.g. Vastrapur" autoCapitalize="words" />
+        <Input value={village} onChangeText={setVillage} placeholder={t('hintEgVillage')} autoCapitalize="words" />
       </Field>
 
       <Field label={t('suNativeCity')}>
-        <Input value={nativeCity} onChangeText={setNativeCity} placeholder="e.g. Mehsana" autoCapitalize="words" />
+        <Input value={nativeCity} onChangeText={setNativeCity} placeholder={t('hintEgNativeCity')} autoCapitalize="words" />
       </Field>
 
       <Field label={t('suNativeVillage')}>
         <Input
           value={nativeVillage}
           onChangeText={setNativeVillage}
-          placeholder="e.g. Kadi"
+          placeholder={t('hintEgNativeVillage')}
           autoCapitalize="words"
         />
       </Field>

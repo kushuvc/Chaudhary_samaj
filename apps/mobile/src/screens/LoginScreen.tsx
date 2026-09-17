@@ -155,7 +155,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
     try {
       await verifyOtp(email.trim(), 'login', code);
     } catch (err) {
-      setError((err as Error).message || 'That code did not work. Please try again.');
+      setError((err as Error).message || t('loginCodeDidNotWork'));
     } finally {
       setSubmitting(false);
     }

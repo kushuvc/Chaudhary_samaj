@@ -23,8 +23,8 @@ interface SignupManagePhotosScreenProps {
 const MAX_PHOTOS = 6;
 
 const benefits = [
-  { icon: 'eye-outline' as const, text: 'Profiles with photos get far more responses' },
-  { icon: 'lock-closed-outline' as const, text: 'You choose who can see them at any time' },
+  { icon: 'eye-outline' as const, textKey: 'suPhotoBenefit1' },
+  { icon: 'lock-closed-outline' as const, textKey: 'suPhotoBenefit2' },
 ];
 
 export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePhotosScreenProps) {
@@ -40,7 +40,7 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      Alert.alert(t('permNeeded'), t('permPhotoLibrary'));
       return;
     }
 
@@ -67,7 +67,7 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
       const remoteUrl = await api.uploadPhoto(asset.uri);
       setPhotos((prev) => prev.map((p) => (p.id === tempId ? { ...p, uri: remoteUrl, status: 'done' } : p)));
     } catch (err: any) {
-      Alert.alert('Upload failed', err?.message || 'Could not upload photo');
+      Alert.alert(t('phUploadFailed'), err?.message || t('suPhotoUploadFailed'));
       setPhotos((prev) => prev.filter((p) => p.id !== tempId));
     }
   };
@@ -107,7 +107,7 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
       footer={
         <>
           <PrimaryButton
-            label={uploaded.length > 0 ? `Continue with ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'}` : 'Add a photo'}
+            label={uploaded.length > 0 ? `Continue with ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'}` : t('actAddPhoto')}
             onPress={uploaded.length > 0 ? () => onComplete(uploaded) : pickAndUpload}
           />
           <TextButton label={t('suILlDoThisLater')} onPress={() => onComplete(uploaded)} />
@@ -116,18 +116,18 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
     >
       <View style={styles.benefits}>
         {benefits.map((item) => (
-          <View key={item.text} style={styles.benefitRow}>
+          <View key={item.textKey} style={styles.benefitRow}>
             <View style={styles.benefitIcon}>
               <Ionicons name={item.icon} size={16} color={palette.primary} />
             </View>
-            <Text style={styles.benefitText}>{item.text}</Text>
+            <Text style={styles.benefitText}>{t(item.textKey)}</Text>
           </View>
         ))}
       </View>
 
       <SectionHeading
         title={t('suYourPhotos')}
-        caption={photos.length > 0 ? 'Tap a photo to make it your main one.' : undefined}
+        caption={photos.length > 0 ? t('suTapPhotoMain') : undefined}
       />
 
       <View style={styles.grid}>
@@ -147,12 +147,12 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
 
             {photo.isPrimary && photo.status === 'done' ? (
               <View style={styles.primaryBadge}>
-                <Text style={styles.primaryBadgeText}>Main</Text>
+                <Text style={styles.primaryBadgeText}>{t('lblMainPhoto')}</Text>
               </View>
             ) : null}
 
             <Pressable
-              accessibilityLabel="Remove photo"
+              accessibilityLabel={t('suRemovePhoto')}
               style={styles.removeButton}
               onPress={() => removePhoto(photo.id)}
               hitSlop={6}

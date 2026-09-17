@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { useAppLanguage } from '../context/LanguageContext';
+import { optionLabel } from '../constants/optionTranslations';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -26,10 +27,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type MatchTab = 'all' | 'newlyJoined' | 'more';
 
-const TAB_CONFIG: Array<{ key: MatchTab; label: string }> = [
-  { key: 'all', label: 'All matches' },
-  { key: 'newlyJoined', label: 'Newly joined' },
-  { key: 'more', label: 'More' },
+const TAB_CONFIG: Array<{ key: MatchTab; labelKey: string }> = [
+  { key: 'all', labelKey: 'matchTabAll' },
+  { key: 'newlyJoined', labelKey: 'matchTabNewlyJoined' },
+  { key: 'more', labelKey: 'matchTabMore' },
 ];
 
 const EMPTY_OPTIONS: MatrimonyFilterOptions = {
@@ -117,7 +118,7 @@ function FilterSection({
 
 export function MatrimonyScreen() {
   const { palette } = useAppTheme();
-  const { t } = useAppLanguage();
+  const { t, language } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [tab, setTab] = useState<MatchTab>('all');
@@ -248,8 +249,8 @@ export function MatrimonyScreen() {
         const wasShortlisted = profiles.find(p => p.id === profileId)?.isShortlisted;
         await api.toggleMatrimonyShortlist(profileId);
         showAlert(
-          wasShortlisted ? 'Removed from Shortlist' : 'Added to Shortlist',
-          wasShortlisted ? 'Profile removed from your shortlist.' : 'Profile saved to your shortlist!'
+          wasShortlisted ? t('mmShortlistRemovedTitle') : t('mmShortlistAddedTitle'),
+          wasShortlisted ? t('mmShortlistRemovedBody') : t('mmShortlistAddedBody')
         );
       } else if (action === 'view') {
         await api.markMatrimonyViewed(profileId);
@@ -258,7 +259,7 @@ export function MatrimonyScreen() {
       }
       await loadProfiles();
     } catch (err) {
-      showAlert('Action Failed', (err as Error).message || 'Something went wrong. Please try again.');
+      showAlert(t('mmActionFailed'), (err as Error).message || t('alertSomethingWrong'));
       setError((err as Error).message);
     } finally {
       setActionProfileId(null);
@@ -275,9 +276,9 @@ export function MatrimonyScreen() {
   }
 
   const tabLabel = (key: MatchTab) => {
-    if (key === 'all') return 'All matches';
-    if (key === 'newlyJoined') return 'Newly joined';
-    return 'More';
+    if (key === 'all') return t('matchTabAll');
+    if (key === 'newlyJoined') return t('matchTabNewlyJoined');
+    return t('matchTabMore');
   };
 
   return (
@@ -298,8 +299,7 @@ export function MatrimonyScreen() {
       >
         <View style={styles.headerBlock}>
           <Text style={styles.matchCount}>
-            <Text style={styles.matchCountNumber}>{totalMatches}</Text>
-            {totalMatches === 1 ? ' match' : ' matches'} based on your preferences
+            {t(totalMatches === 1 ? 'matchCountOne' : 'matchCountMany', { count: totalMatches })}
           </Text>
         </View>
 
@@ -356,7 +356,7 @@ export function MatrimonyScreen() {
             <Text
               style={[styles.filterActionText, filters.sortBy ? styles.filterActionTextActive : null]}
             >
-              {filters.sortBy ? (filters.sortBy === 'name' ? 'Name' : 'Age') : 'Sort'}
+              {filters.sortBy ? t(filters.sortBy === 'name' ? 'sortByName' : 'sortByAge') : t('sortLabel')}
             </Text>
             <Ionicons
               name="chevron-down"
@@ -398,13 +398,13 @@ export function MatrimonyScreen() {
                 {/* Blurred locked overlay */}
                 <View style={styles.lockedOverlay}>
                   <Ionicons name="lock-closed" size={36} color="#FFFFFF" />
-                  <Text style={styles.lockedTitle}>Subscribe to View</Text>
+                  <Text style={styles.lockedTitle}>{t('actSubscribeToView')}</Text>
                   <Text style={styles.lockedSubtitle}>₹200/month — Unlimited profiles</Text>
                   <Pressable
                     style={styles.lockedButton}
                     onPress={() => navigation.navigate('Subscriptions')}
                   >
-                    <Text style={styles.lockedButtonText}>Get Full Access</Text>
+                    <Text style={styles.lockedButtonText}>{t('actGetFullAccess')}</Text>
                   </Pressable>
                 </View>
                 {/* Blurred background content */}
@@ -416,7 +416,7 @@ export function MatrimonyScreen() {
                   </View>
                   <View style={[styles.infoSection, { gap: 4 }]}>
                     <Text style={styles.newName}>{'••••••••••'}</Text>
-                    <Text style={styles.details}>{'•• Yrs • ••••• • ••••••'}</Text>
+                    <Text style={styles.details}>{`•• ${t('yearsShort')} • ••••• • ••••••`}</Text>
                   </View>
                 </View>
               </View>
@@ -444,18 +444,21 @@ export function MatrimonyScreen() {
                   <Text style={styles.newName}>{profile.name}</Text>
                 </View>
 
-                <Text style={styles.profileId}>PTL{profile.id.slice(-6)} • Last seen recently</Text>
+                <Text style={styles.profileId}>PTL{profile.id.slice(-6)} • {t('lastSeenRecently')}</Text>
 
                 <Text style={styles.details}>
-                  {profile.age} Yrs • {profile.height || "4'9\""} • {profile.education || 'M.Com'} • {profile.occupation || 'Accounts / Finance Professional'} • {profile.location}
+                  {profile.age} {t('yearsShort')} • {profile.height || "4'9\""} •{' '}
+                  {optionLabel(profile.education || 'M.Com', language)} •{' '}
+                  {optionLabel(profile.occupation || 'Accounts / Finance Professional', language)} •{' '}
+                  {optionLabel(profile.location || '', language)}
                 </Text>
 
                 {/* Interest Status */}
                 {interestStatus === 'sent' && (
-                  <Text style={styles.interestStatus}>You sent an interest • {new Date().toLocaleDateString()}</Text>
+                  <Text style={styles.interestStatus}>{t('interestSentOn', { date: new Date().toLocaleDateString() })}</Text>
                 )}
                 {interestStatus === 'mutual' && (
-                  <Text style={styles.mutualStatus}>🎉 Mutual interest! You can now chat</Text>
+                  <Text style={styles.mutualStatus}>{t('mutualInterest')}</Text>
                 )}
               </View>
 
@@ -466,33 +469,33 @@ export function MatrimonyScreen() {
                   onPress={() => {
                     if (shownNumbers[profile.id] !== undefined) {
                       const num = shownNumbers[profile.id];
-                      showAlert('Phone Number', num ? num : 'This user has not added a phone number.');
+                      showAlert(t('mmPhoneNumber'), num ? num : t('mpNoPhoneAdded'));
                     } else {
                       api.unlockMatrimonyProfile(profile.id)
                         .then(() => {
                           const phone = (profile as any).phone || null;
                           setShownNumbers(prev => ({ ...prev, [profile.id]: phone }));
                           showAlert(
-                            'Phone Number',
+                            t('mmPhoneNumber'),
                             phone
                               ? phone
-                              : 'This user has not added a phone number yet.'
+                              : t('mpNoPhoneAddedYet')
                           );
                         })
                         .catch((err: Error) => {
-                          showAlert('Unable to Show Number', err.message || 'Something went wrong. Please try again.');
+                          showAlert(t('mpUnableShowNumber'), err.message || t('alertSomethingWrong'));
                         });
                     }
                   }}
                 >
                   <Ionicons name="eye-outline" size={16} color={palette.primary} />
-                  <Text style={styles.showNumberText}>Show Number</Text>
+                  <Text style={styles.showNumberText}>{t('actShowNumber')}</Text>
                 </Pressable>
                 {interestStatus === 'sent' || interestStatus === 'mutual' ? (
                   <View style={[styles.sendMessageButton, styles.sendMessageButtonDisabled]}>
                     <Ionicons name={interestStatus === 'mutual' ? 'heart' : 'checkmark-circle'} size={16} color="#FFFFFF" />
                     <Text style={styles.sendMessageText}>
-                      {interestStatus === 'mutual' ? 'Matched!' : 'Interest Sent'}
+                      {interestStatus === 'mutual' ? t('stMatched') : t('stInterestSent')}
                     </Text>
                   </View>
                 ) : (
@@ -504,14 +507,14 @@ export function MatrimonyScreen() {
                         setSendingInterest(profile.id);
                         await api.sendInterest(profile.id);
                         setInterestsMap(prev => ({ ...prev, [profile.id]: 'sent' }));
-                        showAlert('Interest Sent! 💌', `Your interest has been sent successfully.`);
+                        showAlert(t('mpInterestSentTitle'), t('mmInterestSentBody'));
                       } catch (err) {
                         const msg = (err as Error).message || '';
                         if (msg.toLowerCase().includes('already')) {
                           setInterestsMap(prev => ({ ...prev, [profile.id]: 'sent' }));
-                          showAlert('Already Sent', 'You have already sent an interest to this profile.');
+                          showAlert(t('mpAlreadySentTitle'), t('mpAlreadySentBody'));
                         } else {
-                          showAlert('Failed', msg || 'Could not send interest. Please try again.');
+                          showAlert(t('lblFailed'), msg || t('mmSendInterestFailed'));
                         }
                       } finally {
                         setSendingInterest(null);
@@ -520,7 +523,7 @@ export function MatrimonyScreen() {
                   >
                     <Ionicons name="heart-outline" size={16} color="#FFFFFF" />
                     <Text style={styles.sendMessageText}>
-                      {sendingInterest === profile.id ? 'Sending...' : 'Send Interest'}
+                      {sendingInterest === profile.id ? t('sendingInterest') : t('actSendInterest')}
                     </Text>
                   </Pressable>
                 )}
@@ -537,7 +540,7 @@ export function MatrimonyScreen() {
 
         {!hasMore && profiles.length > 0 ? (
           <Text style={styles.listEnd}>
-            {totalMatches === 1 ? "That's the only match" : `That's all ${totalMatches} matches`}
+            {totalMatches === 1 ? t('mmOnlyMatch') : t('mmAllMatches', { count: totalMatches })}
           </Text>
         ) : null}
       </ScrollView>
@@ -604,11 +607,11 @@ export function MatrimonyScreen() {
 
             {/* Sort By */}
             <View style={styles.filterSection}>
-              <Text style={styles.filterSectionTitle}>Sort By</Text>
+              <Text style={styles.filterSectionTitle}>{t('lblSortBy')}</Text>
               <View style={styles.filterChipRow}>
-                <FilterChip label="Default" active={!filters.sortBy} onPress={() => setFilters(prev => ({ ...prev, sortBy: '' }))} styles={styles} />
-                <FilterChip label="Name" active={filters.sortBy === 'name'} onPress={() => setFilters(prev => ({ ...prev, sortBy: 'name' }))} styles={styles} />
-                <FilterChip label="Age" active={filters.sortBy === 'age'} onPress={() => setFilters(prev => ({ ...prev, sortBy: 'age' }))} styles={styles} />
+                <FilterChip label={t('lblDefault')} active={!filters.sortBy} onPress={() => setFilters(prev => ({ ...prev, sortBy: '' }))} styles={styles} />
+                <FilterChip label={t('fldName')} active={filters.sortBy === 'name'} onPress={() => setFilters(prev => ({ ...prev, sortBy: 'name' }))} styles={styles} />
+                <FilterChip label={t('fldAge')} active={filters.sortBy === 'age'} onPress={() => setFilters(prev => ({ ...prev, sortBy: 'age' }))} styles={styles} />
               </View>
             </View>
           </ScrollView>

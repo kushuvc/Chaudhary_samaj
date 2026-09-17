@@ -68,27 +68,27 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
     } catch (err: any) {
       if (err?.code === 'PHONE_ALREADY_REGISTERED') {
         Alert.alert(
-          'Number already registered',
-          'An account already exists with this phone number. Would you like to log in instead?',
+          t('errNumberRegisteredTitle'),
+          t('errNumberRegisteredBody'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Log in', onPress: () => onExistingAccount?.() },
+            { text: t('actCancel'), style: 'cancel' },
+            { text: t('actLogIn'), onPress: () => onExistingAccount?.() },
           ]
         );
         return;
       }
       if (String(err?.message || '').toLowerCase().includes('already registered')) {
         Alert.alert(
-          'Email already registered',
-          'An account already exists with this email. Would you like to log in instead?',
+          t('errEmailRegisteredTitle'),
+          t('errEmailRegisteredBody'),
           [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Log in', onPress: () => onExistingAccount?.() },
+            { text: t('actCancel'), style: 'cancel' },
+            { text: t('actLogIn'), onPress: () => onExistingAccount?.() },
           ]
         );
         return;
       }
-      setError(err?.message || 'Could not send the code. Please try again.');
+      setError(err?.message || t('suCodeSendFailed'));
     } finally {
       setSending(false);
     }
@@ -104,7 +104,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
       await api.verifyOtp(email.trim(), 'signup', otp);
       await onSubmit({ fullName, email, password, phone, agreeToTerms });
     } catch (err: any) {
-      setError(err?.message || 'Registration failed. Please try again.');
+      setError(err?.message || t('suRegistrationFailed'));
     } finally {
       setLoading(false);
     }
@@ -129,7 +129,7 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
               loading={loading}
               onPress={handleVerify}
             />
-            <TextButton label={sending ? 'Sending…' : 'Resend code'} onPress={handleSendOtp} />
+            <TextButton label={sending ? t('suSendingCode') : t('phResendCode')} onPress={handleSendOtp} />
           </>
         }
       >

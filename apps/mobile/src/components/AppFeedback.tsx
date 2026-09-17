@@ -3,14 +3,16 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { radius, spacing, type } from '../theme';
 import type { ThemePalette } from '../context/ThemeContext';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 
-export function ScreenLoader({ message = 'Loading...' }: { message?: string }) {
+export function ScreenLoader({ message }: { message?: string }) {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.centered}>
       <ActivityIndicator size="large" color={palette.primary} />
-      <Text style={styles.helperText}>{message}</Text>
+      <Text style={styles.helperText}>{message ?? t('loadingGeneric')}</Text>
     </View>
   );
 }

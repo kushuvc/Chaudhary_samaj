@@ -15,6 +15,7 @@ import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
+import { optionLabel } from '../constants/optionTranslations';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
@@ -80,10 +81,12 @@ interface MatrimonyProfileDetailScreenProps {
 }
 
 function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
+  const { language, t } = useAppLanguage();
+  const filled = value != null && String(value).trim() !== '';
   return (
     <View style={infoRowStyle}>
       <Text style={infoLabelStyle}>{label}</Text>
-      <Text style={infoValueStyle}>{value != null && String(value).trim() !== '' ? String(value) : 'Not specified'}</Text>
+      <Text style={infoValueStyle}>{filled ? optionLabel(String(value), language) : t('lblNotSet')}</Text>
     </View>
   );
 }
@@ -167,7 +170,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           receivedInterestId: received?.id ?? null,
         });
       } else {
-        setError('Profile not found');
+        setError(t('mpProfileNotFound'));
       }
     } catch (err) {
       // A locked profile comes back as 403 rather than a failure — say what it
@@ -175,8 +178,8 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
       const apiError = err as { code?: string; message?: string };
       setError(
         apiError.code === 'SUBSCRIPTION_REQUIRED'
-          ? 'Subscribe to ₹200/month to view this profile.'
-          : apiError.message || 'Could not load this profile.'
+          ? t('mpSubscribeToView')
+          : apiError.message || t('mpCouldNotLoad')
       );
     } finally {
       setLoading(false);
@@ -196,21 +199,21 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const handleSendInterest = async () => {
     // Check if feature is premium-locked
     if (!FEATURES.SEND_INTEREST_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to send interests.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradeSendInterest'));
       return;
     }
 
     try {
       setActionLoading(true);
       await api.sendInterest(profileId);
-      showAlert('Interest Sent! 💌', `Your interest has been sent to ${profile?.name || 'this profile'}. You will be notified when they respond.`);
+      showAlert(t('mpInterestSentTitle'), t('mpInterestSentBody', { name: profile?.name || t('mpThisProfile') }));
       await loadProfile();
     } catch (err) {
       const msg = (err as Error).message || '';
       if (msg.toLowerCase().includes('already')) {
-        showAlert('Already Sent', 'You have already sent an interest to this profile.');
+        showAlert(t('mpAlreadySentTitle'), t('mpAlreadySentBody'));
       } else {
-        showAlert('Failed to Send Interest', msg || 'Something went wrong. Please try again.');
+        showAlert(t('mpSendFailedTitle'), msg || t('alertSomethingWrong'));
       }
     } finally {
       setActionLoading(false);
@@ -220,7 +223,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const respondToInterest = async (accept: boolean) => {
     const interestId = profile?.receivedInterestId;
     if (!interestId) {
-      showAlert('Nothing to respond to', 'This interest is no longer available. Pull down to refresh.');
+      showAlert(t('mpNothingToRespondTitle'), t('mpNothingToRespondBody'));
       return;
     }
 
@@ -228,16 +231,16 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
       setActionLoading(true);
       await api.respondToInterest(interestId, accept);
       showAlert(
-        accept ? 'Interest accepted 🎉' : 'Interest declined',
+        accept ? t('mpInterestAcceptedTitle') : t('mpInterestDeclinedTitle'),
         accept
-          ? `You and ${profile?.name || 'this member'} are now matched. You can message each other.`
-          : `${profile?.name || 'This member'} will not be notified.`
+          ? t('mpInterestAcceptedBody', { name: profile?.name || t('mpThisMember') })
+          : t('mpInterestDeclinedBody', { name: profile?.name || t('mpThisMember') })
       );
       await loadProfile();
     } catch (err) {
       showAlert(
-        accept ? 'Could not accept' : 'Could not decline',
-        (err as Error).message || 'Something went wrong. Please try again.'
+        accept ? t('mpCouldNotAccept') : t('mpCouldNotDecline'),
+        (err as Error).message || t('alertSomethingWrong')
       );
     } finally {
       setActionLoading(false);
@@ -246,7 +249,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
 
   const handleMessage = () => {
     if (!FEATURES.CHAT_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to message your matches.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradeMessage'));
       return;
     }
     // Chat lives in the Messages tab, which lists every accepted match.
@@ -258,36 +261,36 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   const handleShowPhoneNumber = () => {
     // Check if feature is premium-locked
     if (!FEATURES.SHOW_PHONE_FREE) {
-      showAlert('Premium Feature', 'Upgrade to premium to view phone numbers.');
+      showAlert(t('alertPremiumFeature'), t('mpUpgradePhone'));
       return;
     }
 
     if (profile?.interestStatus === 'accepted') {
       const phone = profile.phone;
       if (phone) {
-        showAlert('Phone Number 📞', phone, [{ text: 'OK' }]);
+        showAlert(t('mpPhoneNumberTitle'), phone, [{ text: t('actOk') }]);
       } else {
-        showAlert('No Number Found', `${profile.name || 'This user'} has not added a phone number to their profile yet.`, [{ text: 'OK' }]);
+        showAlert(t('mpNoNumberTitle'), t('mpNoNumberBody', { name: profile.name || t('mpThisUser') }), [{ text: t('actOk') }]);
       }
     } else if (profile?.interestStatus === 'sent') {
       showAlert(
-        'Interest Pending',
-        'Your interest has been sent. Phone number will be visible once they accept your interest.',
-        [{ text: 'OK' }]
+        t('mpInterestPendingTitle'),
+        t('mpInterestPendingBody'),
+        [{ text: t('actOk') }]
       );
     } else if (profile?.interestStatus === 'declined') {
       showAlert(
-        'Interest Declined',
-        'Your interest was declined. Phone number is not accessible.',
-        [{ text: 'OK' }]
+        t('mpInterestRefusedTitle'),
+        t('mpInterestRefusedBody'),
+        [{ text: t('actOk') }]
       );
     } else {
       showAlert(
-        'Phone Number Hidden 🔒',
-        'You need to have a mutual interest accepted to view the phone number. Send interest to connect!',
+        t('mpPhoneHiddenTitle'),
+        t('mpPhoneHiddenBody'),
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Send Interest', onPress: handleSendInterest }
+          { text: t('actCancel'), style: 'cancel' },
+          { text: t('actSendInterest'), onPress: handleSendInterest }
         ]
       );
     }
@@ -301,12 +304,12 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
    * published standards untrue.
    */
   const REPORT_REASONS: Array<{ id: string; label: string }> = [
-    { id: 'underage', label: 'This person is under 18' },
-    { id: 'fake_profile', label: 'Fake or impersonated profile' },
-    { id: 'harassment', label: 'Harassment or abusive messages' },
-    { id: 'inappropriate_content', label: 'Inappropriate photos or content' },
-    { id: 'scam', label: 'Scam or asking for money' },
-    { id: 'other', label: 'Something else' },
+    { id: 'underage', label: t('rptUnderage') },
+    { id: 'fake_profile', label: t('rptFake') },
+    { id: 'harassment', label: t('rptHarassment') },
+    { id: 'inappropriate_content', label: t('rptInappropriate') },
+    { id: 'scam', label: t('rptScam') },
+    { id: 'other', label: t('rptOther') },
   ];
 
   const submitReport = async () => {
@@ -318,12 +321,12 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
       setReportReason(null);
       setReportDetails('');
       showAlert(
-        'Thank you',
-        'Our team will review this. This member is now hidden from you.',
-        [{ text: 'OK', onPress: onBack }]
+        t('rptThanksTitle'),
+        t('rptThanksBody'),
+        [{ text: t('actOk'), onPress: onBack }]
       );
     } catch (err) {
-      showAlert('Could not send the report', (err as Error).message || 'Please try again.');
+      showAlert(t('rptFailedTitle'), (err as Error).message || t('actTryAgain'));
     } finally {
       setReporting(false);
     }
@@ -340,11 +343,11 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         <View style={styles.actionRow}>
           <Pressable style={styles.phoneButton} onPress={handleShowPhoneNumber}>
             <Ionicons name="call-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.phoneButtonText}>Show Number</Text>
+            <Text style={styles.phoneButtonText}>{t('actShowNumber')}</Text>
           </Pressable>
           <Pressable style={styles.messageButton} onPress={handleMessage}>
             <Ionicons name="chatbubble-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.messageButtonText}>Message</Text>
+            <Text style={styles.messageButtonText}>{t('actMessage')}</Text>
           </Pressable>
         </View>
       );
@@ -356,11 +359,11 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         <View style={styles.actionRow}>
           <View style={styles.pendingPill}>
             <Ionicons name="time-outline" size={18} color={palette.primary} />
-            <Text style={styles.pendingText}>Interest Sent</Text>
+            <Text style={styles.pendingText}>{t('lblInterestSent')}</Text>
           </View>
           <Pressable style={styles.phoneButtonDisabled} onPress={handleShowPhoneNumber}>
             <Ionicons name="call-outline" size={20} color={palette.muted} />
-            <Text style={styles.phoneButtonTextDisabled}>Show Number</Text>
+            <Text style={styles.phoneButtonTextDisabled}>{t('actShowNumber')}</Text>
           </Pressable>
         </View>
       );
@@ -376,7 +379,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             disabled={actionLoading}
           >
             <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-            <Text style={styles.respondButtonText}>Accept Interest</Text>
+            <Text style={styles.respondButtonText}>{t('actAcceptInterest')}</Text>
           </Pressable>
           <Pressable
             style={[styles.declineButton, actionLoading ? styles.buttonBusy : null]}
@@ -384,7 +387,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             disabled={actionLoading}
           >
             <Ionicons name="close" size={20} color={palette.danger} />
-            <Text style={styles.declineButtonText}>Decline</Text>
+            <Text style={styles.declineButtonText}>{t('actDecline')}</Text>
           </Pressable>
         </View>
       );
@@ -400,19 +403,19 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         >
           <Ionicons name="heart-outline" size={20} color="#FFFFFF" />
           <Text style={styles.interestButtonText}>
-            {actionLoading ? 'Sending...' : 'Send Interest'}
+            {actionLoading ? t('sendingInterest') : t('actSendInterest')}
           </Text>
         </Pressable>
         <Pressable style={styles.phoneButtonDisabled} onPress={handleShowPhoneNumber}>
           <Ionicons name="call-outline" size={20} color={palette.muted} />
-          <Text style={styles.phoneButtonTextDisabled}>Show Number</Text>
+          <Text style={styles.phoneButtonTextDisabled}>{t('actShowNumber')}</Text>
         </Pressable>
       </View>
     );
   };
 
   if (loading) {
-    return <ScreenLoader message="Loading profile..." />;
+    return <ScreenLoader message={t('loadingProfile')} />;
   }
 
   if (error || !profile) {
@@ -422,12 +425,12 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           <Pressable onPress={onBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={palette.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Profile</Text>
+          <Text style={styles.headerTitle}>{t('navProfile')}</Text>
         </View>
         <EmptyState 
-          title="Profile Not Found" 
-          subtitle={error || 'Unable to load profile'}
-          actionLabel="Go Back"
+          title={t('profileNotFound')} 
+          subtitle={error || t('mpUnableLoad')}
+          actionLabel={t('actGoBack')}
           onAction={onBack}
         />
       </View>
@@ -470,7 +473,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         {/* Photo Gallery - Swipeable Carousel */}
         {profile.photos && profile.photos.filter((p) => p.status === 'done' && p.uri).length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Photos</Text>
+            <Text style={styles.sectionTitle}>{t('secPhotos')}</Text>
             <FlatList
               data={profile.photos.filter((p) => p.status === 'done' && p.uri)}
               horizontal
@@ -497,103 +500,103 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           style={styles.reportButton}
           onPress={() => setReportOpen(true)}
           accessibilityRole="button"
-          accessibilityLabel="Report this profile"
+          accessibilityLabel={t('actReportProfile')}
         >
           <Ionicons name="flag-outline" size={16} color={palette.danger} />
-          <Text style={styles.reportButtonText}>Report this profile</Text>
+          <Text style={styles.reportButtonText}>{t('actReportProfile')}</Text>
         </Pressable>
 
         {/* Basic Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Basic Information</Text>
-          <InfoRow label="Age" value={profile.age ? `${profile.age} Years` : null} />
-          <InfoRow label="Gender" value={profile.gender} />
-          <InfoRow label="Date of Birth" value={profile.dateOfBirth} />
-          <InfoRow label="Height" value={profile.height} />
-          <InfoRow label="Marital Status" value={profile.maritalStatus} />
-          <InfoRow label="Physical Status" value={profile.physicalStatus} />
-          <InfoRow label="Location" value={profile.location} />
-          <InfoRow label="Community" value={profile.community} />
-          <InfoRow label="Sub Community" value={profile.subCommunity} />
-          <InfoRow label="Language" value={profile.language} />
-          <InfoRow label="Education" value={profile.education} />
-          <InfoRow label="Occupation" value={profile.occupation} />
-          <InfoRow label="Income" value={profile.income} />
+          <Text style={styles.sectionTitle}>{t('secBasicInfo')}</Text>
+          <InfoRow label={t('fldAge')} value={profile.age ? `${profile.age} Years` : null} />
+          <InfoRow label={t('fldGender')} value={profile.gender} />
+          <InfoRow label={t('fldDob')} value={profile.dateOfBirth} />
+          <InfoRow label={t('fldHeight')} value={profile.height} />
+          <InfoRow label={t('fldMaritalStatus')} value={profile.maritalStatus} />
+          <InfoRow label={t('fldPhysicalStatus')} value={profile.physicalStatus} />
+          <InfoRow label={t('fldLocation')} value={profile.location} />
+          <InfoRow label={t('fldCommunity')} value={profile.community} />
+          <InfoRow label={t('fldSubCommunity')} value={profile.subCommunity} />
+          <InfoRow label={t('fldLanguage')} value={profile.language} />
+          <InfoRow label={t('fldEducation')} value={profile.education} />
+          <InfoRow label={t('fldOccupation')} value={profile.occupation} />
+          <InfoRow label={t('fldIncome')} value={profile.income} />
         </View>
 
         {/* About */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>About</Text>
-          <Text style={styles.bio}>{profile.bio || 'Not specified'}</Text>
+          <Text style={styles.sectionTitle}>{t('fldAbout')}</Text>
+          <Text style={styles.bio}>{profile.bio || t('lblNotSet')}</Text>
         </View>
 
         {/* Religious Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Religious Details</Text>
-          <InfoRow label="Religion" value={profile.religion} />
-          <InfoRow label="Caste" value={profile.caste} />
-          <InfoRow label="Gol (Subcaste)" value={profile.subCaste} />
-          <InfoRow label="Dosh" value={profile.dosh} />
+          <Text style={styles.sectionTitle}>{t('secReligiousDetails')}</Text>
+          <InfoRow label={t('fldReligion')} value={profile.religion} />
+          <InfoRow label={t('fldCaste')} value={profile.caste} />
+          <InfoRow label={t('fldGol')} value={profile.subCaste} />
+          <InfoRow label={t('fldDosh')} value={profile.dosh} />
         </View>
 
         {/* Location Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Location Details</Text>
-          <InfoRow label="Country" value={profile.country} />
-          <InfoRow label="State" value={profile.state} />
-          <InfoRow label="City" value={profile.city} />
-          <InfoRow label="Village" value={profile.village} />
-          <InfoRow label="Native City" value={profile.nativeCity} />
-          <InfoRow label="Native Village" value={profile.nativeVillage} />
+          <Text style={styles.sectionTitle}>{t('secLocationDetails')}</Text>
+          <InfoRow label={t('fldCountry')} value={profile.country} />
+          <InfoRow label={t('fldState')} value={profile.state} />
+          <InfoRow label={t('fldCity')} value={profile.city} />
+          <InfoRow label={t('fldVillage')} value={profile.village} />
+          <InfoRow label={t('fldNativeCity')} value={profile.nativeCity} />
+          <InfoRow label={t('fldNativeVillage')} value={profile.nativeVillage} />
         </View>
 
         {/* Family Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Family Details</Text>
-          <InfoRow label="Family Status" value={profile.familyStatus} />
-          <InfoRow label="Family Type" value={profile.familyType} />
-          <InfoRow label="Family Wealth" value={profile.familyWealth} />
-          <InfoRow label="Father's Name" value={profile.fatherName} />
-          <InfoRow label="Father's Occupation" value={profile.fatherOccupation} />
-          <InfoRow label="Mother's Name" value={profile.motherName} />
-          <InfoRow label="Mother's Occupation" value={profile.motherOccupation} />
-          <InfoRow label="Siblings" value={profile.siblings} />
+          <Text style={styles.sectionTitle}>{t('secFamilyDetails')}</Text>
+          <InfoRow label={t('fldFamilyStatus')} value={profile.familyStatus} />
+          <InfoRow label={t('fldFamilyType')} value={profile.familyType} />
+          <InfoRow label={t('fldFamilyWealth')} value={profile.familyWealth} />
+          <InfoRow label={t('fldFatherName')} value={profile.fatherName} />
+          <InfoRow label={t('fldFatherOccupation')} value={profile.fatherOccupation} />
+          <InfoRow label={t('fldMotherName')} value={profile.motherName} />
+          <InfoRow label={t('fldMotherOccupation')} value={profile.motherOccupation} />
+          <InfoRow label={t('fldSiblings')} value={profile.siblings} />
         </View>
 
         {/* Lifestyle */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lifestyle</Text>
-          <InfoRow label="Eating Habit" value={profile.eatingHabit} />
-          <InfoRow label="Hobbies" value={profile.hobbies?.join(', ')} />
-          <InfoRow label="Music" value={profile.music?.join(', ')} />
-          <InfoRow label="Sports" value={profile.sports?.join(', ')} />
+          <Text style={styles.sectionTitle}>{t('secLifestyle')}</Text>
+          <InfoRow label={t('fldEatingHabit')} value={profile.eatingHabit} />
+          <InfoRow label={t('fldHobbies')} value={profile.hobbies?.join(', ')} />
+          <InfoRow label={t('fldMusic')} value={profile.music?.join(', ')} />
+          <InfoRow label={t('fldSports')} value={profile.sports?.join(', ')} />
         </View>
 
         {/* Horoscope Details */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Horoscope Details</Text>
-          <InfoRow label="Time of Birth" value={profile.horoscopeTime} />
-          <InfoRow label="Place of Birth" value={profile.horoscopePlace} />
+          <Text style={styles.sectionTitle}>{t('secHoroscope')}</Text>
+          <InfoRow label={t('fldBirthTime')} value={profile.horoscopeTime} />
+          <InfoRow label={t('fldBirthPlace')} value={profile.horoscopePlace} />
         </View>
 
         {/* Partner Preferences */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Partner Preferences</Text>
-          <InfoRow label="Preferred Location" value={profile.preferredLocation} />
-          <InfoRow label="Preferred Education" value={profile.preferredEducation} />
-          <InfoRow label="Preferred Occupation" value={profile.preferredOccupation} />
+          <Text style={styles.sectionTitle}>{t('secPartnerPrefs')}</Text>
+          <InfoRow label={t('fldPrefLocation')} value={profile.preferredLocation} />
+          <InfoRow label={t('fldPrefEducation')} value={profile.preferredEducation} />
+          <InfoRow label={t('fldPrefOccupation')} value={profile.preferredOccupation} />
         </View>
 
         {/* Interest Status */}
         {profile.interestStatus !== 'none' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Interest Status</Text>
+            <Text style={styles.sectionTitle}>{t('secInterestStatus')}</Text>
             <View style={[styles.statusPill, profile.interestStatus && styles[`status${profile.interestStatus}`]]}>
               <Text style={styles.statusText}>
-                {profile.interestStatus === 'sent' && 'Interest Sent'}
-                {profile.interestStatus === 'pending' && 'Interest Received'}
-                {profile.interestStatus === 'accepted' && 'Mutual Interest ✓'}
-                {profile.interestStatus === 'declined' && 'Interest Declined'}
+                {profile.interestStatus === 'sent' && t('stInterestSent')}
+                {profile.interestStatus === 'pending' && t('stInterestReceived')}
+                {profile.interestStatus === 'accepted' && t('stMutualInterest')}
+                {profile.interestStatus === 'declined' && t('stInterestDeclined')}
               </Text>
             </View>
             {profile.interestStatus === 'accepted' && (
@@ -608,10 +611,8 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
       <Modal visible={reportOpen} transparent animationType="slide" onRequestClose={() => setReportOpen(false)}>
         <Pressable style={styles.reportOverlay} onPress={() => setReportOpen(false)}>
           <Pressable style={styles.reportSheet} onPress={(event) => event.stopPropagation()}>
-            <Text style={styles.reportTitle}>Report this profile</Text>
-            <Text style={styles.reportSubtitle}>
-              Tell us what is wrong. Our team reviews every report, and this member is hidden from you straight away.
-            </Text>
+            <Text style={styles.reportTitle}>{t('actReportProfile')}</Text>
+            <Text style={styles.reportSubtitle}>{t('rptIntro')}</Text>
 
             {REPORT_REASONS.map((item) => (
               <Pressable
@@ -632,7 +633,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
               style={styles.reportInput}
               value={reportDetails}
               onChangeText={(text) => setReportDetails(text.slice(0, 2000))}
-              placeholder="Anything else we should know? (optional)"
+              placeholder={t('rptDetailsPlaceholder')}
               placeholderTextColor={palette.muted}
               multiline
               textAlignVertical="top"
@@ -640,14 +641,14 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
 
             <View style={styles.reportActions}>
               <Pressable style={styles.reportCancel} onPress={() => setReportOpen(false)}>
-                <Text style={styles.reportCancelText}>Cancel</Text>
+                <Text style={styles.reportCancelText}>{t('actCancel')}</Text>
               </Pressable>
               <Pressable
                 style={[styles.reportSubmit, (!reportReason || reporting) && styles.reportSubmitDisabled]}
                 disabled={!reportReason || reporting}
                 onPress={submitReport}
               >
-                <Text style={styles.reportSubmitText}>{reporting ? 'Sending…' : 'Send report'}</Text>
+                <Text style={styles.reportSubmitText}>{reporting ? t('suSendingCode') : t('actSendReport')}</Text>
               </Pressable>
             </View>
           </Pressable>

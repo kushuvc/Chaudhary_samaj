@@ -112,7 +112,7 @@ export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfes
 
       {!notWorking ? (
         <>
-          <SectionHeading title={t('suAnnualIncome')} caption="Shown as a range — never an exact figure." />
+          <SectionHeading title={t('suAnnualIncome')} caption={t('hintIncomeRange')} />
 
           <Field label={t('suCurrency')}>
             <Select

@@ -21,13 +21,13 @@ import type { CommunityFeedStats, CommunityMeeting, CommunityPost } from '../typ
 const feedTabs = ['all', 'meeting', 'news', 'celebration', 'update', 'achievement', 'lost_found', 'pinned'] as const;
 
 const postCategories = [
-  { key: 'meeting', label: 'Meeting Announcement' },
-  { key: 'news', label: 'Community News' },
-  { key: 'celebration', label: 'Celebration' },
-  { key: 'update', label: 'General Update' },
-  { key: 'achievement', label: 'Achievement' },
-  { key: 'lost_found', label: 'Lost or Found' },
-  { key: 'announcement', label: 'Announcement' },
+  { key: 'meeting', labelKey: 'cmMeetingAnnouncement' },
+  { key: 'news', labelKey: 'cmCommunityNews' },
+  { key: 'celebration', labelKey: 'cmCelebration' },
+  { key: 'update', labelKey: 'cmGeneralUpdate' },
+  { key: 'achievement', labelKey: 'cmAchievement' },
+  { key: 'lost_found', labelKey: 'cmLostFound' },
+  { key: 'announcement', labelKey: 'cmAnnouncement' },
 ] as const;
 
 function formatDateLabel(value: string) {
@@ -53,7 +53,7 @@ function categoryLabel(value: string, t: (key: string) => string) {
     if (value === 'achievement') return t('communityCategoryAchievement');
     if (value === 'lost_found') return t('communityCategoryLostFound');
     if (value === 'announcement') return t('communityCategoryAnnouncement');
-    return found.label;
+    return t(found.labelKey);
   }
   return value.replace(/_/g, ' ');
 }

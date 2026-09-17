@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 're
 import { radius, spacing, type } from '../theme';
 import type { ThemePalette } from '../context/ThemeContext';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
+import { optionLabel } from '../constants/optionTranslations';
 
 export function SectionCard({ children }: { children: React.ReactNode }) {
   const { palette } = useAppTheme();
@@ -94,6 +96,7 @@ export function OptionSelector({
   onChange: (next: string) => void;
 }) {
   const { palette } = useAppTheme();
+  const { language } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.fieldGroup}>
@@ -108,7 +111,7 @@ export function OptionSelector({
               style={[styles.optionChip, isSelected ? styles.optionChipActive : null]}
             >
               <Text style={[styles.optionChipText, isSelected ? styles.optionChipTextActive : null]}>
-                {option}
+                {optionLabel(option, language)}
               </Text>
             </Pressable>
           );

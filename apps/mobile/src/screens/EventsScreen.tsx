@@ -171,7 +171,7 @@ export function EventsScreen() {
           <View>
             <View style={styles.headerRow}>
               <View>
-                <Text style={styles.title}>Events</Text>
+                <Text style={styles.title}>{t('navEvents')}</Text>
                 <Text style={styles.title}>{t('eventsTitle')}</Text>
                 <Text style={styles.subtitle}>{t('eventsSubtitle')}</Text>
               </View>

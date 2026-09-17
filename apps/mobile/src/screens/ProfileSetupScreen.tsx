@@ -151,7 +151,7 @@ export function ProfileSetupScreen() {
                 <Text style={styles.label}>{t('ageLabel')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Age"
+                  placeholder={t('fldAge')}
                   placeholderTextColor={palette.muted}
                   keyboardType="number-pad"
                   value={age}
@@ -162,7 +162,7 @@ export function ProfileSetupScreen() {
                 <Text style={styles.label}>{t('genderLabel')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Gender"
+                  placeholder={t('fldGender')}
                   placeholderTextColor={palette.muted}
                   value={gender}
                   onChangeText={setGender}
@@ -171,7 +171,7 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Date of Birth</Text>
+              <Text style={styles.label}>{t('fldDob')}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="DD/MM/YYYY"
@@ -193,10 +193,10 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Designation in Company</Text>
+              <Text style={styles.label}>{t('fldDesignationCompany')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Designation"
+                placeholder={t('fldDesignation')}
                 placeholderTextColor={palette.muted}
                 value={designation}
                 onChangeText={setDesignation}
@@ -208,17 +208,17 @@ export function ProfileSetupScreen() {
                 <Text style={styles.label}>{t('locationLabel')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Current Location"
+                  placeholder={t('fldCurrentLocation')}
                   placeholderTextColor={palette.muted}
                   value={currentLocation}
                   onChangeText={setCurrentLocation}
                 />
               </View>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>Native Location</Text>
+                <Text style={styles.label}>{t('fldNativeLocation')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Native Location"
+                  placeholder={t('fldNativeLocation')}
                   placeholderTextColor={palette.muted}
                   value={nativeLocation}
                   onChangeText={setNativeLocation}
@@ -227,10 +227,10 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Salary (Optional)</Text>
+              <Text style={styles.label}>{t('fldSalaryOptional')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Annual Salary"
+                placeholder={t('fldAnnualSalary')}
                 placeholderTextColor={palette.muted}
                 keyboardType="number-pad"
                 value={salary}
@@ -239,10 +239,10 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Bio</Text>
+              <Text style={styles.label}>{t('fldBio')}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="Tell about yourself"
+                placeholder={t('hintTellAbout')}
                 placeholderTextColor={palette.muted}
                 multiline
                 numberOfLines={4}
@@ -252,10 +252,10 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Hobbies</Text>
+              <Text style={styles.label}>{t('fldHobbies')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Your hobbies"
+                placeholder={t('hintYourHobbies')}
                 placeholderTextColor={palette.muted}
                 value={hobbies}
                 onChangeText={setHobbies}
@@ -263,10 +263,10 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Goal</Text>
+              <Text style={styles.label}>{t('fldGoal')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Your life goal"
+                placeholder={t('hintYourGoal')}
                 placeholderTextColor={palette.muted}
                 value={gol}
                 onChangeText={setGol}
@@ -276,13 +276,13 @@ export function ProfileSetupScreen() {
 
           {/* Family Information Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Family Information</Text>
+            <Text style={styles.sectionTitle}>{t('secFamilyInfo')}</Text>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Father Name</Text>
+              <Text style={styles.label}>{t('fldFatherName')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Father's name"
+                placeholder={t('fldFatherName')}
                 placeholderTextColor={palette.muted}
                 value={fatherName}
                 onChangeText={setFatherName}
@@ -291,20 +291,20 @@ export function ProfileSetupScreen() {
 
             <View style={[styles.row, styles.formGroup]}>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>Father Location</Text>
+                <Text style={styles.label}>{t('fldFatherLocation')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Location"
+                  placeholder={t('fldLocation')}
                   placeholderTextColor={palette.muted}
                   value={fatherLocation}
                   onChangeText={setFatherLocation}
                 />
               </View>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>Father Occupation</Text>
+                <Text style={styles.label}>{t('fldFatherOccupation')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Occupation"
+                  placeholder={t('fldOccupation')}
                   placeholderTextColor={palette.muted}
                   value={fatherOccupation}
                   onChangeText={setFatherOccupation}
@@ -313,10 +313,10 @@ export function ProfileSetupScreen() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Mother Name</Text>
+              <Text style={styles.label}>{t('fldMotherName')}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Mother's name"
+                placeholder={t('fldMotherName')}
                 placeholderTextColor={palette.muted}
                 value={motherName}
                 onChangeText={setMotherName}
@@ -325,20 +325,20 @@ export function ProfileSetupScreen() {
 
             <View style={[styles.row, styles.formGroup]}>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>Mother Location</Text>
+                <Text style={styles.label}>{t('fldMotherLocation')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Location"
+                  placeholder={t('fldLocation')}
                   placeholderTextColor={palette.muted}
                   value={motherLocation}
                   onChangeText={setMotherLocation}
                 />
               </View>
               <View style={styles.halfInput}>
-                <Text style={styles.label}>Mother Occupation</Text>
+                <Text style={styles.label}>{t('fldMotherOccupation')}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Occupation"
+                  placeholder={t('fldOccupation')}
                   placeholderTextColor={palette.muted}
                   value={motherOccupation}
                   onChangeText={setMotherOccupation}

@@ -71,8 +71,8 @@ function calculateAge(day: string | null, month: string | null, year: string | n
 }
 
 export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupPersonalDetailsScreenProps) {
-  const { t } = useAppLanguage();
-  const subject = subjectProp ?? subjectFor(null);
+  const { t, language } = useAppLanguage();
+  const subject = subjectProp ?? subjectFor(null, language);
   const [gender, setGender] = useState<string | null>(null);
   const [day, setDay] = useState<string | null>(null);
   const [month, setMonth] = useState<string | null>(null);
@@ -130,7 +130,7 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
       </View>
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title={t('suDateOfBirth')} caption="You must be at least 18." />
+        <SectionHeading title={t('suDateOfBirth')} caption={t('errMinAge')} />
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <View style={{ flex: 1 }}>
             <Select value={day} placeholder={t('suDay')} title={t('suDay')} options={DAY_OPTIONS} onChange={setDay} />

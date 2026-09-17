@@ -39,8 +39,8 @@ const MIN_BIO = 50;
 const SIBLING_OPTIONS = ['None', '1', '2', '3', '4', '5 or more'].map((item) => ({ id: item, label: item }));
 
 export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, onSubmit }: SignupAdditionalDetailsScreenProps) {
-  const { t } = useAppLanguage();
-  const subject = subjectProp ?? subjectFor(null);
+  const { t, language } = useAppLanguage();
+  const subject = subjectProp ?? subjectFor(null, language);
   const { palette } = useAppTheme();
   const [familyStatus, setFamilyStatus] = useState<string | null>(null);
   const [familyType, setFamilyType] = useState<string | null>(null);
@@ -128,7 +128,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
         </ChipGroup>
       </View>
 
-      <SectionHeading title={t('suParents')} caption="Optional." />
+      <SectionHeading title={t('suParents')} caption={t('hintOptional')} />
 
       <Field label={t('suFatherSName')}>
         <Input value={fatherName} onChangeText={setFatherName} placeholder={t('suFullName')} autoCapitalize="words" />

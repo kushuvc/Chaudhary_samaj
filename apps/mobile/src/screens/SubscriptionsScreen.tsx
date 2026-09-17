@@ -20,18 +20,19 @@ import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
 
 import type { SubscriptionStatus } from '../services/api';
+import { useAppLanguage } from '../context/LanguageContext';
 
 type SubscriptionData = SubscriptionStatus;
 
 const PLAN = {
-  name: 'Monthly',
+  nameKey: 'planMonthly',
   amount: 200,
   days: 30,
-  perks: [
-    'Unlimited profile views',
-    'See phone numbers on every profile',
-    'Send unlimited interests',
-    'Priority placement in search',
+  perkKeys: [
+    'subUnlimitedViews',
+    'subSeePhones',
+    'subUnlimitedInterests',
+    'subPriorityPlacement',
   ],
 };
 
@@ -47,6 +48,7 @@ function formatDate(value?: string) {
 
 export function SubscriptionsScreen() {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -108,7 +110,7 @@ export function SubscriptionsScreen() {
     pendingLinkIdRef.current = null;
     setAwaitingPayment(false);
     await loadSubscription();
-    Alert.alert('Subscription active', 'Your monthly plan is now active. Enjoy unlimited access.');
+    Alert.alert(t('paySubActive'), t('paySubActiveBody'));
     return true;
   }, [loadSubscription, stopPolling]);
 
@@ -156,7 +158,7 @@ export function SubscriptionsScreen() {
 
       const opened = await Linking.canOpenURL(link.short_url);
       if (!opened) {
-        Alert.alert('Cannot open checkout', 'No browser is available to open the payment page.');
+        Alert.alert(t('payCannotOpen'), t('payNoBrowser'));
         pendingLinkIdRef.current = null;
         return;
       }
@@ -165,7 +167,7 @@ export function SubscriptionsScreen() {
       setAwaitingPayment(true);
       startPolling();
     } catch (err) {
-      Alert.alert('Payment failed to start', (err as Error).message);
+      Alert.alert(t('payStartFailed'), (err as Error).message);
       pendingLinkIdRef.current = null;
     } finally {
       setProcessing(false);
@@ -176,10 +178,10 @@ export function SubscriptionsScreen() {
     try {
       const activated = await checkPaymentLink();
       if (!activated) {
-        Alert.alert('Not confirmed yet', 'Razorpay has not reported this payment as complete. Try again in a moment.');
+        Alert.alert(t('payNotConfirmed'), t('payRazorpayPending'));
       }
     } catch (err) {
-      Alert.alert('Could not check payment', (err as Error).message);
+      Alert.alert(t('payCheckFailed'), (err as Error).message);
     }
   };
 
@@ -215,16 +217,16 @@ export function SubscriptionsScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
       >
-        <Text style={styles.screenTitle}>Membership</Text>
+        <Text style={styles.screenTitle}>{t('secMembership')}</Text>
 
         {freeForMember ? (
           <View style={styles.activeCard}>
             <GradientFill colors={palette.gradient} borderRadius={radius.lg} />
             <View style={styles.activeBadge}>
               <Ionicons name="gift" size={16} color="#FFFFFF" />
-              <Text style={styles.activeBadgeText}>Included</Text>
+              <Text style={styles.activeBadgeText}>{t('lblIncluded')}</Text>
             </View>
-            <Text style={styles.activeTitle}>Full access, free</Text>
+            <Text style={styles.activeTitle}>{t('payFullAccessFree')}</Text>
             <Text style={styles.activeSubtitle}>
               Every profile is unlocked for you — nothing to pay, nothing to cancel.
             </Text>
@@ -234,22 +236,22 @@ export function SubscriptionsScreen() {
             <GradientFill colors={palette.gradient} borderRadius={radius.lg} />
             <View style={styles.activeBadge}>
               <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
-              <Text style={styles.activeBadgeText}>Active</Text>
+              <Text style={styles.activeBadgeText}>{t('lblActive')}</Text>
             </View>
-            <Text style={styles.activeTitle}>{PLAN.name} plan</Text>
+            <Text style={styles.activeTitle}>{t('planNamePlan', { name: t(PLAN.nameKey) })}</Text>
             <Text style={styles.activeSubtitle}>
-              {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining` : 'Expires today'}
+              {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining` : t('subExpiresToday')}
             </Text>
             <View style={styles.activeMetaRow}>
               {formatDate(subscription?.startedAt) ? (
                 <View style={styles.activeMeta}>
-                  <Text style={styles.activeMetaLabel}>Started</Text>
+                  <Text style={styles.activeMetaLabel}>{t('lblStarted')}</Text>
                   <Text style={styles.activeMetaValue}>{formatDate(subscription?.startedAt)}</Text>
                 </View>
               ) : null}
               {formatDate(subscription?.expiresAt) ? (
                 <View style={styles.activeMeta}>
-                  <Text style={styles.activeMetaLabel}>Valid till</Text>
+                  <Text style={styles.activeMetaLabel}>{t('lblValidTill')}</Text>
                   <Text style={styles.activeMetaValue}>{formatDate(subscription?.expiresAt)}</Text>
                 </View>
               ) : null}
@@ -257,21 +259,17 @@ export function SubscriptionsScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.lede}>
-              Free members can view two profiles. Go premium for unlimited access to the whole community.
-            </Text>
+            <Text style={styles.lede}>{t('payFreeLimit')}</Text>
 
             {awaitingPayment ? (
               <View style={styles.awaitingCard}>
                 <ActivityIndicator size="small" color={palette.primary} />
                 <View style={styles.awaitingTextGroup}>
-                  <Text style={styles.awaitingTitle}>Waiting for confirmation</Text>
-                  <Text style={styles.awaitingBody}>
-                    Finish the payment in your browser. We check automatically every few seconds.
-                  </Text>
+                  <Text style={styles.awaitingTitle}>{t('payWaitingConfirm')}</Text>
+                  <Text style={styles.awaitingBody}>{t('payFinishInBrowser')}</Text>
                 </View>
                 <Pressable style={styles.awaitingAction} onPress={handleManualCheck}>
-                  <Text style={styles.awaitingActionText}>Check now</Text>
+                  <Text style={styles.awaitingActionText}>{t('actCheckNow')}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -279,27 +277,27 @@ export function SubscriptionsScreen() {
             <View style={styles.planCard}>
               <View style={styles.planHeader}>
                 <View>
-                  <Text style={styles.planName}>{PLAN.name}</Text>
-                  <Text style={styles.planCadence}>Billed every {PLAN.days} days</Text>
+                  <Text style={styles.planName}>{t(PLAN.nameKey)}</Text>
+                  <Text style={styles.planCadence}>{t('planBilledEvery', { days: PLAN.days })}</Text>
                 </View>
                 <View style={styles.popularPill}>
-                  <Text style={styles.popularText}>Most popular</Text>
+                  <Text style={styles.popularText}>{t('lblMostPopular')}</Text>
                 </View>
               </View>
 
               <View style={styles.priceRow}>
                 <Text style={styles.priceCurrency}>₹</Text>
                 <Text style={styles.priceAmount}>{priceRupees}</Text>
-                <Text style={styles.pricePeriod}>/ month</Text>
+                <Text style={styles.pricePeriod}>{t('planPerMonth')}</Text>
               </View>
 
               <View style={styles.perks}>
-                {PLAN.perks.map((perk) => (
+                {PLAN.perkKeys.map((perk) => (
                   <View key={perk} style={styles.perkRow}>
                     <View style={styles.perkIcon}>
                       <Ionicons name="checkmark" size={13} color={palette.primary} />
                     </View>
-                    <Text style={styles.perkText}>{perk}</Text>
+                    <Text style={styles.perkText}>{t(perk)}</Text>
                   </View>
                 ))}
               </View>
@@ -309,8 +307,8 @@ export function SubscriptionsScreen() {
                   <PrimaryButton
                     label={
                       play.purchasing
-                        ? 'Opening Google Play…'
-                        : `Subscribe — ${play.product?.displayPrice || `₹${priceRupees}`}`
+                        ? t('subOpeningPlay')
+                        : t('planSubscribeFor', { price: play.product?.displayPrice || `₹${priceRupees}` })
                     }
                     onPress={play.buy}
                     disabled={play.purchasing || play.loading}
@@ -328,14 +326,14 @@ export function SubscriptionsScreen() {
                     onPress={() => void play.restore()}
                   >
                     <Text style={styles.restoreButtonText}>
-                      {play.restoring ? 'Checking…' : 'Already paid? Restore purchase'}
+                      {play.restoring ? t('subChecking') : t('subRestorePurchase')}
                     </Text>
                   </Pressable>
                 </>
               ) : (
                 <>
                   <PrimaryButton
-                    label={processing ? 'Opening checkout…' : `Subscribe — ₹${priceRupees}`}
+                    label={processing ? t('subOpeningCheckout') : t('planSubscribeFor', { price: `₹${priceRupees}` })}
                     onPress={handlePurchase}
                     disabled={processing}
                   />
@@ -353,8 +351,8 @@ export function SubscriptionsScreen() {
               through Google Play. */}
           <Text style={styles.footnoteText}>
             {play.available
-              ? 'Billed through Google Play. Cancel anytime in Play Store subscriptions.'
-              : 'Secured by Razorpay. Cancel anytime.'}
+              ? t('subBilledPlay')
+              : t('subSecuredRazorpayCancel')}
           </Text>
         </View>
       </ScrollView>

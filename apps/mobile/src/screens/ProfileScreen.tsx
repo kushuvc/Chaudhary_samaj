@@ -15,6 +15,7 @@ import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimit
 import { KeyboardScrollContext, useKeyboardAwareScroll } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useAppLanguage } from '../context/LanguageContext';
+import { optionLabel } from '../constants/optionTranslations';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
@@ -107,12 +108,13 @@ type OptionSelectProps = {
 };
 
 function OptionSelect({ label, value, options, editable, onSelect, styles }: OptionSelectProps) {
+  const { language } = useAppLanguage();
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {!editable ? (
         <View style={styles.readOnlyValueWrap}>
-          <Text style={styles.readOnlyValueText}>{value || '-'}</Text>
+          <Text style={styles.readOnlyValueText}>{value ? optionLabel(value, language) : '-'}</Text>
         </View>
       ) : (
         <FlatList
@@ -128,7 +130,9 @@ function OptionSelect({ label, value, options, editable, onSelect, styles }: Opt
                 onPress={() => onSelect(item)}
                 style={[styles.chip, isSelected ? styles.chipSelected : null]}
               >
-                <Text style={[styles.chipText, isSelected ? styles.chipTextSelected : null]}>{item}</Text>
+                <Text style={[styles.chipText, isSelected ? styles.chipTextSelected : null]}>
+                  {optionLabel(item, language)}
+                </Text>
               </Pressable>
             );
           }}
@@ -167,6 +171,7 @@ function LabeledInput({
   // keyboard, the same way the shared Input does on the signup steps.
   const shellRef = useRef<View>(null);
   const keyboardScroll = useContext(KeyboardScrollContext);
+  const { language } = useAppLanguage();
 
   /*
    * While viewing, show only what is filled in.
@@ -185,7 +190,7 @@ function LabeledInput({
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
         onFocus={() => keyboardScroll?.onInputFocus(shellRef.current)}
-        value={value}
+        value={editable ? value : optionLabel(value ?? '', language)}
         onChangeText={onChangeText}
         editable={editable}
         style={[styles.input, multiline ? styles.textArea : null]}
@@ -484,7 +489,7 @@ export function ProfileScreen() {
 
       {/* Personal Details from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Personal Details</Text>
+        <Text style={styles.sectionTitle}>{t('secPersonalDetails')}</Text>
         {/*
           * Gender is fixed at signup. The directory shows only the opposite
           * gender, so changing it would swap everything a member can see, and
@@ -492,126 +497,126 @@ export function ProfileScreen() {
           * editable would just lose the edit silently.
           */}
         <LabeledInput
-          label="Gender"
+          label={t('fldGender')}
           value={profile.gender || ''}
           onChangeText={() => {}}
           editable={false}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Physical Status"
+          label={t('fldPhysicalStatus')}
           value={profile.physicalStatus || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, physicalStatus: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Religious Details from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Religious Details</Text>
+        <Text style={styles.sectionTitle}>{t('secReligiousDetails')}</Text>
         <LabeledInput
-          label="Religion"
+          label={t('fldReligion')}
           value={profile.religion || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, religion: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Caste"
+          label={t('fldCaste')}
           value={profile.caste || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, caste: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Gol (Subcaste)"
+          label={t('fldGol')}
           value={profile.subCaste || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, subCaste: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Dosh"
+          label={t('fldDosh')}
           value={profile.dosh || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, dosh: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Location Details from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Location Details</Text>
+        <Text style={styles.sectionTitle}>{t('secLocationDetails')}</Text>
         <LabeledInput
-          label="Country"
+          label={t('fldCountry')}
           value={profile.country || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, country: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="State"
+          label={t('fldState')}
           value={profile.state || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, state: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="City"
+          label={t('fldCity')}
           value={profile.city || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, city: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Village"
+          label={t('fldVillage')}
           value={profile.village || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, village: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Native City"
+          label={t('fldNativeCity')}
           value={profile.nativeCity || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, nativeCity: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Native Village"
+          label={t('fldNativeVillage')}
           value={profile.nativeVillage || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, nativeVillage: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Matrimony Details from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Matrimony Details</Text>
+        <Text style={styles.sectionTitle}>{t('secMatrimonyDetails')}</Text>
         <LabeledInput
-          label="Age"
+          label={t('fldAge')}
           value={matrimony.age || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, age: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <OptionSelect
-          label="Marital Status"
+          label={t('fldMaritalStatus')}
           value={matrimony.maritalStatus || ''}
           options={MARITAL_STATUS_OPTIONS}
           editable={isEditing}
@@ -619,23 +624,23 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Height"
+          label={t('fldHeight')}
           value={matrimony.height || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, height: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Income"
+          label={t('fldIncome')}
           value={matrimony.income || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, income: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <OptionSelect
-          label="Community"
+          label={t('fldCommunity')}
           value={matrimony.community || ''}
           options={COMMUNITY_OPTIONS}
           editable={isEditing}
@@ -643,7 +648,7 @@ export function ProfileScreen() {
           styles={styles}
         />
         <OptionSelect
-          label="Language"
+          label={t('fldLanguage')}
           value={matrimony.language || ''}
           options={LANGUAGE_OPTIONS}
           editable={isEditing}
@@ -651,11 +656,11 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Profile Bio"
+          label={t('fldProfileBio')}
           value={matrimony.profileBio || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, profileBio: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           multiline
           numberOfLines={3}
           styles={styles}
@@ -664,38 +669,38 @@ export function ProfileScreen() {
 
       {/* Interests from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Interests</Text>
+        <Text style={styles.sectionTitle}>{t('interests')}</Text>
         <LabeledInput
-          label="Hobbies"
+          label={t('fldHobbies')}
           value={matrimony.hobbies?.join(', ') || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, hobbies: value.split(', ').filter(Boolean) }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Music"
+          label={t('fldMusic')}
           value={matrimony.music?.join(', ') || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, music: value.split(', ').filter(Boolean) }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Sports"
+          label={t('fldSports')}
           value={matrimony.sports?.join(', ') || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, sports: value.split(', ').filter(Boolean) }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Family Details */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Family Details</Text>
+        <Text style={styles.sectionTitle}>{t('secFamilyDetails')}</Text>
         <OptionSelect
-          label="Family Status"
+          label={t('fldFamilyStatus')}
           value={matrimony.familyStatus || ''}
           options={['Middle Class', 'Upper Middle Class', 'Rich', 'Affluent']}
           editable={isEditing}
@@ -703,7 +708,7 @@ export function ProfileScreen() {
           styles={styles}
         />
         <OptionSelect
-          label="Family Type"
+          label={t('fldFamilyType')}
           value={matrimony.familyType || ''}
           options={['Joint Family', 'Nuclear Family', 'Extended Family']}
           editable={isEditing}
@@ -711,7 +716,7 @@ export function ProfileScreen() {
           styles={styles}
         />
         <OptionSelect
-          label="Family Wealth"
+          label={t('fldFamilyWealth')}
           value={matrimony.familyWealth || ''}
           options={['Below Average', 'Average', 'Above Average', 'High']}
           editable={isEditing}
@@ -719,84 +724,84 @@ export function ProfileScreen() {
           styles={styles}
         />
         <LabeledInput
-          label="Father's Name"
+          label={t('fldFatherName')}
           value={matrimony.fatherName || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, fatherName: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Father's Occupation"
+          label={t('fldFatherOccupation')}
           value={matrimony.fatherOccupation || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, fatherOccupation: value }))}
           editable={isEditing}
-          placeholder="e.g. Farmer, Business"
+          placeholder={t('hintEgFatherOccupation')}
           styles={styles}
         />
         <LabeledInput
-          label="Mother's Name"
+          label={t('fldMotherName')}
           value={matrimony.motherName || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, motherName: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Mother's Occupation"
+          label={t('fldMotherOccupation')}
           value={matrimony.motherOccupation || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, motherOccupation: value }))}
           editable={isEditing}
-          placeholder="e.g. Homemaker, Teacher"
+          placeholder={t('hintEgMotherOccupation')}
           styles={styles}
         />
         <LabeledInput
-          label="Siblings"
+          label={t('fldSiblings')}
           value={matrimony.siblings || ''}
           onChangeText={(value) => setMatrimony((prev) => ({ ...prev, siblings: value }))}
           editable={isEditing}
-          placeholder="e.g. 1 Brother, 2 Sisters"
+          placeholder={t('hintEgSiblings')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Eating Habits from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Eating Habits</Text>
+        <Text style={styles.sectionTitle}>{t('secEatingHabits')}</Text>
         <LabeledInput
-          label="Eating Habit"
+          label={t('fldEatingHabit')}
           value={profile.eatingHabit || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, eatingHabit: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Horoscope Details from Signup */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Horoscope Details</Text>
+        <Text style={styles.sectionTitle}>{t('secHoroscope')}</Text>
         <LabeledInput
-          label="Time of Birth"
+          label={t('fldBirthTime')}
           value={profile.horoscopeTime || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, horoscopeTime: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
-          label="Place of Birth"
+          label={t('fldBirthPlace')}
           value={profile.horoscopePlace || ''}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, horoscopePlace: value }))}
           editable={isEditing}
-          placeholder="Not set"
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
       </SectionCard>
 
       {/* Photos */}
       <SectionCard>
-        <Text style={styles.sectionTitle}>Photos</Text>
+        <Text style={styles.sectionTitle}>{t('secPhotos')}</Text>
         <PhotoManager
           photos={(profile.photos || []).filter((p: any) => p.status === 'done')}
           editable={isEditing}
@@ -804,7 +809,7 @@ export function ProfileScreen() {
           onChange={(updated: Photo[]) => setProfile((prev) => ({ ...prev, photos: updated }))}
         />
         {!isEditing && (!profile.photos || profile.photos.filter((p: any) => p.status === 'done').length === 0) && (
-          <Text style={styles.noPhotosText}>No photos uploaded yet. Tap Edit to add photos.</Text>
+          <Text style={styles.noPhotosText}>{t('phEmpty')}</Text>
         )}
       </SectionCard>
 

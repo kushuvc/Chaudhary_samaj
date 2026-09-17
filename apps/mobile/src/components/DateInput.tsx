@@ -4,6 +4,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { radius, spacing, type } from '../theme';
 import type { ThemePalette } from '../context/ThemeContext';
 import { useAppTheme } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
 
 function toISODate(value: Date) {
   const year = value.getFullYear();
@@ -20,9 +21,9 @@ function parseDateValue(value: string) {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
-function formatDateLabel(value: string) {
+function formatDateLabel(value: string, emptyLabel: string) {
   if (!value) {
-    return 'Select date';
+    return emptyLabel;
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
@@ -48,6 +49,7 @@ export function DateInput({
   const currentDate = useMemo(() => parseDateValue(value), [value]);
   const [draftDate, setDraftDate] = useState<Date>(currentDate);
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const draftISO = toISODate(draftDate);
 
@@ -60,7 +62,7 @@ export function DateInput({
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <Pressable style={styles.inputLike} onPress={openPicker}>
-        <Text style={value ? styles.inputText : styles.placeholderText}>{formatDateLabel(value)}</Text>
+        <Text style={value ? styles.inputText : styles.placeholderText}>{formatDateLabel(value, t('dateSelectDate'))}</Text>
       </Pressable>
       <Modal visible={pickerVisible} transparent animationType="fade" onRequestClose={() => setPickerVisible(false)}>
         <View style={styles.modalBackdrop}>
@@ -103,7 +105,7 @@ export function DateInput({
             </View>
             <View style={styles.actionRow}>
               <Pressable style={styles.cancelBtn} onPress={() => setPickerVisible(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
+                <Text style={styles.cancelText}>{t('actCancel')}</Text>
               </Pressable>
               <Pressable
                 style={styles.confirmBtn}
@@ -112,7 +114,7 @@ export function DateInput({
                   setPickerVisible(false);
                 }}
               >
-                <Text style={styles.confirmText}>Select</Text>
+                <Text style={styles.confirmText}>{t('actSelect')}</Text>
               </Pressable>
             </View>
           </View>

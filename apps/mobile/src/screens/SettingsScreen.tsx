@@ -86,7 +86,7 @@ export function SettingsScreen() {
     await Promise.race([
       saveJson<MobileSettingsState>(STORAGE_KEY, state),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Saving settings timed out. Please try again.')), 8000);
+        setTimeout(() => reject(new Error(t('setSaveTimedOut'))), 8000);
       }),
     ]);
   };
@@ -134,7 +134,7 @@ export function SettingsScreen() {
       await persistSettings(state);
       setSavedAt(new Date().toLocaleTimeString());
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Unable to save settings.');
+      setSaveError(err instanceof Error ? err.message : t('setSaveFailed'));
     } finally {
       setSaving(false);
     }
@@ -164,7 +164,7 @@ export function SettingsScreen() {
       });
       setSavedAt(new Date().toLocaleTimeString());
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Unable to reset settings.');
+      setSaveError(err instanceof Error ? err.message : t('setResetFailed'));
     } finally {
       setSaving(false);
     }
@@ -377,7 +377,7 @@ export function SettingsScreen() {
                     await logout();
                   } catch (err) {
                     setDeleteError(
-                      (err as Error).message || 'Failed to delete account. Please try again.'
+                      (err as Error).message || t('setDeleteFailed')
                     );
                   } finally {
                     setDeleting(false);

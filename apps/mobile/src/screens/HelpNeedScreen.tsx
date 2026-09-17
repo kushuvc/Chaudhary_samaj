@@ -178,7 +178,7 @@ export function HelpNeedScreen() {
           <View>
             <View style={styles.headerRow}>
               <View>
-                <Text style={styles.title}>Help and Need</Text>
+                <Text style={styles.title}>{t('navHelpNeed')}</Text>
                 <Text style={styles.title}>{t('helpNeedTitle')}</Text>
                 <Text style={styles.subtitle}>{t('helpNeedSubtitle')}</Text>
               </View>

@@ -5,6 +5,7 @@ import type { ThemePalette } from '../context/ThemeContext';
 import { Callout, Field, Input, PrimaryButton, StepScaffold } from '../components/ui';
 import { api } from '../services/api';
 import { spacing } from '../theme';
+import { useAppLanguage } from '../context/LanguageContext';
 
 interface PhoneLoginScreenProps {
   onLoginSuccess: (token: string, userId: string) => void;
@@ -13,6 +14,7 @@ interface PhoneLoginScreenProps {
 
 export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenProps) {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [phone, setPhone] = useState('');
@@ -25,7 +27,7 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
 
   const handleSendOtp = async () => {
     if (!phoneValid) {
-      Alert.alert('Invalid number', 'Please enter a valid 10-digit mobile number.');
+      Alert.alert(t('phErrInvalidNumberTitle'), t('phErrInvalidNumberBody'));
       return;
     }
 
@@ -35,7 +37,7 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
       if (response.mockOtp) setTestOtp(response.mockOtp);
       setStep('otp');
     } catch (err) {
-      Alert.alert('Could not send code', (err as Error).message);
+      Alert.alert(t('phErrSendFailed'), (err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -43,7 +45,7 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
 
   const handleVerifyOtp = async () => {
     if (otp.trim().length !== 6) {
-      Alert.alert('Invalid code', 'Please enter the 6-digit code.');
+      Alert.alert(t('phErrInvalidCodeTitle'), t('phErrInvalidCodeBody'));
       return;
     }
 
@@ -53,10 +55,10 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
       if (response.token && response.userId) {
         onLoginSuccess(response.token, response.userId);
       } else {
-        Alert.alert('Incorrect code', 'That code did not match. Please try again.');
+        Alert.alert(t('phErrWrongCodeTitle'), t('phErrWrongCodeBody'));
       }
     } catch (err) {
-      Alert.alert('Verification failed', (err as Error).message);
+      Alert.alert(t('phErrVerifyFailed'), (err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -66,20 +68,20 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
     return (
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <StepScaffold
-          eyebrow="Phone login"
-          title="Enter your mobile number"
-          subtitle="We'll text you a one-time code to sign in."
+          eyebrow={t('phLoginTitle')}
+          title={t('phEnterMobile')}
+          subtitle={t('phOtpIntro')}
           onBack={onBack}
           footer={
             <PrimaryButton
-              label="Send code"
+              label={t('phSendCode')}
               onPress={handleSendOtp}
               disabled={!phoneValid}
               loading={loading}
             />
           }
         >
-          <Field label="Mobile number" hint="Registered with your Chaudhary Samaj account.">
+          <Field label={t('phMobileNumber')} hint={t('phRegisteredHint')}>
             <Input
               value={phone}
               onChangeText={setPhone}
@@ -97,27 +99,27 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <StepScaffold
-        eyebrow="Verify"
-        title="Enter the 6-digit code"
-        subtitle={`Sent to +91 ${phone}`}
+        eyebrow={t('phVerifyTitle')}
+        title={t('phEnterCode')}
+        subtitle={t('phSentTo', { phone })}
         onBack={() => setStep('phone')}
         footer={
           <View style={styles.footerStack}>
             <PrimaryButton
-              label="Verify and log in"
+              label={t('phVerifyLogin')}
               onPress={handleVerifyOtp}
               disabled={otp.trim().length !== 6}
               loading={loading}
             />
             <Pressable onPress={handleSendOtp} hitSlop={8}>
-              <Text style={styles.resend}>Resend code</Text>
+              <Text style={styles.resend}>{t('phResendCode')}</Text>
             </Pressable>
           </View>
         }
       >
         {testOtp ? <Callout icon="flask-outline" text={`Test mode code: ${testOtp}`} /> : null}
 
-        <Field label="One-time password">
+        <Field label={t('phOtpLabel')}>
           <Input
             value={otp}
             onChangeText={setOtp}

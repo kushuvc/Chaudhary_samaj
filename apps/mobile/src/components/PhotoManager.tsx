@@ -14,6 +14,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import type { Photo } from '../screens/SignupManagePhotosScreen';
+import { useAppLanguage } from '../context/LanguageContext';
 
 interface PhotoManagerProps {
   photos: Photo[];
@@ -24,6 +25,7 @@ interface PhotoManagerProps {
 
 export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 }: PhotoManagerProps) {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [uploading, setUploading] = useState<string | null>(null);
 
@@ -32,7 +34,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
 
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library.');
+      Alert.alert(t('permNeeded'), t('permPhotoLibrary'));
       return;
     }
 
@@ -66,7 +68,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
         next.map((p) => p.id === tempId ? { ...p, uri: remoteUrl, status: 'done' } : p)
       );
     } catch (err: any) {
-      Alert.alert('Upload failed', err.message || 'Could not upload photo');
+      Alert.alert(t('phUploadFailed'), err.message || t('suPhotoUploadFailed'));
       onChange(next.filter((p) => p.id !== tempId));
     } finally {
       setUploading(null);
@@ -77,10 +79,10 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
     const photo = photos.find((p) => p.id === id);
     if (!photo) return;
 
-    Alert.alert('Remove Photo', 'Are you sure you want to remove this photo?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('actRemovePhoto'), t('phRemoveConfirm'), [
+      { text: t('actCancel'), style: 'cancel' },
       {
-        text: 'Remove',
+        text: t('actRemove'),
         style: 'destructive',
         onPress: async () => {
           const updated = photos.filter((p) => p.id !== id);
@@ -108,7 +110,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
           <View key={photo.id} style={styles.photoContainer}>
             {photo.isPrimary && (
               <View style={styles.primaryBadge}>
-                <Text style={styles.primaryText}>Main</Text>
+                <Text style={styles.primaryText}>{t('lblMainPhoto')}</Text>
               </View>
             )}
             <View style={[styles.photoBox, photo.status === 'done' && styles.photoBoxDone]}>
@@ -122,7 +124,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
               {photo.status === 'uploading' && (
                 <View style={styles.uploadOverlay}>
                   <ActivityIndicator size="large" color="#FFFFFF" />
-                  <Text style={styles.uploadingText}>Uploading...</Text>
+                  <Text style={styles.uploadingText}>{t('phUploading')}</Text>
                 </View>
               )}
             </View>
@@ -135,7 +137,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
 
             {editable && !photo.isPrimary && photo.status === 'done' && (
               <Pressable style={styles.setPrimaryBtn} onPress={() => setPrimary(photo.id)}>
-                <Text style={styles.setPrimaryText}>Set Main</Text>
+                <Text style={styles.setPrimaryText}>{t('actSetMain')}</Text>
               </Pressable>
             )}
           </View>
@@ -145,7 +147,7 @@ export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 
       {editable && photos.length < maxPhotos && (
         <Pressable style={styles.addBtn} onPress={pickAndUpload} disabled={uploading !== null}>
           <Ionicons name="add" size={28} color={palette.primary} />
-          <Text style={styles.addText}>Add Photo</Text>
+          <Text style={styles.addText}>{t('actAddPhoto')}</Text>
         </Pressable>
       )}
     </View>

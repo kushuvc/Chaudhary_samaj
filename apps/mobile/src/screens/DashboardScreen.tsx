@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
+import { optionLabel } from '../constants/optionTranslations';
 import { api } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import type { ThemePalette } from '../context/ThemeContext';
@@ -23,7 +24,7 @@ import type { MatrimonyProfile } from '../types';
 export function DashboardScreen() {
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { t } = useAppLanguage();
+  const { t, language } = useAppLanguage();
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
   const navigation = useNavigation<any>();
@@ -54,7 +55,7 @@ export function DashboardScreen() {
       setAcceptedInterests(interestsRes.sent.filter((i: any) => i.status === 'accepted').length);
       setMyProfile(myProfileRes);
     } catch (err) {
-      setError((err as Error).message || 'Unable to load dashboard');
+      setError((err as Error).message || t('dashLoadFailed'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -79,7 +80,7 @@ export function DashboardScreen() {
     );
   }
 
-  const userName = session?.user?.name || 'Member';
+  const userName = session?.user?.name || t('lblMember');
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t('greetingMorning') : hour < 17 ? t('greetingAfternoon') : t('greetingEvening');
   /*
@@ -198,10 +199,15 @@ export function DashboardScreen() {
                   <Ionicons name="person" size={28} color={palette.primary} />
                 </View>
                 <Text style={styles.profileName} numberOfLines={1}>
-                  {profile.name || 'Member'}
+                  {profile.name || t('lblMember')}
                 </Text>
                 <Text style={styles.profileMeta} numberOfLines={1}>
-                  {[profile.age ? `${profile.age}y` : null, profile.location].filter(Boolean).join(' • ') || 'Chaudhary'}
+                  {[
+                    profile.age ? t('dashAgeShort', { age: profile.age }) : null,
+                    optionLabel(profile.location || '', language),
+                  ]
+                    .filter(Boolean)
+                    .join(' • ') || optionLabel('Chaudhary', language)}
                 </Text>
                 <View style={[styles.profileBadge, profile.gender === 'female' ? styles.profileBadgeFemale : styles.profileBadgeMale]}>
                   <Text style={styles.profileBadgeText}>{profile.gender === 'female' ? '♀' : '♂'}</Text>
@@ -222,11 +228,11 @@ export function DashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.myProfileName}>{userName}</Text>
             <Text style={styles.myProfileMeta}>
-              {myAge ? `${myAge} yrs` : 'Age not set'} • {myLocation || 'Location not set'}
+              {myAge ? t('dashYearsShort', { age: myAge }) : t('dashAgeNotSet')} • {myLocation || t('dashLocationNotSet')}
             </Text>
             <View style={styles.myProfileStatus}>
               <View style={[styles.myProfileDot, { backgroundColor: profileComplete ? palette.accent : palette.violet }]} />
-              <Text style={styles.myProfileStatusText}>{profileComplete ? 'Profile Complete' : 'Incomplete Profile'}</Text>
+              <Text style={styles.myProfileStatusText}>{profileComplete ? t('dashProfileComplete') : t('dashProfileIncomplete')}</Text>
             </View>
           </View>
         </View>

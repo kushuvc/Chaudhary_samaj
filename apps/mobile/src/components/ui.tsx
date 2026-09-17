@@ -18,6 +18,8 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
+import { useAppLanguage } from '../context/LanguageContext';
+import { optionLabel } from '../constants/optionTranslations';
 
 /* ------------------------------------------------------------------ */
 /* Gradient                                                            */
@@ -81,6 +83,7 @@ export function PrimaryButton({
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
   const { palette } = useAppTheme();
+  const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const inert = disabled || loading;
 
@@ -99,7 +102,7 @@ export function PrimaryButton({
       {!inert ? <GradientFill colors={palette.gradient} borderRadius={radiusLg} /> : null}
       <View style={styles.primaryButtonInner}>
         <Text style={[styles.primaryButtonText, inert && styles.primaryButtonTextDisabled]}>
-          {loading ? 'Please wait…' : label}
+          {loading ? t('commonPleaseWait') : label}
         </Text>
         {icon && !inert ? <Ionicons name={icon} size={18} color="#FFFFFF" /> : null}
       </View>
@@ -250,6 +253,7 @@ export function StepScaffold({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const { t } = useAppLanguage();
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -320,7 +324,7 @@ export function StepScaffold({
     >
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         {onBack ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Go back" style={styles.iconButton} onPress={onBack} hitSlop={8}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('actGoBack')} style={styles.iconButton} onPress={onBack} hitSlop={8}>
             <Ionicons name="arrow-back" size={20} color={palette.text} />
           </Pressable>
         ) : (
@@ -505,15 +509,26 @@ export function Select({
   title?: string;
 }) {
   const { palette } = useAppTheme();
+  const { language, t } = useAppLanguage();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const selected = options.find((option) => option.id === value) || null;
-  const filtered = query.trim()
-    ? options.filter((option) => option.label.toLowerCase().includes(query.trim().toLowerCase()))
-    : options;
+  // The option ids stay English everywhere; only what a member reads is translated,
+  // so search matches on both the English label and the translated one.
+  const localised = useMemo(
+    () => options.map((option) => ({ ...option, display: optionLabel(option.label, language) })),
+    [options, language],
+  );
+  const selected = localised.find((option) => option.id === value) || null;
+  const needle = query.trim().toLowerCase();
+  const filtered = needle
+    ? localised.filter(
+        (option) =>
+          option.label.toLowerCase().includes(needle) || option.display.toLowerCase().includes(needle),
+      )
+    : localised;
 
   return (
     <>
@@ -524,7 +539,7 @@ export function Select({
         disabled={disabled}
       >
         <Text style={[styles.selectValue, !selected && styles.selectPlaceholder]} numberOfLines={1}>
-          {selected ? selected.label : placeholder}
+          {selected ? selected.display : placeholder}
         </Text>
         <Ionicons name="chevron-down" size={18} color={disabled ? palette.muted : palette.textSoft} />
       </Pressable>
@@ -542,7 +557,7 @@ export function Select({
                 style={styles.sheetSearchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search"
+                placeholder={t('commonSearch')}
                 placeholderTextColor={palette.muted}
                 autoCorrect={false}
               />
@@ -563,13 +578,13 @@ export function Select({
                   }}
                 >
                   <Text style={[styles.sheetOptionLabel, isActive && styles.sheetOptionLabelActive]}>
-                    {option.label}
+                    {option.display}
                   </Text>
                   {isActive ? <Ionicons name="checkmark-circle" size={20} color={palette.primary} /> : null}
                 </Pressable>
               );
             })}
-            {filtered.length === 0 ? <Text style={styles.sheetEmpty}>No matches</Text> : null}
+            {filtered.length === 0 ? <Text style={styles.sheetEmpty}>{t('commonNoMatches')}</Text> : null}
           </ScrollView>
         </View>
       </Modal>
@@ -595,6 +610,7 @@ export function Chip({
   style?: StyleProp<ViewStyle>;
 }) {
   const { palette } = useAppTheme();
+  const { language } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
@@ -607,7 +623,9 @@ export function Chip({
       {icon ? (
         <Ionicons name={icon} size={16} color={selected ? palette.primary : palette.muted} />
       ) : null}
-      <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{label}</Text>
+      <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>
+        {optionLabel(label, language)}
+      </Text>
       {selected ? <Ionicons name="checkmark" size={14} color={palette.primary} /> : null}
     </Pressable>
   );
@@ -634,6 +652,7 @@ export function OptionCard({
   onPress: () => void;
 }) {
   const { palette } = useAppTheme();
+  const { language } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
@@ -646,7 +665,9 @@ export function OptionCard({
       <View style={[styles.optionIcon, selected && styles.optionIconSelected]}>
         <Ionicons name={icon} size={22} color={selected ? '#FFFFFF' : palette.primary} />
       </View>
-      <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>{label}</Text>
+      <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
+        {optionLabel(label, language)}
+      </Text>
       {caption ? <Text style={styles.optionCaption}>{caption}</Text> : null}
     </Pressable>
   );

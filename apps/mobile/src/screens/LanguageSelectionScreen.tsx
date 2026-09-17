@@ -21,7 +21,7 @@ const options: Array<{
 
 export function LanguageSelectionScreen() {
   const { palette } = useAppTheme();
-  const { setLanguage } = useAppLanguage();
+  const { setLanguage, t } = useAppLanguage();
   const [selected, setSelected] = useState<AppLanguage>('en-IN');
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -52,7 +52,7 @@ export function LanguageSelectionScreen() {
           </View>
           <Text style={styles.appName}>Chaudhary Samaj</Text>
           <Text style={styles.heroGreeting}>{selectedOption.greeting}</Text>
-          <Text style={styles.heroSub}>Select your preferred language</Text>
+          <Text style={styles.heroSub}>{t('langSubtitle')}</Text>
           <Text style={styles.heroSubNative}>अपनी भाषा चुनें • તમારી ભાષા પસંદ કરો</Text>
         </View>
 
@@ -61,7 +61,7 @@ export function LanguageSelectionScreen() {
 
       {/* Language Options */}
       <View style={styles.body}>
-        <Text style={styles.sectionLabel}>Choose Language</Text>
+        <Text style={styles.sectionLabel}>{t('langChoose')}</Text>
 
         <View style={styles.optionsList}>
           {options.map((item) => {

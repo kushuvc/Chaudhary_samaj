@@ -47,9 +47,9 @@ function MainTabs() {
     >
       <Tabs.Screen name="Home" component={DashboardScreen} options={{ tabBarLabel: t('home') }} />
       <Tabs.Screen name="Matrimony" component={MatrimonyScreen} options={{ tabBarLabel: t('matrimony') }} />
-      <Tabs.Screen name="Interests" component={InterestsScreen} options={{ tabBarLabel: 'Interests' }} />
-      <Tabs.Screen name="Messages" component={MessagesScreen} options={{ tabBarLabel: 'Messages' }} />
-      <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ tabBarLabel: 'Plans' }} />
+      <Tabs.Screen name="Interests" component={InterestsScreen} options={{ tabBarLabel: t('interests') }} />
+      <Tabs.Screen name="Messages" component={MessagesScreen} options={{ tabBarLabel: t('messages') }} />
+      <Tabs.Screen name="Subscriptions" component={SubscriptionsScreen} options={{ tabBarLabel: t('plans') }} />
       <Tabs.Screen name="Profile" component={ProfileScreen} options={{ tabBarLabel: t('profile') }} />
       <Tabs.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: t('settings') }} />
     </Tabs.Navigator>
@@ -58,6 +58,7 @@ function MainTabs() {
 
 function AuthFlow() {
   const { signup, completeProfileSetup, isNewSignup, loginWithToken } = useAuth();
+  const { language } = useAppLanguage();
   const [authMode, setAuthMode] = useState<
     | 'welcome'
     | 'login'
@@ -95,7 +96,7 @@ function AuthFlow() {
 
   // relationship rather than always saying "you".
 
-  const signupSubject = subjectFor(signupData.profileTypeData?.profileType);
+  const signupSubject = subjectFor(signupData.profileTypeData?.profileType, language);
 
 
   const patch = (next: Partial<typeof signupData>) => setSignupData((prev) => ({ ...prev, ...next }));

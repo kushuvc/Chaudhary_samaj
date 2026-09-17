@@ -30,8 +30,8 @@ interface SignupReligiousDetailsScreenProps {
 }
 
 export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupReligiousDetailsScreenProps) {
-  const { t } = useAppLanguage();
-  const subject = subjectProp ?? subjectFor(null);
+  const { t, language } = useAppLanguage();
+  const subject = subjectProp ?? subjectFor(null, language);
   const [religion, setReligion] = useState<string | null>(null);
   const [caste, setCaste] = useState<string | null>(null);
   const [subcaste, setSubcaste] = useState<string | null>(null);
@@ -89,7 +89,7 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
         />
       </Field>
 
-      <Field label={t('suSubcaste')} hint={!caste ? 'Choose a caste first' : undefined}>
+      <Field label={t('suSubcaste')} hint={!caste ? t('suChooseCasteFirst') : undefined}>
         <Select
           value={subcaste}
           placeholder={t('suSelectSubcaste')}
@@ -107,7 +107,7 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
       />
 
       <View style={{ gap: 14 }}>
-        <SectionHeading title={t('suDoYouHaveAnyDosh')} caption="Optional — leave as No if unsure." />
+        <SectionHeading title={t('suDoYouHaveAnyDosh')} caption={t('hintOptionalNo')} />
         <ChipGroup>
           {DOSH_OPTIONS.map((option) => (
             <Chip

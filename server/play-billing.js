@@ -123,6 +123,9 @@ export async function describePlayBillingHealth() {
     hasPrivateKey: false,
     privateKeyLooksWrapped: false,
     canAuthenticate: false,
+    canReadPackage: false,
+    packageAccessStatus: null,
+    subscriptionsVisible: [],
     error: null,
   }
 
@@ -160,6 +163,33 @@ export async function describePlayBillingHealth() {
     await getAccessToken()
     result.canAuthenticate = true
   } catch (err) {
+    result.error = err.message
+    return result
+  }
+
+  /*
+   * A token proves the key is valid, not that the account may touch this app.
+   * Those are separate grants, and only the second one fails at purchase time
+   * — which is why "canAuthenticate: true" sat next to a purchase that could
+   * not be verified.
+   */
+  try {
+    const token = await getAccessToken()
+    const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}/subscriptions?pageSize=1`
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    result.packageAccessStatus = response.status
+
+    if (response.ok) {
+      const payload = await response.json().catch(() => ({}))
+      result.canReadPackage = true
+      result.subscriptionsVisible = (payload.subscriptions || []).map((s) => s.productId)
+    } else {
+      const payload = await response.json().catch(() => ({}))
+      result.canReadPackage = false
+      result.error = payload?.error?.message || `Play API responded ${response.status}`
+    }
+  } catch (err) {
+    result.canReadPackage = false
     result.error = err.message
   }
 

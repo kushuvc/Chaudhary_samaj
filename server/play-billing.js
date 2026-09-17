@@ -125,6 +125,9 @@ export async function describePlayBillingHealth() {
     canAuthenticate: false,
     canReadPackage: false,
     packageAccessStatus: null,
+    purchaseProbeStatus: null,
+    purchaseProbeMessage: null,
+    canReadPurchases: false,
     subscriptionsVisible: [],
     error: null,
   }
@@ -173,8 +176,24 @@ export async function describePlayBillingHealth() {
    * — which is why "canAuthenticate: true" sat next to a purchase that could
    * not be verified.
    */
+  /*
+   * Probe the exact call verification makes.
+   *
+   * Listing subscription products and reading a purchase are separate
+   * permissions, so testing the wrong one sends you hunting for a setting
+   * that was never the problem. A dummy token here should come back 400 or
+   * 404 — "no such purchase" — which proves access is fine. A 401 or 403 is
+   * the permission fault.
+   */
   try {
     const token = await getAccessToken()
+    const probeUrl = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}/purchases/subscriptionsv2/tokens/diagnostic-probe-token`
+    const probe = await fetch(probeUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const probeBody = await probe.json().catch(() => ({}))
+    result.purchaseProbeStatus = probe.status
+    result.purchaseProbeMessage = probeBody?.error?.message || null
+    result.canReadPurchases = probe.status !== 401 && probe.status !== 403
+
     const url = `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(packageName)}/subscriptions?pageSize=1`
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     result.packageAccessStatus = response.status

@@ -18,6 +18,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 type InterestTab = 'received' | 'sent';
 
@@ -35,14 +36,13 @@ interface InterestsScreenProps {
   onMessage?: (matchId: string, name: string) => void;
 }
 
-// Feature flag for monetization
-const FEATURES = {
-  ACCEPT_INTEREST_FREE: true,
-  DECLINE_INTEREST_FREE: true,
-  CHAT_FREE: true,
-};
-
+/*
+ * Responding to an interest is never gated. A member who cannot accept is
+ * stranded, and so is the person who sent it — that is a worse product than
+ * any plan boundary is worth.
+ */
 export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsScreenProps) {
+  const capabilities = useCapabilities();
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { t } = useAppLanguage();
@@ -82,11 +82,6 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   };
 
   const handleAccept = async (interest: Interest) => {
-    if (!FEATURES.ACCEPT_INTEREST_FREE) {
-      showAlert(t('alertPremiumFeature'), t('mpUpgradeAccept'));
-      return;
-    }
-
     try {
       setActionId(interest.id);
       await api.respondToInterest(interest.id, true);
@@ -100,11 +95,6 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   };
 
   const handleDecline = async (interest: Interest) => {
-    if (!FEATURES.DECLINE_INTEREST_FREE) {
-      showAlert(t('alertPremiumFeature'), t('mpUpgradeDecline'));
-      return;
-    }
-
     showAlert(
       t('inDeclineConfirmTitle'),
       t('inDeclineConfirmBody', { name: interest.name }),
@@ -131,7 +121,7 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
   };
 
   const handleMessage = (interest: Interest) => {
-    if (!FEATURES.CHAT_FREE) {
+    if (!capabilities.canChat) {
       showAlert(t('alertPremiumFeature'), t('mpUpgradeChat'));
       return;
     }

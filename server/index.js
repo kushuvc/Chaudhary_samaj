@@ -1865,7 +1865,42 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
  * with an account, subscribed or not.
  */
 /** Used when the rules table has no row for a gender, or cannot be read. */
-const DEFAULT_RULE = { isFree: false, pricePaise: 20000, freeProfileLimit: 2 }
+/**
+ * What a subscription can unlock.
+ *
+ * Read off whichever plan the member holds, or off the per-gender rule when
+ * their gender is free. Everything defaults to allowed: a capability that
+ * cannot be read must not lock a paying member out of what they bought.
+ */
+const ALL_CAPABILITIES = { canViewPhone: true, canSendInterest: true, canChat: true }
+const NO_CAPABILITIES = { canViewPhone: false, canSendInterest: false, canChat: false }
+
+/*
+ * What someone gets without paying.
+ *
+ * This is not a default anyone chose — it is what the app already did before
+ * capabilities existed, written down. Interests and chat had no server gate at
+ * all, and contact numbers required a subscription. Introducing plan tiers must
+ * not quietly take the first two away from every free member, so the free tier
+ * keeps exactly what it had. Change it deliberately, not as a side effect.
+ */
+const FREE_TIER_CAPABILITIES = { canViewPhone: false, canSendInterest: true, canChat: true }
+
+function capabilitiesFromRow(row) {
+  const on = (value) => value === undefined || value === null || value === true || value === 1 || value === 't'
+  return {
+    canViewPhone: on(row.can_view_phone),
+    canSendInterest: on(row.can_send_interest),
+    canChat: on(row.can_chat),
+  }
+}
+
+const DEFAULT_RULE = {
+  isFree: false,
+  pricePaise: 20000,
+  freeProfileLimit: 2,
+  capabilities: { ...ALL_CAPABILITIES },
+}
 
 /*
  * Subscription rules, per gender.
@@ -1886,7 +1921,9 @@ async function loadSubscriptionRules() {
   if (cached) return cached
 
   const rows = await pgQuery(
-    'SELECT gender, is_free, price_paise, free_profile_limit FROM subscription_rules'
+    `SELECT gender, is_free, price_paise, free_profile_limit,
+            can_view_phone, can_send_interest, can_chat
+     FROM subscription_rules`
   )
 
   const rules = {}
@@ -1897,6 +1934,7 @@ async function loadSubscriptionRules() {
       freeProfileLimit: Number.isFinite(Number(row.free_profile_limit))
         ? Number(row.free_profile_limit)
         : DEFAULT_RULE.freeProfileLimit,
+      capabilities: capabilitiesFromRow(row),
     }
   }
 
@@ -1930,6 +1968,7 @@ const FALLBACK_PLAN = {
   badge: 'Most popular',
   isActive: true,
   sortOrder: 0,
+  capabilities: { ...ALL_CAPABILITIES },
 }
 
 function planFromRow(row) {
@@ -1942,6 +1981,7 @@ function planFromRow(row) {
     badge: row.badge ? String(row.badge) : null,
     isActive: row.is_active === true || row.is_active === 1 || row.is_active === 't',
     sortOrder: Number(row.sort_order) || 0,
+    capabilities: capabilitiesFromRow(row),
     updatedAt: row.updated_at || null,
   }
 }
@@ -1953,7 +1993,7 @@ async function loadPlans() {
 
   const rows = await pgQuery(
     `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-            is_active, sort_order, updated_at
+            is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at
      FROM subscription_plans
      ORDER BY sort_order, price_paise`
   )
@@ -2045,6 +2085,19 @@ async function hasActiveSubscription(userId) {
   return rows.length > 0
 }
 
+/** The live subscription's plan code, or null when there is none. */
+async function activePlanCode(userId) {
+  if (!userId) return null
+  const rows = await pgQuery(
+    `SELECT plan FROM user_subscriptions
+     WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW()
+     ORDER BY expires_at::timestamp DESC
+     LIMIT 1`,
+    [userId]
+  )
+  return rows[0]?.plan || null
+}
+
 /**
  * Whether this member sees the whole directory.
  *
@@ -2053,17 +2106,78 @@ async function hasActiveSubscription(userId) {
  * that applies to this member rather than one global constant.
  */
 async function resolveAccess(userId) {
-  if (!userId) return { entitled: false, rule: DEFAULT_RULE, reason: 'anonymous' }
+  if (!userId) {
+    return { entitled: false, rule: DEFAULT_RULE, capabilities: NO_CAPABILITIES, reason: 'anonymous', planCode: null }
+  }
 
   const gender = await genderOf(userId)
   const rule = await ruleForGender(gender)
 
   if (rule.isFree) {
-    return { entitled: true, rule, reason: 'free-for-gender' }
+    return {
+      entitled: true,
+      rule,
+      capabilities: rule.capabilities || ALL_CAPABILITIES,
+      reason: 'free-for-gender',
+      planCode: null,
+    }
   }
 
-  const subscribed = await hasActiveSubscription(userId)
-  return { entitled: subscribed, rule, reason: subscribed ? 'subscribed' : 'none' }
+  const planCode = await activePlanCode(userId)
+  if (!planCode) {
+    return {
+      entitled: false,
+      rule,
+      capabilities: FREE_TIER_CAPABILITIES,
+      reason: 'none',
+      planCode: null,
+    }
+  }
+
+  /*
+   * Capabilities come from the plan they actually hold, including one that has
+   * since been retired — they paid for what it offered at the time, and taking
+   * it away mid-term because it left the shop would be wrong.
+   */
+  const heldPlan = await planByCode(planCode, { includeInactive: true })
+  return {
+    entitled: true,
+    rule,
+    capabilities: heldPlan?.capabilities || ALL_CAPABILITIES,
+    reason: 'subscribed',
+    planCode,
+  }
+}
+
+/**
+ * Guard one capability on a route.
+ *
+ * Answers with 403 and a machine-readable code when the member's plan does not
+ * include it, so the app can say which plan does rather than showing a generic
+ * failure. Returns true when the caller may proceed.
+ */
+async function requireCapability(userId, capability, response, message) {
+  let access
+  try {
+    access = await resolveAccess(userId)
+  } catch (err) {
+    console.error('[capability] access check failed:', err.message)
+    response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+    return false
+  }
+
+  if (access.capabilities[capability]) return true
+
+  /*
+   * Which of the two it is matters to the member: one is "subscribe", the other
+   * is "you subscribed, but not to a plan that includes this".
+   */
+  response.status(403).json({
+    success: false,
+    error: message,
+    code: access.entitled ? 'PLAN_UPGRADE_REQUIRED' : 'SUBSCRIPTION_REQUIRED',
+  })
+  return false
 }
 
 /**
@@ -2203,24 +2317,54 @@ app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
     return
   }
 
-  // Require active subscription to unlock (view phone number)
-  try {
-    const sub = await pgQuery(
-      `SELECT id FROM user_subscriptions WHERE user_id = $1 AND status = 'active' AND expires_at::timestamp > NOW() LIMIT 1`,
-      [activeUserId]
-    )
-    if (!sub || sub.length === 0) {
-      response.status(403).json({ success: false, error: 'Subscribe to ₹200/month plan to view phone numbers and unlock profiles.' })
-      return
-    }
-  } catch {
-    response.status(500).json({ success: false, error: 'Could not verify subscription' })
-    return
-  }
+  /*
+   * Viewing a contact number needs a plan that includes it. This used to be a
+   * bare subscription check, which is now only one half of the question.
+   */
+  const allowed = await requireCapability(
+    activeUserId,
+    'canViewPhone',
+    response,
+    'Your plan does not include contact numbers. Upgrade to see them.'
+  )
+  if (!allowed) return
 
   try {
     if (!(await profileExists(request.params.id))) {
       response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
+
+    /*
+     * A number is only handed over once both sides have agreed. The endpoint
+     * used to answer `{ unlocked: true }` and nothing else, while the profile
+     * payload strips the phone — so "Show Number" told every member, paying or
+     * not, that the person had not added one. This returns it, and says why
+     * when it will not.
+     */
+    const [owner] = await pgQuery(
+      `SELECT p.user_id, u.phone
+       FROM matrimony_profiles p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.id = $1
+       LIMIT 1`,
+      [request.params.id]
+    )
+
+    const [interest] = await pgQuery(
+      `SELECT status FROM matrimony_interests
+       WHERE status = 'accepted'
+         AND ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
+       LIMIT 1`,
+      [activeUserId, owner?.user_id || null]
+    )
+
+    if (!interest) {
+      response.status(403).json({
+        success: false,
+        error: 'Contact numbers are shared once an interest is accepted on both sides.',
+        code: 'INTEREST_REQUIRED',
+      })
       return
     }
 
@@ -2234,7 +2378,7 @@ app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
       }),
     ])
 
-    response.json({ success: true, data: { unlocked: true } })
+    response.json({ success: true, data: { unlocked: true, phone: owner?.phone || null } })
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
   }
@@ -2247,6 +2391,19 @@ app.post('/api/matrimony/profiles/:id/interest', async (request, response) => {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
+
+  /*
+   * Whether interests cost anything was a constant in the app — three screens
+   * each holding `SEND_INTEREST_FREE: true`, and nothing on the server. A
+   * patched build ignored it, so this is where the answer belongs.
+   */
+  const allowed = await requireCapability(
+    activeUserId,
+    'canSendInterest',
+    response,
+    'Your plan does not include sending interests. Upgrade to send them.'
+  )
+  if (!allowed) return
 
   const { id: receiverId } = request.params
 
@@ -2530,6 +2687,16 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
     response.status(401).json({ success: false, error: 'Authentication required' })
     return
   }
+
+  // Sending, not reading: a member whose plan drops chat can still see what was
+  // said to them, which keeps a downgrade from hiding a conversation they had.
+  const allowed = await requireCapability(
+    activeUserId,
+    'canChat',
+    response,
+    'Your plan does not include messaging. Upgrade to reply.'
+  )
+  if (!allowed) return
 
   const { id: matchId } = request.params
   const { content } = request.body || {}
@@ -3431,6 +3598,9 @@ app.get('/api/payments/subscription', async (request, response) => {
       pricePaise: access.rule.pricePaise,
       freeProfileLimit: access.rule.freeProfileLimit,
       freeForYou: access.rule.isFree,
+      // What this member can actually do, so the app can hide a control rather
+      // than offer it and let the server refuse.
+      capabilities: access.capabilities,
     }
 
     if (!result || result.length === 0) {
@@ -3905,6 +4075,7 @@ app.get('/api/payments/plans', async (_request, response) => {
         pricePaise: plan.pricePaise,
         playProductId: plan.playProductId,
         badge: plan.badge,
+        capabilities: plan.capabilities,
       })),
     })
   } catch (err) {
@@ -4335,7 +4506,8 @@ app.get('/api/admin/play/health', requireAdmin, async (_request, response) => {
 app.get('/api/admin/subscription-rules', requireAdmin, async (_request, response) => {
   try {
     const rows = await pgQuery(
-      `SELECT gender, is_free, price_paise, free_profile_limit, updated_at
+      `SELECT gender, is_free, price_paise, free_profile_limit,
+              can_view_phone, can_send_interest, can_chat, updated_at
        FROM subscription_rules ORDER BY gender`
     )
     response.json({ success: true, data: rows })
@@ -4352,7 +4524,8 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
     return
   }
 
-  const { isFree, pricePaise, freeProfileLimit } = request.body || {}
+  const { isFree, pricePaise, freeProfileLimit, canViewPhone, canSendInterest, canChat } =
+    request.body || {}
 
   if (isFree !== undefined && typeof isFree !== 'boolean') {
     response.status(400).json({ success: false, error: 'isFree must be true or false' })
@@ -4369,22 +4542,42 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
     response.status(400).json({ success: false, error: 'freeProfileLimit must be zero or more' })
     return
   }
+  for (const [label, value] of [
+    ['canViewPhone', canViewPhone],
+    ['canSendInterest', canSendInterest],
+    ['canChat', canChat],
+  ]) {
+    if (value !== undefined && typeof value !== 'boolean') {
+      response.status(400).json({ success: false, error: `${label} must be true or false` })
+      return
+    }
+  }
 
   try {
     const rows = await pgQuery(
-      `INSERT INTO subscription_rules (gender, is_free, price_paise, free_profile_limit, updated_at)
-       VALUES ($1, COALESCE($2, false), COALESCE($3, 20000), COALESCE($4, 2), NOW()::text)
+      `INSERT INTO subscription_rules
+         (gender, is_free, price_paise, free_profile_limit,
+          can_view_phone, can_send_interest, can_chat, updated_at)
+       VALUES ($1, COALESCE($2, false), COALESCE($3, 20000), COALESCE($4, 2),
+               COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), NOW()::text)
        ON CONFLICT (gender) DO UPDATE SET
          is_free = COALESCE($2, subscription_rules.is_free),
          price_paise = COALESCE($3, subscription_rules.price_paise),
          free_profile_limit = COALESCE($4, subscription_rules.free_profile_limit),
+         can_view_phone = COALESCE($5, subscription_rules.can_view_phone),
+         can_send_interest = COALESCE($6, subscription_rules.can_send_interest),
+         can_chat = COALESCE($7, subscription_rules.can_chat),
          updated_at = NOW()::text
-       RETURNING gender, is_free, price_paise, free_profile_limit, updated_at`,
+       RETURNING gender, is_free, price_paise, free_profile_limit,
+                 can_view_phone, can_send_interest, can_chat, updated_at`,
       [
         gender,
         isFree === undefined ? null : isFree,
         pricePaise === undefined ? null : pricePaise,
         freeProfileLimit === undefined ? null : freeProfileLimit,
+        canViewPhone === undefined ? null : canViewPhone,
+        canSendInterest === undefined ? null : canSendInterest,
+        canChat === undefined ? null : canChat,
       ]
     )
 
@@ -4407,7 +4600,7 @@ app.get('/api/admin/plans', requireAdmin, async (_request, response) => {
   try {
     const rows = await pgQuery(
       `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-              is_active, sort_order, updated_at
+              is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at
        FROM subscription_plans
        ORDER BY sort_order, price_paise`
     )
@@ -4435,8 +4628,10 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     return
   }
 
-  const { name, durationDays, pricePaise, playProductId, badge, isActive, sortOrder } =
-    request.body || {}
+  const {
+    name, durationDays, pricePaise, playProductId, badge, isActive, sortOrder,
+    canViewPhone, canSendInterest, canChat,
+  } = request.body || {}
 
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 40) {
     response.status(400).json({ success: false, error: 'Name is required (up to 40 characters)' })
@@ -4466,6 +4661,16 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     response.status(400).json({ success: false, error: 'sortOrder must be a whole number' })
     return
   }
+  for (const [label, value] of [
+    ['canViewPhone', canViewPhone],
+    ['canSendInterest', canSendInterest],
+    ['canChat', canChat],
+  ]) {
+    if (value !== undefined && typeof value !== 'boolean') {
+      response.status(400).json({ success: false, error: `${label} must be true or false` })
+      return
+    }
+  }
 
   // Empty string and null both mean "sells through Razorpay only". Storing it
   // as NULL keeps the unique index from treating two such plans as a clash.
@@ -4475,8 +4680,9 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     const rows = await pgQuery(
       `INSERT INTO subscription_plans
          (code, name, duration_days, price_paise, play_product_id, badge,
-          is_active, sort_order, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), COALESCE($8, 0), NOW()::text)
+          is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), COALESCE($8, 0),
+               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), NOW()::text)
        ON CONFLICT (code) DO UPDATE SET
          name = $2,
          duration_days = $3,
@@ -4485,9 +4691,12 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
          badge = $6,
          is_active = COALESCE($7, subscription_plans.is_active),
          sort_order = COALESCE($8, subscription_plans.sort_order),
+         can_view_phone = COALESCE($9, subscription_plans.can_view_phone),
+         can_send_interest = COALESCE($10, subscription_plans.can_send_interest),
+         can_chat = COALESCE($11, subscription_plans.can_chat),
          updated_at = NOW()::text
        RETURNING code, name, duration_days, price_paise, play_product_id, badge,
-                 is_active, sort_order, updated_at`,
+                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at`,
       [
         code,
         name.trim(),
@@ -4497,6 +4706,9 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
         String(badge || '').trim() || null,
         isActive === undefined ? null : isActive,
         sortOrder === undefined ? null : sortOrder,
+        canViewPhone === undefined ? null : canViewPhone,
+        canSendInterest === undefined ? null : canSendInterest,
+        canChat === undefined ? null : canChat,
       ]
     )
 

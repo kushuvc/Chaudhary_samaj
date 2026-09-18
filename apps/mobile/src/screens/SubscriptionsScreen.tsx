@@ -19,21 +19,23 @@ import { api } from '../services/api';
 import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
 
-import type { SubscriptionPlan, SubscriptionStatus } from '../services/api';
+import type { PlanCapabilities, SubscriptionPlan, SubscriptionStatus } from '../services/api';
 import { useAppLanguage } from '../context/LanguageContext';
 
 type SubscriptionData = SubscriptionStatus;
 
 /*
- * What a subscription gets you. Shared by every plan on purpose: access is
- * all-or-nothing on the server, so plans differ in length and price only —
- * listing different perks per plan would be a promise the API cannot keep.
+ * What a plan gets you.
+ *
+ * Every plan opens the directory; the other three are per-plan now, so this
+ * lists them with a tick or a cross rather than pretending they are the same.
+ * A member has to be able to see what they are choosing between.
  */
-const PERK_KEYS = [
-  'subUnlimitedViews',
-  'subSeePhones',
-  'subUnlimitedInterests',
-  'subPriorityPlacement',
+const PERKS: Array<{ key: string; capability?: keyof PlanCapabilities }> = [
+  { key: 'capViewProfiles' },
+  { key: 'capViewPhone', capability: 'canViewPhone' },
+  { key: 'capSendInterest', capability: 'canSendInterest' },
+  { key: 'capChat', capability: 'canChat' },
 ];
 
 const POLL_INTERVAL_MS = 3000;
@@ -221,6 +223,17 @@ export function SubscriptionsScreen() {
 
   const selectedPlan = plans.find((plan) => plan.code === selectedCode) ?? plans[0] ?? null;
   /*
+   * Only prompt someone to compare when there is something to compare. With
+   * every plan unlocking the same things, "check the list on each" is noise.
+   */
+  const plansDifferInWhatTheyUnlock = plans.some((plan) =>
+    PERKS.some(
+      (perk) =>
+        perk.capability &&
+        plan.capabilities?.[perk.capability] !== plans[0]?.capabilities?.[perk.capability]
+    )
+  );
+  /*
    * The name of the plan they are actually on. A member can hold a plan that
    * has since been retired, in which case the list no longer carries it and the
    * stored code is the honest thing to show.
@@ -374,18 +387,35 @@ export function SubscriptionsScreen() {
                 })}
 
                 <View style={styles.perks}>
-                  {PERK_KEYS.map((perk) => (
-                    <View key={perk} style={styles.perkRow}>
-                      <View style={styles.perkIcon}>
-                        <Ionicons name="checkmark" size={13} color={palette.primary} />
+                  {PERKS.map((perk) => {
+                    // No capability means every plan has it. An unknown flag
+                    // reads as included, matching the server's own default.
+                    const included =
+                      !perk.capability || selectedPlan?.capabilities?.[perk.capability] !== false;
+                    return (
+                      <View key={perk.key} style={styles.perkRow}>
+                        <View style={[styles.perkIcon, !included && styles.perkIconOff]}>
+                          <Ionicons
+                            name={included ? 'checkmark' : 'close'}
+                            size={13}
+                            color={included ? palette.primary : palette.muted}
+                          />
+                        </View>
+                        <Text style={[styles.perkText, !included && styles.perkTextOff]}>
+                          {t(perk.key)}
+                        </Text>
+                        {!included ? (
+                          <Text style={styles.perkOffLabel}>{t('capNotIncluded')}</Text>
+                        ) : null}
                       </View>
-                      <Text style={styles.perkText}>{t(perk)}</Text>
-                    </View>
-                  ))}
+                    );
+                  })}
                 </View>
 
                 {plans.length > 1 ? (
-                  <Text style={styles.planFootnote}>{t('planFullAccessNote')}</Text>
+                  <Text style={styles.planFootnote}>
+                    {plansDifferInWhatTheyUnlock ? t('planComparePrompt') : t('planFullAccessNote')}
+                  </Text>
                 ) : null}
 
                 {play.available ? (
@@ -579,6 +609,9 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
     },
     perkText: { flex: 1, fontSize: 14.5, color: palette.text },
+    perkIconOff: { backgroundColor: palette.border },
+    perkTextOff: { color: palette.muted },
+    perkOffLabel: { fontSize: 12, color: palette.muted },
 
     footnote: {
       flexDirection: 'row',

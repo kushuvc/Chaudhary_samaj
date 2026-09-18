@@ -251,6 +251,19 @@ const migrations = [
   // exist now, and a constraint listing them would have to be rewritten on
   // every change.
   `ALTER TABLE user_subscriptions DROP CONSTRAINT IF EXISTS user_subscriptions_plan_check`,
+  // What each plan actually unlocks, so one plan can open the directory while
+  // another also hands over phone numbers. Every column defaults to true: a new
+  // capability must never quietly take something away from a member who has
+  // already paid for it, and the plans that exist today grant everything.
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_view_phone BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_send_interest BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_chat BOOLEAN NOT NULL DEFAULT true`,
+  // The same three on the per-gender rules. Without them a gender set to free
+  // would get more than the cheapest paid plan, which is not a rule anyone
+  // means to write.
+  `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS can_view_phone BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS can_send_interest BOOLEAN NOT NULL DEFAULT true`,
+  `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS can_chat BOOLEAN NOT NULL DEFAULT true`,
 ]
 
 for (const sql of migrations) {

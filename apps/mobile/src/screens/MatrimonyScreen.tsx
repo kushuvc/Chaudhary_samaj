@@ -255,7 +255,7 @@ export function MatrimonyScreen() {
       } else if (action === 'view') {
         await api.markMatrimonyViewed(profileId);
       } else {
-        await api.unlockMatrimonyProfile(profileId);
+        await api.unlockPhoneNumber(profileId);
       }
       await loadProfiles();
     } catch (err) {
@@ -471,9 +471,12 @@ export function MatrimonyScreen() {
                       const num = shownNumbers[profile.id];
                       showAlert(t('mmPhoneNumber'), num ? num : t('mpNoPhoneAdded'));
                     } else {
-                      api.unlockMatrimonyProfile(profile.id)
-                        .then(() => {
-                          const phone = (profile as any).phone || null;
+                      // The number comes back from the server, which is the
+                      // only place that knows whether this member's plan and
+                      // this pairing's interest allow it. The card payload
+                      // never carries it.
+                      api.unlockPhoneNumber(profile.id)
+                        .then(({ phone }) => {
                           setShownNumbers(prev => ({ ...prev, [profile.id]: phone }));
                           showAlert(
                             t('mmPhoneNumber'),

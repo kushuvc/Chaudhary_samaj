@@ -48,6 +48,11 @@
   .hint{color:var(--muted);font-size:.85rem;margin:.35rem 0 0}
   .foot{color:var(--muted);font-size:.85rem;margin-top:1.4rem}
   .section-title{font-size:1.15rem;margin:2rem 0 .5rem;letter-spacing:-0.01em}
+  .caps{display:flex;gap:1.1rem;flex-wrap:wrap;margin:.85rem 0 .2rem;
+    padding:.7rem .8rem;border:1px dashed var(--line);border-radius:9px}
+  .caps .switch{margin:0;font-size:.9rem}
+  .caps-title{width:100%;font-size:.8rem;color:var(--muted);margin:0 0 .1rem;
+    text-transform:uppercase;letter-spacing:.04em}
   .pill.off{background:var(--line);color:var(--muted)}
   .plan-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
   .plan-head code{font-size:.8rem;color:var(--muted);background:var(--bg);
@@ -123,6 +128,22 @@
         <input type="number" id="new-sort" step="1" value="1">
       </div>
     </div>
+    <div class="caps">
+      <p class="caps-title">Includes</p>
+      <div class="switch">
+        <input type="checkbox" id="cap-new-canViewPhone" checked>
+        <label for="cap-new-canViewPhone" style="margin:0;color:var(--soft)">See contact numbers</label>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="cap-new-canSendInterest" checked>
+        <label for="cap-new-canSendInterest" style="margin:0;color:var(--soft)">Send interests</label>
+      </div>
+      <div class="switch">
+        <input type="checkbox" id="cap-new-canChat" checked>
+        <label for="cap-new-canChat" style="margin:0;color:var(--soft)">Message matches</label>
+      </div>
+    </div>
+
     <div class="row" style="margin-top:.7rem">
       <div>
         <label for="new-product">Play product id (leave empty for Razorpay only)</label>
@@ -214,6 +235,39 @@ $('verify').onclick = async () => {
   }
 };
 
+/* ---- what a plan (or a free gender) unlocks ---- */
+const esc = (value) =>
+  String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[ch]);
+
+const CAPABILITIES = [
+  ['canViewPhone', 'See contact numbers'],
+  ['canSendInterest', 'Send interests'],
+  ['canChat', 'Message matches'],
+];
+
+/*
+ * A missing flag reads as allowed, matching the server. A row written before
+ * these columns existed must not appear to have everything switched off.
+ */
+function capsBlock(idPrefix, source) {
+  const caps = source.capabilities || source;
+  const rows = CAPABILITIES.map(([key, label]) => {
+    const snake = key.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
+    const raw = caps[key] !== undefined ? caps[key] : source[snake];
+    const on = raw === undefined || raw === null || raw === true;
+    const id = 'cap-' + idPrefix + '-' + key;
+    return `
+      <div class="switch">
+        <input type="checkbox" id="${id}" ${on ? 'checked' : ''}>
+        <label for="${id}" style="margin:0;color:var(--soft)">${label}</label>
+      </div>`;
+  }).join('');
+
+  return `<div class="caps"><p class="caps-title">Includes</p>${rows}</div>`;
+}
+
 /* ---- rules ---- */
 function ruleCard(rule) {
   const free = rule.is_free === true;
@@ -231,6 +285,8 @@ function ruleCard(rule) {
         <input type="checkbox" id="free-${rule.gender}" ${free ? 'checked' : ''}>
         <label for="free-${rule.gender}" style="margin:0;color:var(--soft)">Free — everything unlocked, no payment</label>
       </div>
+
+      ${capsBlock('r-' + rule.gender, rule)}
 
       <div class="row">
         <div>
@@ -276,7 +332,12 @@ async function save(gender, button) {
     await call('/admin/subscription-rules/' + gender, {
       method: 'PUT',
       // The API takes paise; the form takes rupees, which is what you think in.
-      body: JSON.stringify({ isFree, pricePaise: rupees * 100, freeProfileLimit: limit }),
+      body: JSON.stringify({
+      isFree,
+      pricePaise: rupees * 100,
+      freeProfileLimit: limit,
+      ...readCaps('r-' + gender),
+    }),
     });
     msg(gender.charAt(0).toUpperCase() + gender.slice(1) + ' members updated. Live now.');
     await loadRules();
@@ -288,11 +349,6 @@ async function save(gender, button) {
 }
 
 /* ---- plans ---- */
-const esc = (value) =>
-  String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[ch]);
-
 function planCard(plan) {
   const rupees = Math.round(Number(plan.pricePaise || 0) / 100);
   const days = Number(plan.durationDays || 0);
@@ -336,6 +392,8 @@ function planCard(plan) {
         </div>
       </div>
 
+      ${capsBlock(plan.code, plan)}
+
       <div class="row" style="margin-top:.7rem">
         <div>
           <label for="prod-${esc(plan.code)}">Play product id</label>
@@ -371,6 +429,16 @@ async function loadPlans() {
   }
 }
 
+/* Reads the three Includes checkboxes back for one card. */
+function readCaps(idPrefix) {
+  const out = {};
+  for (const [key] of CAPABILITIES) {
+    const el = $('cap-' + idPrefix + '-' + key);
+    if (el) out[key] = el.checked;
+  }
+  return out;
+}
+
 function readPlanForm(prefixes) {
   const rupees = Number($(prefixes.price).value);
   const days = Number($(prefixes.days).value);
@@ -389,6 +457,7 @@ function readPlanForm(prefixes) {
       playProductId: $(prefixes.product).value.trim(),
       badge: $(prefixes.badge).value.trim(),
       sortOrder: sort,
+      ...readCaps(prefixes.caps),
       ...(prefixes.active ? { isActive: $(prefixes.active).checked } : {}),
     },
   };
@@ -398,7 +467,7 @@ async function savePlan(code, button) {
   const form = readPlanForm({
     name: 'name-' + code, days: 'days-' + code, price: 'price-p-' + code,
     sort: 'sort-' + code, product: 'prod-' + code, badge: 'badge-' + code,
-    active: 'on-' + code,
+    active: 'on-' + code, caps: code,
   });
   if (form.error) return msg(form.error, 'err');
   if (!form.body.name) return msg('Give the plan a name.', 'err');
@@ -444,7 +513,7 @@ $('addPlan').onclick = async () => {
 
   const form = readPlanForm({
     name: 'new-name', days: 'new-days', price: 'new-price',
-    sort: 'new-sort', product: 'new-product', badge: 'new-badge',
+    sort: 'new-sort', product: 'new-product', badge: 'new-badge', caps: 'new',
   });
   if (form.error) return msg(form.error, 'err');
   if (!form.body.name) return msg('Give the plan a name.', 'err');
@@ -459,6 +528,7 @@ $('addPlan').onclick = async () => {
     for (const id of ['new-code', 'new-name', 'new-days', 'new-price', 'new-product', 'new-badge']) {
       $(id).value = '';
     }
+    for (const [key] of CAPABILITIES) $('cap-new-' + key).checked = true;
     await loadPlans();
   } catch (err) {
     msg(err.message, 'err');

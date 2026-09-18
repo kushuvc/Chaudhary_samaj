@@ -23,6 +23,7 @@ import type { ThemePalette } from '../context/ThemeContext';
 import { colors } from '../theme';
 import { api } from '../services/api';
 import type { MatrimonyProfile } from '../types';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 type InterestStatus = 'none' | 'pending' | 'sent' | 'accepted' | 'declined';
 
@@ -111,14 +112,8 @@ const infoValueStyle: import('react-native').TextStyle = {
   textAlign: 'right',
 };
 
-// Feature flag for monetization - easily toggle later
-const FEATURES = {
-  SHOW_PHONE_FREE: true, // Set to false when implementing premium
-  SEND_INTEREST_FREE: true, // Set to false when implementing premium
-  CHAT_FREE: true, // Set to false when implementing premium
-};
-
 export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyProfileDetailScreenProps) {
+  const capabilities = useCapabilities();
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
   const insets = useSafeAreaInsets();
@@ -198,7 +193,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
 
   const handleSendInterest = async () => {
     // Check if feature is premium-locked
-    if (!FEATURES.SEND_INTEREST_FREE) {
+    if (!capabilities.canSendInterest) {
       showAlert(t('alertPremiumFeature'), t('mpUpgradeSendInterest'));
       return;
     }
@@ -248,7 +243,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   };
 
   const handleMessage = () => {
-    if (!FEATURES.CHAT_FREE) {
+    if (!capabilities.canChat) {
       showAlert(t('alertPremiumFeature'), t('mpUpgradeMessage'));
       return;
     }
@@ -258,19 +253,27 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
     navigation.navigate('Messages');
   };
 
-  const handleShowPhoneNumber = () => {
-    // Check if feature is premium-locked
-    if (!FEATURES.SHOW_PHONE_FREE) {
+  const handleShowPhoneNumber = async () => {
+    if (!capabilities.canViewPhone) {
       showAlert(t('alertPremiumFeature'), t('mpUpgradePhone'));
       return;
     }
 
     if (profile?.interestStatus === 'accepted') {
-      const phone = profile.phone;
-      if (phone) {
-        showAlert(t('mpPhoneNumberTitle'), phone, [{ text: t('actOk') }]);
-      } else {
-        showAlert(t('mpNoNumberTitle'), t('mpNoNumberBody', { name: profile.name || t('mpThisUser') }), [{ text: t('actOk') }]);
+      /*
+       * The number is fetched, not read off the profile. The profile payload
+       * has never carried it — the old code read `profile.phone`, always got
+       * undefined, and told every member the person had not added one.
+       */
+      try {
+        const { phone } = await api.unlockPhoneNumber(profileId);
+        if (phone) {
+          showAlert(t('mpPhoneNumberTitle'), phone, [{ text: t('actOk') }]);
+        } else {
+          showAlert(t('mpNoNumberTitle'), t('mpNoNumberBody', { name: profile.name || t('mpThisUser') }), [{ text: t('actOk') }]);
+        }
+      } catch (err) {
+        showAlert(t('mpUnableShowNumber'), (err as Error).message || t('alertSomethingWrong'));
       }
     } else if (profile?.interestStatus === 'sent') {
       showAlert(

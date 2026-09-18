@@ -85,6 +85,13 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => {
  * `playProductId` is the Play Console product this maps to; a plan without one
  * sells only through the Razorpay link.
  */
+/** What a plan unlocks. A missing flag reads as allowed, matching the server. */
+export interface PlanCapabilities {
+  canViewPhone: boolean;
+  canSendInterest: boolean;
+  canChat: boolean;
+}
+
 export interface SubscriptionPlan {
   code: string;
   name: string;
@@ -92,13 +99,19 @@ export interface SubscriptionPlan {
   pricePaise: number;
   playProductId: string | null;
   badge: string | null;
+  capabilities: PlanCapabilities;
 }
 
 export interface SubscriptionStatus {
   hasSubscription: boolean;
   entitled?: boolean;
   reason?: 'free-for-gender' | 'subscribed' | 'none' | 'anonymous';
-  plan?: { pricePaise: number; freeProfileLimit: number; freeForYou: boolean };
+  plan?: {
+    pricePaise: number;
+    freeProfileLimit: number;
+    freeForYou: boolean;
+    capabilities?: PlanCapabilities;
+  };
   plan_name?: string;
   amount?: number;
   startedAt?: string;
@@ -353,11 +366,22 @@ export const api = {
     request<{ success: true }>(`/matrimony/profiles/${profileId}/view`, {
       method: 'POST'
     }),
-  unlockMatrimonyProfile: (profileId: string) =>
-    request<{ data: { unlocked: boolean } }>(`/matrimony/profiles/${profileId}/unlock`, {
-      method: 'POST'
-    }),
   // Interest APIs
+  /**
+   * Ask for a member's contact number.
+   *
+   * The server decides: it needs a plan that includes contact numbers and an
+   * interest accepted on both sides. A refusal carries a code saying which of
+   * the two is missing, so the app can explain rather than guess.
+   */
+  unlockPhoneNumber: async (profileId: string): Promise<{ unlocked: boolean; phone: string | null }> => {
+    const response = await request<{ data: { unlocked: boolean; phone: string | null } }>(
+      `/matrimony/profiles/${encodeURIComponent(profileId)}/unlock`,
+      { method: 'POST' }
+    );
+    return response.data;
+  },
+
   sendInterest: (profileId: string) =>
     request<{ data: { interestId: string; status: 'pending' } }>(`/matrimony/profiles/${profileId}/interest`, {
       method: 'POST'

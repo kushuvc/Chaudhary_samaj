@@ -19,6 +19,7 @@ import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useKeyboard } from '../components/ui';
+import { useCapabilities } from '../hooks/useCapabilities';
 
 interface Match {
   id: string;
@@ -43,13 +44,8 @@ interface MessagesScreenProps {
   onBack?: () => void;
 }
 
-// Feature flag for monetization
-const FEATURES = {
-  CHAT_FREE: true,
-  SEND_MESSAGE_FREE: true,
-};
-
 export function MessagesScreen({ onBack }: MessagesScreenProps) {
+  const capabilities = useCapabilities();
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { t } = useAppLanguage();
@@ -122,7 +118,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   }, [view, selectedMatch]);
 
   const loadMessages = async (match: Match) => {
-    if (!FEATURES.CHAT_FREE) {
+    if (!capabilities.canChat) {
       setError(t('mpUpgradeChat'));
       return;
     }
@@ -151,7 +147,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
     }
     if (sending) return;
 
-    if (!FEATURES.SEND_MESSAGE_FREE) {
+    if (!capabilities.canChat) {
       showAlert(t('alertPremiumFeature'), t('mpUpgradeSendMessage'));
       setError(t('mpUpgradeSendMessage'));
       return;

@@ -74,19 +74,40 @@
 
 <section id="signin" class="card">
   <h2 style="margin:0 0 .8rem;font-size:1.05rem">Sign in</h2>
-  <div id="stepEmail">
-    <label for="email">Admin email</label>
-    <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
-    <p class="hint">A six-digit code is emailed to you. The account must be an admin.</p>
-    <div style="margin-top:.8rem"><button id="sendCode">Email me a code</button></div>
+
+  <label for="email">Admin email</label>
+  <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+
+  <!--
+    Two ways in, on purpose. This page used to offer only an emailed code, so
+    anything wrong with mail delivery — a suppression list, a spam folder, an
+    expired provider key — locked the one admin out of their own settings.
+  -->
+  <div id="stepPassword" style="margin-top:.9rem">
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="Your password">
+    <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
+      <button id="signInPassword">Sign in</button>
+      <button id="useCode" class="secondary" type="button">Email me a code instead</button>
+    </div>
+    <p class="hint">The same password you use in the app. The account must be an admin.</p>
   </div>
-  <div id="stepCode" hidden>
+
+  <div id="stepEmail" hidden style="margin-top:.9rem">
+    <p class="hint" style="margin:0 0 .8rem">A six-digit code is emailed to you.</p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button id="sendCode">Email me a code</button>
+      <button id="usePassword" class="secondary" type="button">Use my password instead</button>
+    </div>
+  </div>
+
+  <div id="stepCode" hidden style="margin-top:.9rem">
     <label for="code">Six-digit code</label>
     <input id="code" inputmode="numeric" maxlength="6" placeholder="000000">
     <p class="hint">Check spam if it does not arrive.</p>
-    <div style="margin-top:.8rem;display:flex;gap:.5rem">
+    <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
       <button id="verify">Sign in</button>
-      <button id="backToEmail" class="secondary" type="button">Use a different email</button>
+      <button id="backToEmail" class="secondary" type="button">Back</button>
     </div>
   </div>
 </section>
@@ -196,6 +217,33 @@ async function call(path, options) {
 }
 
 /* ---- sign in ---- */
+$('signInPassword').onclick = async () => {
+  const value = $('email').value.trim();
+  const password = $('password').value;
+  if (!value || !password) return msg('Enter your email and password.', 'err');
+
+  $('signInPassword').disabled = true;
+  try {
+    const body = await call('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: value, password }),
+    });
+    email = value;
+    token = body.data.authToken;
+    sessionStorage.setItem('cs_admin_token', token);
+    sessionStorage.setItem('cs_admin_email', email);
+    $('password').value = '';
+    await loadRules();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('signInPassword').disabled = false;
+  }
+};
+
+$('useCode').onclick = () => { $('stepPassword').hidden = true; $('stepEmail').hidden = false; };
+$('usePassword').onclick = () => { $('stepEmail').hidden = true; $('stepPassword').hidden = false; };
+
 $('sendCode').onclick = async () => {
   const value = $('email').value.trim();
   if (!value) return;
@@ -204,6 +252,7 @@ $('sendCode').onclick = async () => {
     await call('/auth/otp/request', { method: 'POST', body: JSON.stringify({ email: value, purpose: 'login' }) });
     email = value;
     $('stepEmail').hidden = true;
+    $('stepPassword').hidden = true;
     $('stepCode').hidden = false;
     msg('Code sent to ' + value);
   } catch (err) {
@@ -213,7 +262,7 @@ $('sendCode').onclick = async () => {
   }
 };
 
-$('backToEmail').onclick = () => { $('stepCode').hidden = true; $('stepEmail').hidden = false; };
+$('backToEmail').onclick = () => { $('stepCode').hidden = true; $('stepPassword').hidden = false; };
 
 $('verify').onclick = async () => {
   const code = $('code').value.trim();

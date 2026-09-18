@@ -341,9 +341,15 @@ export function SubscriptionsScreen() {
                     ? Math.round((rupees / plan.durationDays) * 30)
                     : rupees;
                   const playProduct = plan.playProductId ? play.products[plan.playProductId] : undefined;
-                  // On a Play build a plan Google has never heard of cannot be
-                  // bought, so it is shown but not selectable.
-                  const buyable = !play.available || !plan.playProductId || Boolean(playProduct);
+                  /*
+                   * On a Play build every plan must go through Play Billing —
+                   * Google requires it for digital goods — so a plan with no
+                   * product id, or one Google has never heard of, is shown but
+                   * cannot be picked. It used to be selectable with a dead
+                   * Subscribe button, which reads as broken rather than as
+                   * unavailable.
+                   */
+                  const buyable = !play.available || Boolean(playProduct);
                   const selected = plan.code === selectedPlan?.code;
 
                   return (

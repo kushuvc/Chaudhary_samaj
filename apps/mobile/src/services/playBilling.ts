@@ -13,8 +13,19 @@ import {
 } from 'expo-iap';
 import { api } from './api';
 
-/** Must match the subscription's product ID in Play Console exactly. */
+/**
+ * Product id for the plan that was the only one. Kept as the fallback for a
+ * build that cannot reach the plans endpoint, so billing still works offline
+ * of the admin screen rather than not at all.
+ */
 export const PREMIUM_PRODUCT_ID = 'premium_monthly';
+
+/** What Play knows about one subscription product. */
+export interface PlayProduct {
+  sku: string;
+  displayPrice?: string;
+  title?: string;
+}
 
 interface PlayBillingState {
   available: boolean;
@@ -22,7 +33,8 @@ interface PlayBillingState {
   purchasing: boolean;
   /** True while re-checking the store for a purchase we never confirmed. */
   restoring: boolean;
-  product: { displayPrice?: string; title?: string } | null;
+  /** Keyed by product id, so each plan card can show Play's own price. */
+  products: Record<string, PlayProduct>;
   error: string | null;
 }
 
@@ -34,13 +46,13 @@ interface PlayBillingState {
  * our API confirms it. Treating the client's own success callback as proof
  * would let anyone with a patched build unlock the app.
  */
-export function usePlayBilling(onEntitled: () => void) {
+export function usePlayBilling(productIds: string[], onEntitled: () => void) {
   const [state, setState] = useState<PlayBillingState>({
     available: false,
     loading: true,
     purchasing: false,
     restoring: false,
-    product: null,
+    products: {},
     error: null,
   });
 
@@ -53,9 +65,17 @@ export function usePlayBilling(onEntitled: () => void) {
    * fetchProducts. Holding it in a ref keeps `buy` stable while still seeing
    * the value fetched after mount.
    */
-  const offersRef = useRef<Array<{ sku: string; offerToken: string }>>([]);
+  const offersRef = useRef<Record<string, Array<{ sku: string; offerToken: string }>>>({});
   const onEntitledRef = useRef(onEntitled);
   onEntitledRef.current = onEntitled;
+
+  /*
+   * The plan list arrives asynchronously, so this effect re-runs as it lands.
+   * Joining the ids gives it a stable dependency — a new array with the same
+   * contents would otherwise tear down and rebuild the Play connection on
+   * every render.
+   */
+  const skuKey = productIds.join(',');
 
   useEffect(() => {
     mounted.current = true;
@@ -135,28 +155,47 @@ export function usePlayBilling(onEntitled: () => void) {
           // Not fatal: the buy flow and the manual restore both still work.
         }
 
-        const products = await fetchProducts({ skus: [PREMIUM_PRODUCT_ID], type: 'subs' });
+        const skus = productIds.length ? productIds : [PREMIUM_PRODUCT_ID];
+        const products = await fetchProducts({ skus, type: 'subs' });
         if (!mounted.current) return;
 
-        const subscription = products?.[0] as
-          | { subscriptionOffers?: Array<{ offerTokenAndroid?: string | null }> }
-          | undefined;
+        const offers: Record<string, Array<{ sku: string; offerToken: string }>> = {};
+        const catalogue: Record<string, PlayProduct> = {};
 
-        offersRef.current = (subscription?.subscriptionOffers ?? [])
-          .map((offer) => offer?.offerTokenAndroid)
-          .filter((token): token is string => Boolean(token))
-          .map((offerToken) => ({ sku: PREMIUM_PRODUCT_ID, offerToken }));
+        for (const entry of products ?? []) {
+          const product = entry as {
+            id?: string;
+            productId?: string;
+            displayPrice?: string;
+            title?: string;
+            subscriptionOffers?: Array<{ offerTokenAndroid?: string | null }>;
+          };
+          // expo-iap has used both names across versions; take whichever is set.
+          const sku = product.id || product.productId;
+          if (!sku) continue;
+
+          catalogue[sku] = { sku, displayPrice: product.displayPrice, title: product.title };
+          offers[sku] = (product.subscriptionOffers ?? [])
+            .map((offer) => offer?.offerTokenAndroid)
+            .filter((token): token is string => Boolean(token))
+            .map((offerToken) => ({ sku, offerToken }));
+        }
+
+        offersRef.current = offers;
 
         setState((prev) => ({
           ...prev,
           available: true,
           loading: false,
-          product: (products?.[0] as { displayPrice?: string; title?: string }) ?? null,
+          products: catalogue,
           // An empty list nearly always means Play Console setup rather than a
-          // code fault, so say which.
-          error: products?.length
-            ? null
-            : 'This subscription is not available yet. It may still be rolling out on Google Play.',
+          // code fault, so say which. A partial list means one plan's product
+          // id does not match Play Console, which is worth naming separately.
+          error: !products?.length
+            ? 'This subscription is not available yet. It may still be rolling out on Google Play.'
+            : products.length < skus.length
+              ? 'Some plans are not set up on Google Play yet, so they cannot be bought here.'
+              : null,
         }));
       } catch (err) {
         if (!mounted.current) return;
@@ -177,7 +216,8 @@ export function usePlayBilling(onEntitled: () => void) {
       errorSub?.remove();
       void endConnection();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skuKey]);
 
   /*
    * Re-check the store for a purchase we never confirmed.
@@ -238,7 +278,7 @@ export function usePlayBilling(onEntitled: () => void) {
     }
   }, []);
 
-  const buy = useCallback(async () => {
+  const buy = useCallback(async (sku: string) => {
     setState((prev) => ({ ...prev, purchasing: true, error: null }));
     try {
       // Resolves when Play accepts the request; the actual result arrives on
@@ -249,13 +289,13 @@ export function usePlayBilling(onEntitled: () => void) {
       // Billing v5+ refuses to open the purchase sheet without it, and leaving
       // it out fails at the payment step rather than at startup — the worst
       // place to find out.
-      const subscriptionOffers = offersRef.current;
+      const subscriptionOffers = offersRef.current[sku] ?? [];
       if (!subscriptionOffers.length) {
-        throw new Error('This subscription is not available to purchase yet. Please try again shortly.');
+        throw new Error('This plan is not available to purchase yet. Please try again shortly.');
       }
 
       await requestPurchase({
-        request: { google: { skus: [PREMIUM_PRODUCT_ID], subscriptionOffers } },
+        request: { google: { skus: [sku], subscriptionOffers } },
         type: 'subs',
       });
     } catch (err) {

@@ -1908,6 +1908,111 @@ function invalidateSubscriptionRules() {
   cacheInvalidate(RULES_CACHE_KEY)
 }
 
+/* ------------------------------------------------------------------ */
+/* Subscription plans                                                  */
+/* ------------------------------------------------------------------ */
+
+const PLANS_CACHE_KEY = 'subscriptionPlans'
+const PLANS_CACHE_MS = 30000
+
+/**
+ * The plan to fall back on when the table cannot be read.
+ *
+ * Matches the row seeded by the migration, so a database hiccup degrades to
+ * what the app used to hardcode rather than to no plans at all.
+ */
+const FALLBACK_PLAN = {
+  code: 'premium',
+  name: 'Monthly',
+  durationDays: 30,
+  pricePaise: 20000,
+  playProductId: 'premium_monthly',
+  badge: 'Most popular',
+  isActive: true,
+  sortOrder: 0,
+}
+
+function planFromRow(row) {
+  return {
+    code: String(row.code),
+    name: String(row.name),
+    durationDays: Number(row.duration_days) || FALLBACK_PLAN.durationDays,
+    pricePaise: Number(row.price_paise) || 0,
+    playProductId: row.play_product_id ? String(row.play_product_id) : null,
+    badge: row.badge ? String(row.badge) : null,
+    isActive: row.is_active === true || row.is_active === 1 || row.is_active === 't',
+    sortOrder: Number(row.sort_order) || 0,
+    updatedAt: row.updated_at || null,
+  }
+}
+
+/** Every plan, active or not. Admin reads this; buyers get the active ones. */
+async function loadPlans() {
+  const cached = cacheGet(PLANS_CACHE_KEY)
+  if (cached) return cached
+
+  const rows = await pgQuery(
+    `SELECT code, name, duration_days, price_paise, play_product_id, badge,
+            is_active, sort_order, updated_at
+     FROM subscription_plans
+     ORDER BY sort_order, price_paise`
+  )
+
+  const plans = rows.map(planFromRow)
+  cacheSet(PLANS_CACHE_KEY, plans, PLANS_CACHE_MS)
+  return plans
+}
+
+function invalidatePlans() {
+  cacheInvalidate(PLANS_CACHE_KEY)
+}
+
+/** What the app is allowed to offer. */
+async function activePlans() {
+  try {
+    const plans = (await loadPlans()).filter((plan) => plan.isActive)
+    return plans.length ? plans : [FALLBACK_PLAN]
+  } catch (err) {
+    console.error('[plans] could not read subscription_plans:', err.message)
+    return [FALLBACK_PLAN]
+  }
+}
+
+/**
+ * Resolve a plan by its code.
+ *
+ * Returns null for an unknown or retired code rather than guessing, so a
+ * payment can never be taken for something that is not on sale. Callers that
+ * are recording a purchase already made — a Play renewal for a plan since
+ * retired — pass `includeInactive`.
+ */
+async function planByCode(code, { includeInactive = false } = {}) {
+  const wanted = String(code || '').trim()
+  if (!wanted) return null
+  try {
+    const plans = await loadPlans()
+    const found = plans.find((plan) => plan.code === wanted)
+    if (!found) return null
+    return found.isActive || includeInactive ? found : null
+  } catch (err) {
+    console.error('[plans] lookup failed:', err.message)
+    return wanted === FALLBACK_PLAN.code ? FALLBACK_PLAN : null
+  }
+}
+
+/** Resolve a plan from the Play Console product id on a purchase. */
+async function planByPlayProductId(productId) {
+  const wanted = String(productId || '').trim()
+  if (!wanted) return null
+  try {
+    const plans = await loadPlans()
+    return plans.find((plan) => plan.playProductId === wanted) || null
+  } catch (err) {
+    console.error('[plans] product lookup failed:', err.message)
+    return wanted === FALLBACK_PLAN.playProductId ? FALLBACK_PLAN : null
+  }
+}
+
 async function ruleForGender(gender) {
   const key = String(gender || '').trim().toLowerCase()
   try {
@@ -3203,15 +3308,23 @@ app.post('/api/payments/create-order', requirePayments, async (request, response
       return
     }
 
-    const { plan, amount } = request.body
-    
+    const { plan } = request.body
+
+    // The amount is the plan's, never the caller's. This used to bill whatever
+    // figure was posted, so an order for ₹1 would have bought a full month.
+    const selected = await planByCode(plan)
+    if (!selected) {
+      response.status(400).json({ success: false, error: 'That plan is not available.' })
+      return
+    }
+
     const options = {
-      amount: amount * 100, // Razorpay expects amount in paise
+      amount: selected.pricePaise,
       currency: 'INR',
       receipt: `r_${activeUserId.slice(0, 8)}_${Date.now().toString().slice(-6)}`,
       notes: {
         userId: activeUserId,
-        plan: plan || 'basic'
+        plan: selected.code
       }
     }
 
@@ -3232,7 +3345,16 @@ app.post('/api/payments/verify', requirePayments, async (request, response) => {
       return
     }
 
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, amount } = request.body
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = request.body
+
+    // Same rule as create-order: what gets recorded is the plan's price, not a
+    // number the client chose.
+    const selected = await planByCode(plan, { includeInactive: true })
+    if (!selected) {
+      response.status(400).json({ success: false, error: 'That plan is not available.' })
+      return
+    }
+    const amount = Math.round(selected.pricePaise / 100)
 
     // Verify signature
     const body = razorpay_order_id + '|' + razorpay_payment_id
@@ -3249,11 +3371,7 @@ app.post('/api/payments/verify', requirePayments, async (request, response) => {
     // Calculate expiry date based on plan
     const now = new Date()
     const expiryDate = new Date(now)
-    if (plan === 'basic') {
-      expiryDate.setDate(now.getDate() + 7) // 7 days
-    } else {
-      expiryDate.setDate(now.getDate() + 30) // 30 days
-    }
+    expiryDate.setDate(now.getDate() + (await planDurationDays(plan)))
 
     // Store subscription in database
     await pgQuery(
@@ -3390,7 +3508,7 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), asy
 
     const now = new Date()
     const expiryDate = new Date(now)
-    expiryDate.setDate(now.getDate() + (plan === 'basic' ? 7 : 30))
+    expiryDate.setDate(now.getDate() + (await planDurationDays(plan)))
 
     await pgQuery(
       `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
@@ -3415,8 +3533,16 @@ const RAZORPAY_AUTH_HEADER =
     `${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`
   ).toString('base64')
 
-function planDurationDays(plan) {
-  return plan === 'basic' ? 7 : 30
+/**
+ * How long a plan runs for.
+ *
+ * A purchase already made is honoured even if the plan has since been retired
+ * or deleted, hence includeInactive and the fallback — refusing to date a
+ * payment we have already taken would be worse than dating it conservatively.
+ */
+async function planDurationDays(plan) {
+  const found = await planByCode(plan, { includeInactive: true })
+  return found?.durationDays ?? FALLBACK_PLAN.durationDays
 }
 
 /**
@@ -3424,10 +3550,10 @@ function planDurationDays(plan) {
  * payment: the row is keyed on user_id, so a repeat call just refreshes it.
  */
 async function activateSubscription({ userId, plan, amount, paymentId, orderId }) {
-  const normalizedPlan = plan === 'basic' ? 'basic' : 'premium'
+  const normalizedPlan = String(plan || FALLBACK_PLAN.code).trim() || FALLBACK_PLAN.code
   const now = new Date()
   const expiryDate = new Date(now)
-  expiryDate.setDate(now.getDate() + planDurationDays(normalizedPlan))
+  expiryDate.setDate(now.getDate() + (await planDurationDays(normalizedPlan)))
 
   await pgQuery(
     `INSERT INTO user_subscriptions (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at)
@@ -3631,16 +3757,28 @@ app.post('/api/payments/play/verify', async (request, response) => {
       return
     }
 
+    /*
+     * Which plan this is comes from the product id Google reports, so a
+     * quarterly or annual subscription records itself correctly without any
+     * change here. An unrecognised product still grants access — the member
+     * paid — but is recorded against the fallback rather than dropped.
+     */
+    const bought = (await planByPlayProductId(purchase.productId)) || FALLBACK_PLAN
     const startedAt = new Date().toISOString()
-    const expiresAt = purchase.expiryTime || new Date(Date.now() + 30 * 864e5).toISOString()
+    // Google's own expiry is the truth for a Play purchase; the plan duration
+    // is only a stand-in when the lookup came back without one.
+    const expiresAt =
+      purchase.expiryTime ||
+      new Date(Date.now() + bought.durationDays * 864e5).toISOString()
 
     await pgQuery(
       `INSERT INTO user_subscriptions
          (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at,
           play_purchase_token, play_product_id, provider)
-       VALUES ($1, 'premium', 200, $2, $3, 'active', $4, $5, $6, $7, 'google_play')
+       VALUES ($1, $8, $9, $2, $3, 'active', $4, $5, $6, $7, 'google_play')
        ON CONFLICT (user_id) DO UPDATE SET
-         plan = 'premium',
+         plan = $8,
+         amount = $9,
          status = 'active',
          payment_id = $2,
          order_id = $3,
@@ -3657,6 +3795,8 @@ app.post('/api/payments/play/verify', async (request, response) => {
         expiresAt,
         purchaseToken,
         purchase.productId,
+        bought.code,
+        Math.round(bought.pricePaise / 100),
       ]
     )
 
@@ -3673,7 +3813,7 @@ app.post('/api/payments/play/verify', async (request, response) => {
 
     response.json({
       success: true,
-      data: { active: true, plan: 'premium', startedAt, expiresAt },
+      data: { active: true, plan: bought.code, startedAt, expiresAt },
     })
   } catch (err) {
     /*
@@ -3747,6 +3887,32 @@ app.post('/api/payments/play/rtdn', async (request, response) => {
   }
 })
 
+/**
+ * The plans on sale, for the app's subscription screen.
+ *
+ * Deliberately not behind requirePayments: the screen has to render its prices
+ * even on a build where Razorpay keys are unset and only Play billing works.
+ */
+app.get('/api/payments/plans', async (_request, response) => {
+  try {
+    const plans = await activePlans()
+    response.json({
+      success: true,
+      data: plans.map((plan) => ({
+        code: plan.code,
+        name: plan.name,
+        durationDays: plan.durationDays,
+        pricePaise: plan.pricePaise,
+        playProductId: plan.playProductId,
+        badge: plan.badge,
+      })),
+    })
+  } catch (err) {
+    console.error('[plans] list failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not load the plans' })
+  }
+})
+
 app.post('/api/payments/create-link', requirePayments, async (request, response) => {
   try {
     const activeUserId = resolveUserId(request)
@@ -3756,21 +3922,29 @@ app.post('/api/payments/create-link', requirePayments, async (request, response)
     }
 
     const { plan } = request.body
-    // Single plan: ₹200/month (premium). Reject anything else.
-    const VALID_PLAN = 'premium'
-    const PLAN_AMOUNT = 200
-    if (plan !== VALID_PLAN) {
-      response.status(400).json({ success: false, error: 'Invalid plan. Only monthly premium plan (₹200) is available.' })
+
+    /*
+     * The price is the one on the plan, never the one the client sent.
+     * createPaymentLink used to take an amount from the caller; anyone could
+     * have posted their own figure and paid ₹1 for a year.
+     */
+    const selected = await planByCode(plan)
+    if (!selected) {
+      response.status(400).json({ success: false, error: 'That plan is not available.' })
       return
     }
-    const amount = PLAN_AMOUNT
+    const amount = Math.round(selected.pricePaise / 100)
+    if (amount <= 0) {
+      response.status(400).json({ success: false, error: 'That plan has no price set.' })
+      return
+    }
 
     // Create payment link via Razorpay API
     const linkData = {
       amount: amount * 100, // in paise
       currency: 'INR',
       accept_partial: false,
-      description: 'Monthly Subscription - Chaudhary Samaj (₹200/month)',
+      description: `${selected.name} subscription — Chaudhary Samaj (₹${amount} / ${selected.durationDays} days)`,
       customer: {
         name: 'User',
       },
@@ -3781,7 +3955,7 @@ app.post('/api/payments/create-link', requirePayments, async (request, response)
       reminder_enable: false,
       notes: {
         userId: activeUserId,
-        plan: plan,
+        plan: selected.code,
       },
     }
 
@@ -4222,6 +4396,159 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
   } catch (err) {
     console.error('[admin/rules] write failed:', err.message)
     response.status(500).json({ success: false, error: 'Could not update subscription rules' })
+  }
+})
+
+/* ------------------------------------------------------------------ */
+/* Admin: subscription plans                                           */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/admin/plans', requireAdmin, async (_request, response) => {
+  try {
+    const rows = await pgQuery(
+      `SELECT code, name, duration_days, price_paise, play_product_id, badge,
+              is_active, sort_order, updated_at
+       FROM subscription_plans
+       ORDER BY sort_order, price_paise`
+    )
+    response.json({ success: true, data: rows.map(planFromRow) })
+  } catch (err) {
+    console.error('[admin/plans] read failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not read the plans' })
+  }
+})
+
+/**
+ * Create or update one plan.
+ *
+ * The code is the primary key and ends up in user_subscriptions.plan, so an
+ * existing code updates in place and the shape of it is restricted — it also
+ * travels in a Razorpay payment link's notes.
+ */
+app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
+  const code = String(request.params.code || '').trim().toLowerCase()
+  if (!/^[a-z0-9_]{2,40}$/.test(code)) {
+    response.status(400).json({
+      success: false,
+      error: 'Code must be 2-40 characters of lowercase letters, numbers or underscores',
+    })
+    return
+  }
+
+  const { name, durationDays, pricePaise, playProductId, badge, isActive, sortOrder } =
+    request.body || {}
+
+  if (typeof name !== 'string' || !name.trim() || name.trim().length > 40) {
+    response.status(400).json({ success: false, error: 'Name is required (up to 40 characters)' })
+    return
+  }
+  if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650) {
+    response.status(400).json({ success: false, error: 'Duration must be between 1 and 3650 days' })
+    return
+  }
+  if (!Number.isInteger(pricePaise) || pricePaise < 0) {
+    response.status(400).json({ success: false, error: 'Price must be a whole number of paise' })
+    return
+  }
+  if (playProductId !== undefined && playProductId !== null && typeof playProductId !== 'string') {
+    response.status(400).json({ success: false, error: 'Play product id must be text' })
+    return
+  }
+  if (badge !== undefined && badge !== null && typeof badge !== 'string') {
+    response.status(400).json({ success: false, error: 'Badge must be text' })
+    return
+  }
+  if (isActive !== undefined && typeof isActive !== 'boolean') {
+    response.status(400).json({ success: false, error: 'isActive must be true or false' })
+    return
+  }
+  if (sortOrder !== undefined && !Number.isInteger(sortOrder)) {
+    response.status(400).json({ success: false, error: 'sortOrder must be a whole number' })
+    return
+  }
+
+  // Empty string and null both mean "sells through Razorpay only". Storing it
+  // as NULL keeps the unique index from treating two such plans as a clash.
+  const productId = String(playProductId || '').trim() || null
+
+  try {
+    const rows = await pgQuery(
+      `INSERT INTO subscription_plans
+         (code, name, duration_days, price_paise, play_product_id, badge,
+          is_active, sort_order, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), COALESCE($8, 0), NOW()::text)
+       ON CONFLICT (code) DO UPDATE SET
+         name = $2,
+         duration_days = $3,
+         price_paise = $4,
+         play_product_id = $5,
+         badge = $6,
+         is_active = COALESCE($7, subscription_plans.is_active),
+         sort_order = COALESCE($8, subscription_plans.sort_order),
+         updated_at = NOW()::text
+       RETURNING code, name, duration_days, price_paise, play_product_id, badge,
+                 is_active, sort_order, updated_at`,
+      [
+        code,
+        name.trim(),
+        durationDays,
+        pricePaise,
+        productId,
+        String(badge || '').trim() || null,
+        isActive === undefined ? null : isActive,
+        sortOrder === undefined ? null : sortOrder,
+      ]
+    )
+
+    invalidatePlans()
+    response.json({ success: true, data: planFromRow(rows[0]) })
+  } catch (err) {
+    if (/subscription_plans_play_product_key/.test(err.message)) {
+      response.status(409).json({
+        success: false,
+        error: 'Another plan already uses that Play product id',
+      })
+      return
+    }
+    console.error('[admin/plans] write failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not save the plan' })
+  }
+})
+
+/**
+ * Retire a plan.
+ *
+ * Deactivates rather than deletes when anyone holds a subscription on it:
+ * user_subscriptions.plan stores the code, and removing the row would leave
+ * those records pointing at nothing and their renewals undatable.
+ */
+app.delete('/api/admin/plans/:code', requireAdmin, async (request, response) => {
+  const code = String(request.params.code || '').trim().toLowerCase()
+  try {
+    const inUse = await pgQuery(
+      'SELECT 1 FROM user_subscriptions WHERE plan = $1 LIMIT 1',
+      [code]
+    )
+
+    if (inUse.length > 0) {
+      await pgQuery(
+        `UPDATE subscription_plans SET is_active = false, updated_at = NOW()::text WHERE code = $1`,
+        [code]
+      )
+      invalidatePlans()
+      response.json({
+        success: true,
+        data: { code, removed: false, deactivated: true },
+      })
+      return
+    }
+
+    await pgQuery('DELETE FROM subscription_plans WHERE code = $1', [code])
+    invalidatePlans()
+    response.json({ success: true, data: { code, removed: true, deactivated: false } })
+  } catch (err) {
+    console.error('[admin/plans] delete failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not remove the plan' })
   }
 })
 

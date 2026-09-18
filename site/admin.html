@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Subscription rules — Chaudhary Samaj</title>
+<title>Subscriptions — Chaudhary Samaj</title>
 <style>
   :root{
     --ink:#1b2030; --soft:#4c5468; --muted:#737c92; --line:#e5e7f0;
@@ -47,6 +47,13 @@
   .msg.err{background:var(--errbg);color:var(--err)}
   .hint{color:var(--muted);font-size:.85rem;margin:.35rem 0 0}
   .foot{color:var(--muted);font-size:.85rem;margin-top:1.4rem}
+  .section-title{font-size:1.15rem;margin:2rem 0 .5rem;letter-spacing:-0.01em}
+  .pill.off{background:var(--line);color:var(--muted)}
+  .plan-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+  .plan-head code{font-size:.8rem;color:var(--muted);background:var(--bg);
+    padding:.1rem .4rem;border-radius:5px}
+  .per-day{color:var(--muted);font-size:.85rem;white-space:nowrap}
+  button.danger{background:transparent;color:var(--err);border:1px solid var(--line)}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -54,8 +61,8 @@
 <div class="wrap">
 
 <header>
-  <h1>Subscription rules</h1>
-  <p class="sub">Who pays, how much, and how many profiles they see before the paywall. Changes apply on the next request — no app update.</p>
+  <h1>Subscriptions</h1>
+  <p class="sub">Who pays, and what they can buy. Changes apply on the next request — no app update, no redeploy.</p>
 </header>
 
 <div id="msg" class="msg"></div>
@@ -80,6 +87,61 @@
 </section>
 
 <section id="rules" hidden></section>
+
+<section id="plansWrap" hidden>
+  <h2 class="section-title">Plans</h2>
+  <p class="sub" style="margin:-.3rem 0 1rem">
+    What the app offers on its subscription screen, in this order. The Play product id must match
+    the subscription's product ID in Play Console exactly — and the price here must match the price
+    you set there, because Google charges its own.
+  </p>
+  <div id="plans"></div>
+
+  <div class="card">
+    <div class="head"><h2>Add a plan</h2></div>
+    <div class="row">
+      <div>
+        <label for="new-code">Code</label>
+        <input type="text" id="new-code" placeholder="premium_quarterly">
+      </div>
+      <div>
+        <label for="new-name">Name shown in the app</label>
+        <input type="text" id="new-name" placeholder="Quarterly">
+      </div>
+    </div>
+    <div class="row" style="margin-top:.7rem">
+      <div>
+        <label for="new-days">Length (days)</label>
+        <input type="number" id="new-days" min="1" step="1" placeholder="90">
+      </div>
+      <div>
+        <label for="new-price">Price (₹)</label>
+        <input type="number" id="new-price" min="0" step="1" placeholder="500">
+      </div>
+      <div>
+        <label for="new-sort">Order</label>
+        <input type="number" id="new-sort" step="1" value="1">
+      </div>
+    </div>
+    <div class="row" style="margin-top:.7rem">
+      <div>
+        <label for="new-product">Play product id (leave empty for Razorpay only)</label>
+        <input type="text" id="new-product" placeholder="premium_quarterly">
+      </div>
+      <div>
+        <label for="new-badge">Badge (optional)</label>
+        <input type="text" id="new-badge" placeholder="Best value">
+      </div>
+      <div style="flex:0 0 auto">
+        <button id="addPlan">Add plan</button>
+      </div>
+    </div>
+    <p class="hint">
+      The code is permanent once someone has bought it — it is what their subscription record points at.
+      Lowercase letters, numbers and underscores.
+    </p>
+  </div>
+</section>
 
 <p class="foot" id="whoami"></p>
 
@@ -197,6 +259,8 @@ async function loadRules() {
   for (const button of $('rules').querySelectorAll('[data-save]')) {
     button.onclick = () => save(button.getAttribute('data-save'), button);
   }
+
+  await loadPlans();
 }
 
 async function save(gender, button) {
@@ -222,6 +286,186 @@ async function save(gender, button) {
     button.disabled = false;
   }
 }
+
+/* ---- plans ---- */
+const esc = (value) =>
+  String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[ch]);
+
+function planCard(plan) {
+  const rupees = Math.round(Number(plan.pricePaise || 0) / 100);
+  const days = Number(plan.durationDays || 0);
+  // Per-month makes two plans of different lengths comparable at a glance,
+  // which is the whole reason for offering more than one.
+  const perMonth = days > 0 ? Math.round((rupees / days) * 30) : 0;
+
+  return `
+    <div class="card" data-code="${esc(plan.code)}">
+      <div class="head">
+        <div class="plan-head">
+          <h2>${esc(plan.name)}</h2>
+          <code>${esc(plan.code)}</code>
+        </div>
+        <span class="pill ${plan.isActive ? 'paid' : 'off'}">
+          ${plan.isActive ? '₹' + rupees + ' / ' + days + ' DAYS' : 'HIDDEN'}
+        </span>
+      </div>
+
+      <div class="switch">
+        <input type="checkbox" id="on-${esc(plan.code)}" ${plan.isActive ? 'checked' : ''}>
+        <label for="on-${esc(plan.code)}" style="margin:0;color:var(--soft)">Show this plan in the app</label>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="name-${esc(plan.code)}">Name</label>
+          <input type="text" id="name-${esc(plan.code)}" value="${esc(plan.name)}">
+        </div>
+        <div>
+          <label for="days-${esc(plan.code)}">Length (days)</label>
+          <input type="number" id="days-${esc(plan.code)}" min="1" step="1" value="${days}">
+        </div>
+        <div>
+          <label for="price-p-${esc(plan.code)}">Price (₹)</label>
+          <input type="number" id="price-p-${esc(plan.code)}" min="0" step="1" value="${rupees}">
+        </div>
+        <div>
+          <label for="sort-${esc(plan.code)}">Order</label>
+          <input type="number" id="sort-${esc(plan.code)}" step="1" value="${Number(plan.sortOrder || 0)}">
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:.7rem">
+        <div>
+          <label for="prod-${esc(plan.code)}">Play product id</label>
+          <input type="text" id="prod-${esc(plan.code)}" value="${esc(plan.playProductId)}" placeholder="none — Razorpay only">
+        </div>
+        <div>
+          <label for="badge-${esc(plan.code)}">Badge</label>
+          <input type="text" id="badge-${esc(plan.code)}" value="${esc(plan.badge)}" placeholder="none">
+        </div>
+        <div style="flex:0 0 auto;display:flex;gap:.5rem">
+          <button data-save-plan="${esc(plan.code)}">Save</button>
+          <button class="danger" data-drop-plan="${esc(plan.code)}">Remove</button>
+        </div>
+      </div>
+
+      <p class="hint">
+        <span class="per-day">≈ ₹${perMonth} / month</span> ·
+        Updated ${plan.updatedAt ? new Date(plan.updatedAt).toLocaleString() : 'never'}.
+      </p>
+    </div>`;
+}
+
+async function loadPlans() {
+  const body = await call('/admin/plans');
+  $('plansWrap').hidden = false;
+  $('plans').innerHTML = body.data.map(planCard).join('');
+
+  for (const button of $('plans').querySelectorAll('[data-save-plan]')) {
+    button.onclick = () => savePlan(button.getAttribute('data-save-plan'), button);
+  }
+  for (const button of $('plans').querySelectorAll('[data-drop-plan]')) {
+    button.onclick = () => dropPlan(button.getAttribute('data-drop-plan'), button);
+  }
+}
+
+function readPlanForm(prefixes) {
+  const rupees = Number($(prefixes.price).value);
+  const days = Number($(prefixes.days).value);
+  const sort = Number($(prefixes.sort).value);
+
+  if (!Number.isInteger(days) || days < 1) return { error: 'Length must be at least one day.' };
+  if (!Number.isInteger(rupees) || rupees < 0) return { error: 'Price must be a whole number of rupees.' };
+  if (!Number.isInteger(sort)) return { error: 'Order must be a whole number.' };
+
+  return {
+    body: {
+      name: $(prefixes.name).value.trim(),
+      durationDays: days,
+      // The API takes paise; the form takes rupees, which is what you think in.
+      pricePaise: rupees * 100,
+      playProductId: $(prefixes.product).value.trim(),
+      badge: $(prefixes.badge).value.trim(),
+      sortOrder: sort,
+      ...(prefixes.active ? { isActive: $(prefixes.active).checked } : {}),
+    },
+  };
+}
+
+async function savePlan(code, button) {
+  const form = readPlanForm({
+    name: 'name-' + code, days: 'days-' + code, price: 'price-p-' + code,
+    sort: 'sort-' + code, product: 'prod-' + code, badge: 'badge-' + code,
+    active: 'on-' + code,
+  });
+  if (form.error) return msg(form.error, 'err');
+  if (!form.body.name) return msg('Give the plan a name.', 'err');
+
+  button.disabled = true;
+  try {
+    await call('/admin/plans/' + encodeURIComponent(code), {
+      method: 'PUT',
+      body: JSON.stringify(form.body),
+    });
+    msg(form.body.name + ' updated. Live now.');
+    await loadPlans();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function dropPlan(code, button) {
+  if (!confirm('Remove the "' + code + '" plan?\n\nIf anyone is subscribed on it, it is hidden from the app instead of deleted, so their subscription keeps working.')) {
+    return;
+  }
+  button.disabled = true;
+  try {
+    const body = await call('/admin/plans/' + encodeURIComponent(code), { method: 'DELETE' });
+    msg(body.data.removed
+      ? 'Plan removed.'
+      : 'Members are subscribed on this plan, so it is hidden from the app rather than deleted.');
+    await loadPlans();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$('addPlan').onclick = async () => {
+  const code = $('new-code').value.trim().toLowerCase();
+  if (!/^[a-z0-9_]{2,40}$/.test(code)) {
+    return msg('Code must be 2-40 characters of lowercase letters, numbers or underscores.', 'err');
+  }
+
+  const form = readPlanForm({
+    name: 'new-name', days: 'new-days', price: 'new-price',
+    sort: 'new-sort', product: 'new-product', badge: 'new-badge',
+  });
+  if (form.error) return msg(form.error, 'err');
+  if (!form.body.name) return msg('Give the plan a name.', 'err');
+
+  $('addPlan').disabled = true;
+  try {
+    await call('/admin/plans/' + encodeURIComponent(code), {
+      method: 'PUT',
+      body: JSON.stringify({ ...form.body, isActive: true }),
+    });
+    msg(form.body.name + ' added. Live now.');
+    for (const id of ['new-code', 'new-name', 'new-days', 'new-price', 'new-product', 'new-badge']) {
+      $(id).value = '';
+    }
+    await loadPlans();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('addPlan').disabled = false;
+  }
+};
 
 /* A stored token may have expired or belong to a non-admin. */
 if (token) {

@@ -19,22 +19,22 @@ import { api } from '../services/api';
 import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
 
-import type { SubscriptionStatus } from '../services/api';
+import type { SubscriptionPlan, SubscriptionStatus } from '../services/api';
 import { useAppLanguage } from '../context/LanguageContext';
 
 type SubscriptionData = SubscriptionStatus;
 
-const PLAN = {
-  nameKey: 'planMonthly',
-  amount: 200,
-  days: 30,
-  perkKeys: [
-    'subUnlimitedViews',
-    'subSeePhones',
-    'subUnlimitedInterests',
-    'subPriorityPlacement',
-  ],
-};
+/*
+ * What a subscription gets you. Shared by every plan on purpose: access is
+ * all-or-nothing on the server, so plans differ in length and price only —
+ * listing different perks per plan would be a promise the API cannot keep.
+ */
+const PERK_KEYS = [
+  'subUnlimitedViews',
+  'subSeePhones',
+  'subUnlimitedInterests',
+  'subPriorityPlacement',
+];
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
@@ -53,6 +53,8 @@ export function SubscriptionsScreen() {
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
@@ -63,7 +65,24 @@ export function SubscriptionsScreen() {
 
   const loadSubscription = useCallback(async () => {
     try {
-      setSubscription(await api.getSubscriptionStatus());
+      // Both together: the screen cannot decide what to show without knowing
+      // the member's state and what is on sale.
+      const [status, available] = await Promise.all([
+        api.getSubscriptionStatus(),
+        api.getSubscriptionPlans().catch((err) => {
+          console.error('[subscriptions] plans failed:', err);
+          return [] as SubscriptionPlan[];
+        }),
+      ]);
+      setSubscription(status);
+      setPlans(available);
+      // Keep whatever the member picked if it is still on sale; otherwise fall
+      // back to the first, which is the order the admin screen chose.
+      setSelectedCode((current) =>
+        current && available.some((plan) => plan.code === current)
+          ? current
+          : available[0]?.code ?? null
+      );
     } catch (err) {
       console.error('[subscriptions] status failed:', err);
     } finally {
@@ -81,7 +100,12 @@ export function SubscriptionsScreen() {
 
   // Google Play is the payment path on Android. Razorpay stays in the codebase
   // for a future web checkout, where Play's service fee does not apply.
-  const play = usePlayBilling(() => {
+  const playProductIds = useMemo(
+    () => plans.map((plan) => plan.playProductId).filter((id): id is string => Boolean(id)),
+    [plans]
+  );
+
+  const play = usePlayBilling(playProductIds, () => {
     void loadSubscription();
   });
 
@@ -153,7 +177,8 @@ export function SubscriptionsScreen() {
     if (processing) return;
     try {
       setProcessing(true);
-      const link = await api.createPaymentLink('premium', priceRupees);
+      if (!selectedPlan) return;
+      const link = await api.createPaymentLink(selectedPlan.code);
       pendingLinkIdRef.current = link.id;
 
       const opened = await Linking.canOpenURL(link.short_url);
@@ -194,11 +219,24 @@ export function SubscriptionsScreen() {
    */
   const freeForMember = Boolean(subscription?.plan?.freeForYou) && !isActive;
 
-  // The live price from the server, so an admin change is reflected without
-  // shipping a new build.
-  const priceRupees = subscription?.plan?.pricePaise
-    ? Math.round(subscription.plan.pricePaise / 100)
-    : PLAN.amount;
+  const selectedPlan = plans.find((plan) => plan.code === selectedCode) ?? plans[0] ?? null;
+  /*
+   * The name of the plan they are actually on. A member can hold a plan that
+   * has since been retired, in which case the list no longer carries it and the
+   * stored code is the honest thing to show.
+   */
+  const activePlanName =
+    plans.find((plan) => plan.code === subscription?.plan_name)?.name ??
+    subscription?.plan_name ??
+    t('planMonthly');
+  // Play's own price when the plan sells through Play, because that is what the
+  // member is actually charged. Ours is the fallback and the web-checkout price.
+  const selectedPlayProduct = selectedPlan?.playProductId
+    ? play.products[selectedPlan.playProductId]
+    : undefined;
+  const selectedPrice =
+    selectedPlayProduct?.displayPrice ??
+    (selectedPlan ? `₹${Math.round(selectedPlan.pricePaise / 100)}` : '');
   const daysLeft = isActive && subscription?.expiresAt
     ? Math.ceil((new Date(subscription.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : 0;
@@ -227,9 +265,7 @@ export function SubscriptionsScreen() {
               <Text style={styles.activeBadgeText}>{t('lblIncluded')}</Text>
             </View>
             <Text style={styles.activeTitle}>{t('payFullAccessFree')}</Text>
-            <Text style={styles.activeSubtitle}>
-              Every profile is unlocked for you — nothing to pay, nothing to cancel.
-            </Text>
+            <Text style={styles.activeSubtitle}>{t('payEverythingUnlocked')}</Text>
           </View>
         ) : isActive ? (
           <View style={styles.activeCard}>
@@ -238,9 +274,13 @@ export function SubscriptionsScreen() {
               <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
               <Text style={styles.activeBadgeText}>{t('lblActive')}</Text>
             </View>
-            <Text style={styles.activeTitle}>{t('planNamePlan', { name: t(PLAN.nameKey) })}</Text>
+            <Text style={styles.activeTitle}>{t('planNamePlan', { name: activePlanName })}</Text>
             <Text style={styles.activeSubtitle}>
-              {daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining` : t('subExpiresToday')}
+              {daysLeft > 1
+                ? t('subDaysRemaining', { days: daysLeft })
+                : daysLeft === 1
+                  ? t('subOneDayRemaining')
+                  : t('subExpiresToday')}
             </Text>
             <View style={styles.activeMetaRow}>
               {formatDate(subscription?.startedAt) ? (
@@ -274,73 +314,122 @@ export function SubscriptionsScreen() {
               </View>
             ) : null}
 
-            <View style={styles.planCard}>
-              <View style={styles.planHeader}>
-                <View>
-                  <Text style={styles.planName}>{t(PLAN.nameKey)}</Text>
-                  <Text style={styles.planCadence}>{t('planBilledEvery', { days: PLAN.days })}</Text>
-                </View>
-                <View style={styles.popularPill}>
-                  <Text style={styles.popularText}>{t('lblMostPopular')}</Text>
-                </View>
+            {plans.length === 0 ? (
+              <View style={styles.planCard}>
+                <Text style={styles.emptyPlans}>{t('planNoneAvailable')}</Text>
               </View>
+            ) : (
+              <View style={styles.planCard}>
+                {/* One row per plan. Access is the same whichever they pick, so
+                    the choice is only length and price — laid out to compare. */}
+                {plans.map((plan) => {
+                  const rupees = Math.round(plan.pricePaise / 100);
+                  const perMonth = plan.durationDays
+                    ? Math.round((rupees / plan.durationDays) * 30)
+                    : rupees;
+                  const playProduct = plan.playProductId ? play.products[plan.playProductId] : undefined;
+                  // On a Play build a plan Google has never heard of cannot be
+                  // bought, so it is shown but not selectable.
+                  const buyable = !play.available || !plan.playProductId || Boolean(playProduct);
+                  const selected = plan.code === selectedPlan?.code;
 
-              <View style={styles.priceRow}>
-                <Text style={styles.priceCurrency}>₹</Text>
-                <Text style={styles.priceAmount}>{priceRupees}</Text>
-                <Text style={styles.pricePeriod}>{t('planPerMonth')}</Text>
-              </View>
+                  return (
+                    <Pressable
+                      key={plan.code}
+                      style={[
+                        styles.planOption,
+                        selected && styles.planOptionSelected,
+                        !buyable && styles.planOptionDisabled,
+                      ]}
+                      disabled={!buyable}
+                      onPress={() => setSelectedCode(plan.code)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected, disabled: !buyable }}
+                    >
+                      <View style={styles.planRadio}>
+                        {selected ? <View style={styles.planRadioDot} /> : null}
+                      </View>
 
-              <View style={styles.perks}>
-                {PLAN.perkKeys.map((perk) => (
-                  <View key={perk} style={styles.perkRow}>
-                    <View style={styles.perkIcon}>
-                      <Ionicons name="checkmark" size={13} color={palette.primary} />
+                      <View style={styles.planOptionBody}>
+                        <View style={styles.planOptionTop}>
+                          <Text style={styles.planName}>{plan.name}</Text>
+                          {plan.badge ? (
+                            <View style={styles.popularPill}>
+                              <Text style={styles.popularText}>{plan.badge}</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.planCadence}>
+                          {t('planForDays', { days: plan.durationDays })}
+                          {plan.durationDays > 30 ? ` · ${t('planPerMonthApprox', { amount: perMonth })}` : ''}
+                        </Text>
+                        {!buyable ? <Text style={styles.planUnavailable}>{t('planNotOnPlay')}</Text> : null}
+                      </View>
+
+                      <Text style={styles.planOptionPrice}>
+                        {playProduct?.displayPrice || `₹${rupees}`}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+
+                <View style={styles.perks}>
+                  {PERK_KEYS.map((perk) => (
+                    <View key={perk} style={styles.perkRow}>
+                      <View style={styles.perkIcon}>
+                        <Ionicons name="checkmark" size={13} color={palette.primary} />
+                      </View>
+                      <Text style={styles.perkText}>{t(perk)}</Text>
                     </View>
-                    <Text style={styles.perkText}>{t(perk)}</Text>
-                  </View>
-                ))}
+                  ))}
+                </View>
+
+                {plans.length > 1 ? (
+                  <Text style={styles.planFootnote}>{t('planFullAccessNote')}</Text>
+                ) : null}
+
+                {play.available ? (
+                  <>
+                    <PrimaryButton
+                      label={
+                        play.purchasing
+                          ? t('subOpeningPlay')
+                          : t('planSubscribeFor', { price: selectedPrice })
+                      }
+                      onPress={() => {
+                        if (selectedPlan?.playProductId) void play.buy(selectedPlan.playProductId);
+                      }}
+                      disabled={play.purchasing || play.loading || !selectedPlan?.playProductId}
+                    />
+                    {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
+
+                    {/*
+                      * For anyone who paid but never got access — the purchase
+                      * exists at Google, so this asks for it again rather than
+                      * leaving them to buy twice.
+                      */}
+                    <Pressable
+                      style={styles.restoreButton}
+                      disabled={play.restoring}
+                      onPress={() => void play.restore()}
+                    >
+                      <Text style={styles.restoreButtonText}>
+                        {play.restoring ? t('subChecking') : t('subRestorePurchase')}
+                      </Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <PrimaryButton
+                      label={processing ? t('subOpeningCheckout') : t('planSubscribeFor', { price: selectedPrice })}
+                      onPress={handlePurchase}
+                      disabled={processing || !selectedPlan}
+                    />
+                    {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
+                  </>
+                )}
               </View>
-
-              {play.available ? (
-                <>
-                  <PrimaryButton
-                    label={
-                      play.purchasing
-                        ? t('subOpeningPlay')
-                        : t('planSubscribeFor', { price: play.product?.displayPrice || `₹${priceRupees}` })
-                    }
-                    onPress={play.buy}
-                    disabled={play.purchasing || play.loading}
-                  />
-                  {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
-
-                  {/*
-                    * For anyone who paid but never got access — the purchase
-                    * exists at Google, so this asks for it again rather than
-                    * leaving them to buy twice.
-                    */}
-                  <Pressable
-                    style={styles.restoreButton}
-                    disabled={play.restoring}
-                    onPress={() => void play.restore()}
-                  >
-                    <Text style={styles.restoreButtonText}>
-                      {play.restoring ? t('subChecking') : t('subRestorePurchase')}
-                    </Text>
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <PrimaryButton
-                    label={processing ? t('subOpeningCheckout') : t('planSubscribeFor', { price: `₹${priceRupees}` })}
-                    onPress={handlePurchase}
-                    disabled={processing}
-                  />
-                  {play.error ? <Text style={styles.playError}>{play.error}</Text> : null}
-                </>
-              )}
-            </View>
+            )}
           </>
         )}
 
@@ -437,7 +526,6 @@ function createStyles(palette: ThemePalette) {
       gap: spacing.md,
       ...shadow.card,
     },
-    planHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
     planName: { fontSize: 20, fontWeight: '800', color: palette.text, letterSpacing: -0.3 },
     planCadence: { fontSize: 13, color: palette.muted, marginTop: 2 },
     popularPill: {
@@ -448,10 +536,37 @@ function createStyles(palette: ThemePalette) {
     },
     popularText: { fontSize: 11, fontWeight: '800', color: palette.primary, letterSpacing: 0.3 },
 
-    priceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
-    priceCurrency: { fontSize: 22, fontWeight: '700', color: palette.text, marginBottom: 6 },
-    priceAmount: { fontSize: 44, fontWeight: '800', color: palette.text, letterSpacing: -1.5 },
-    pricePeriod: { fontSize: 15, color: palette.muted, marginBottom: 8, marginLeft: 4 },
+    /* One selectable plan. The row reads name, length, price left to right so
+       two plans of different lengths line up for comparison. */
+    planOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingVertical: spacing.sm + 2,
+      paddingHorizontal: spacing.sm + 2,
+      borderRadius: radius.md,
+      borderWidth: 1.5,
+      borderColor: palette.border,
+      backgroundColor: palette.surface,
+    },
+    planOptionSelected: { borderColor: palette.primary, backgroundColor: palette.primarySoft },
+    planOptionDisabled: { opacity: 0.5 },
+    planOptionBody: { flex: 1 },
+    planOptionTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
+    planOptionPrice: { fontSize: 19, fontWeight: '800', color: palette.text, letterSpacing: -0.4 },
+    planRadio: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      borderColor: palette.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    planRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: palette.primary },
+    planUnavailable: { fontSize: 12, color: palette.danger, marginTop: 3 },
+    planFootnote: { fontSize: 12.5, color: palette.muted, lineHeight: 18 },
+    emptyPlans: { fontSize: 14.5, color: palette.muted, textAlign: 'center', paddingVertical: spacing.md },
 
     perks: { gap: spacing.sm },
     perkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

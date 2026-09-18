@@ -79,13 +79,20 @@ describe('account deletion page', () => {
   })
 })
 
-describe('admin rules page', () => {
+describe('admin subscriptions page', () => {
   test('/admin serves the page without a session', async () => {
     const res = await fetch(`${server.base}/admin`)
     assert.equal(res.status, 200, 'the page itself is public, like a login page')
     const html = await res.text()
-    assert.match(html, /Subscription rules/)
+    assert.match(html, /Subscriptions/)
     assert.match(html, /noindex/, 'an admin screen should not be indexed')
+  })
+
+  test('it carries both the rules and the plan editor', async () => {
+    const html = await (await fetch(`${server.base}/admin`)).text()
+    assert.match(html, /Add a plan/, 'plans must be editable from here')
+    assert.match(html, /Play product id/, 'a plan needs its Play Console product id')
+    assert.match(html, /Free profiles before the paywall/, 'the per-gender rules stay')
   })
 
   /*

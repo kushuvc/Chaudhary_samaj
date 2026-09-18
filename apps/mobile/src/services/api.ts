@@ -79,6 +79,21 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => {
   onUnauthorized = handler;
 };
 
+/**
+ * One plan on sale, as configured in the admin screen.
+ *
+ * `playProductId` is the Play Console product this maps to; a plan without one
+ * sells only through the Razorpay link.
+ */
+export interface SubscriptionPlan {
+  code: string;
+  name: string;
+  durationDays: number;
+  pricePaise: number;
+  playProductId: string | null;
+  badge: string | null;
+}
+
 export interface SubscriptionStatus {
   hasSubscription: boolean;
   entitled?: boolean;
@@ -794,15 +809,15 @@ export const api = {
     return response.data;
   },
 
-  createPaymentOrder: async (plan: string, amount: number): Promise<{ id: string; amount: number; currency: string }> => {
+  createPaymentOrder: async (plan: string): Promise<{ id: string; amount: number; currency: string }> => {
     const response = await request<{ data: { id: string; amount: number; currency: string } }>('/payments/create-order', {
       method: 'POST',
-      body: JSON.stringify({ plan, amount }),
+      body: JSON.stringify({ plan }),
     });
     return response.data;
   },
 
-  verifyPayment: async (orderId: string, paymentId: string, signature: string, plan: string, amount: number): Promise<{ verified: boolean }> => {
+  verifyPayment: async (orderId: string, paymentId: string, signature: string, plan: string): Promise<{ verified: boolean }> => {
     const response = await request<{ data: { verified: boolean } }>('/payments/verify', {
       method: 'POST',
       body: JSON.stringify({
@@ -810,16 +825,25 @@ export const api = {
         razorpay_payment_id: paymentId,
         razorpay_signature: signature,
         plan,
-        amount,
       }),
     });
     return response.data;
   },
 
-  createPaymentLink: async (plan: string, amount: number): Promise<{ id: string; short_url: string }> => {
+  /** The plans on sale. Ordered as the admin screen orders them. */
+  getSubscriptionPlans: async (): Promise<SubscriptionPlan[]> => {
+    const response = await request<{ data: SubscriptionPlan[] }>('/payments/plans');
+    return response.data;
+  },
+
+  /*
+   * Only the plan code goes up. The amount used to travel with it, which meant
+   * the client was naming its own price; the server reads it off the plan now.
+   */
+  createPaymentLink: async (plan: string): Promise<{ id: string; short_url: string }> => {
     const response = await request<{ data: { id: string; short_url: string } }>('/payments/create-link', {
       method: 'POST',
-      body: JSON.stringify({ plan, amount }),
+      body: JSON.stringify({ plan }),
     });
     return response.data;
   },

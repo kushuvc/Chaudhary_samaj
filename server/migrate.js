@@ -212,6 +212,45 @@ const migrations = [
   `CREATE UNIQUE INDEX IF NOT EXISTS user_subscriptions_play_token_key
      ON user_subscriptions(play_purchase_token)
      WHERE play_purchase_token IS NOT NULL`,
+  // Subscription plans, editable from the admin screen.
+  //
+  // What a member is offered used to be a constant in three places: the app's
+  // plan card, the duration the server added on payment, and the one product
+  // id the billing client asked Play for. Adding a quarterly plan meant a code
+  // change and a store release. This is the list instead.
+  //
+  // `code` is what lands in user_subscriptions.plan, so it must stay stable
+  // once anyone has bought it. `play_product_id` is the subscription's product
+  // id in Play Console; leave it empty for a plan that only sells through the
+  // Razorpay link.
+  `CREATE TABLE IF NOT EXISTS subscription_plans (
+    code TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    duration_days INTEGER NOT NULL,
+    price_paise INTEGER NOT NULL,
+    play_product_id TEXT,
+    badge TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS subscription_plans_play_product_key
+     ON subscription_plans(play_product_id)
+     WHERE coalesce(play_product_id, '') <> ''`,
+  // Seed the plan that was hardcoded, under the code and product id already in
+  // use, so live subscriptions keep resolving. DO NOTHING because editing it in
+  // the admin screen must survive the next deploy running this again.
+  `INSERT INTO subscription_plans
+     (code, name, duration_days, price_paise, play_product_id, badge, is_active, sort_order, updated_at)
+   VALUES ('premium', 'Monthly', 30, 20000, 'premium_monthly', 'Most popular', true, 0, NOW()::text)
+   ON CONFLICT (code) DO NOTHING`,
+  // user_subscriptions.plan was fixed to ('basic', 'premium') by a CHECK, which
+  // would reject every plan added in the admin screen — the row is written long
+  // after the constraint was thought about. Postgres has no ALTER CHECK, so it
+  // is dropped rather than widened: subscription_plans is what says which codes
+  // exist now, and a constraint listing them would have to be rewritten on
+  // every change.
+  `ALTER TABLE user_subscriptions DROP CONSTRAINT IF EXISTS user_subscriptions_plan_check`,
 ]
 
 for (const sql of migrations) {

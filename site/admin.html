@@ -320,14 +320,13 @@ function capsBlock(idPrefix, source, caption) {
 /* ---- rules ---- */
 function ruleCard(rule) {
   const free = rule.is_free === true;
-  const rupees = Math.round(Number(rule.price_paise || 0) / 100);
   const name = rule.gender.charAt(0).toUpperCase() + rule.gender.slice(1);
 
   return `
     <div class="card" data-gender="${rule.gender}">
       <div class="head">
         <h2>${name} members</h2>
-        <span class="pill ${free ? 'free' : 'paid'}">${free ? 'FREE' : '₹' + rupees + ' / MONTH'}</span>
+        <span class="pill ${free ? 'free' : 'paid'}">${free ? 'FREE' : 'PAYS'}</span>
       </div>
 
       <div class="switch">
@@ -339,10 +338,6 @@ function ruleCard(rule) {
 
       <div class="row">
         <div>
-          <label for="price-${rule.gender}">Price (₹ per month)</label>
-          <input type="number" id="price-${rule.gender}" min="0" step="1" value="${rupees}">
-        </div>
-        <div>
           <label for="limit-${rule.gender}">Free profiles before the paywall</label>
           <input type="number" id="limit-${rule.gender}" min="0" step="1" value="${Number(rule.free_profile_limit || 0)}">
         </div>
@@ -353,7 +348,7 @@ function ruleCard(rule) {
       <p class="hint">
         These apply to every member of this gender who has not subscribed — and to all of
         them when Free is on. Once someone subscribes, their plan's switches take over.
-        Price is ignored while Free is on. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.
+        Price is not set here — it belongs to each plan, below. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.
       </p>
     </div>`;
 }
@@ -374,10 +369,8 @@ async function loadRules() {
 
 async function save(gender, button) {
   const isFree = $('free-' + gender).checked;
-  const rupees = Number($('price-' + gender).value);
   const limit = Number($('limit-' + gender).value);
 
-  if (!Number.isInteger(rupees) || rupees < 0) return msg('Price must be a whole number of rupees.', 'err');
   if (!Number.isInteger(limit) || limit < 0) return msg('Free profiles must be zero or more.', 'err');
 
   button.disabled = true;
@@ -387,7 +380,6 @@ async function save(gender, button) {
       // The API takes paise; the form takes rupees, which is what you think in.
       body: JSON.stringify({
       isFree,
-      pricePaise: rupees * 100,
       freeProfileLimit: limit,
       ...readCaps('r-' + gender),
     }),

@@ -1926,6 +1926,12 @@ const MAX_PROFILE_PHOTOS = 2
 
 const DEFAULT_RULE = {
   isFree: false,
+  /*
+   * Legacy. Price lived on the gender rule when there was one hardcoded plan;
+   * it belongs to subscription_plans now and the admin screen no longer offers
+   * it. Still returned by /payments/subscription so builds older than the
+   * multi-plan release keep showing a figure rather than a blank.
+   */
   pricePaise: 20000,
   freeProfileLimit: 2,
   capabilities: { ...ALL_CAPABILITIES },

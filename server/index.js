@@ -4057,7 +4057,23 @@ app.post('/api/payments/play/rtdn', async (request, response) => {
     if (!encoded) return
 
     const payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'))
+
+    /*
+     * Log every notification that arrives, not only the ones that fail.
+     * Without this there is no way to tell a working RTDN pipeline from a
+     * silently broken one — and a broken one costs paying members their
+     * access with no other symptom.
+     */
     const notification = payload.subscriptionNotification
+    console.log(
+      '[play] rtdn received:',
+      JSON.stringify({
+        kind: notification ? 'subscription' : payload.testNotification ? 'test' : 'other',
+        notificationType: notification?.notificationType ?? null,
+        token: notification?.purchaseToken ? `${notification.purchaseToken.slice(0, 12)}…` : null,
+      })
+    )
+
     if (!notification?.purchaseToken) return
 
     const purchase = await getSubscriptionFromPlay(notification.purchaseToken)

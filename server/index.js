@@ -1895,6 +1895,16 @@ function capabilitiesFromRow(row) {
   }
 }
 
+/**
+ * How many photos one profile may keep.
+ *
+ * The cap used to live only in the app — 6 on the signup screen, 2 on the
+ * profile screen, and nothing at all on the server, so it was a suggestion
+ * rather than a limit. Storage is the thing being protected here, and storage
+ * is spent server-side.
+ */
+const MAX_PROFILE_PHOTOS = 2
+
 const DEFAULT_RULE = {
   isFree: false,
   pricePaise: 20000,
@@ -3042,7 +3052,9 @@ app.put('/api/matrimony/me', async (request, response) => {
   if (profile.photos && Array.isArray(profile.photos) && profile.photos.length > 0) {
     try {
       // Only keep necessary fields - pass as object for JSONB
-      photosForDb = profile.photos.map(p => ({
+      // Keep the first N rather than rejecting the save: an older build still
+      // offering six would otherwise be unable to save a profile at all.
+      photosForDb = profile.photos.slice(0, MAX_PROFILE_PHOTOS).map(p => ({
         id: p.id || String(Math.random()).slice(2),
         uri: p.uri || p.url || '',
         url: p.url || p.uri || '',
@@ -3050,6 +3062,11 @@ app.put('/api/matrimony/me', async (request, response) => {
         isPrimary: Boolean(p.isPrimary),
         uploadedAt: p.uploadedAt || new Date().toISOString()
       }))
+      if (profile.photos.length > MAX_PROFILE_PHOTOS) {
+        console.warn(
+          `[update profile] trimmed ${profile.photos.length} photos to ${MAX_PROFILE_PHOTOS}`
+        )
+      }
       console.log('[update profile] photos cleaned:', photosForDb.length, 'photos')
     } catch (e) {
       console.error('[update profile] photos cleaning error:', e.message)

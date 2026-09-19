@@ -23,7 +23,7 @@ interface PhotoManagerProps {
   maxPhotos?: number;
 }
 
-export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 6 }: PhotoManagerProps) {
+export function PhotoManager({ photos, onChange, editable = true, maxPhotos = 2 }: PhotoManagerProps) {
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);

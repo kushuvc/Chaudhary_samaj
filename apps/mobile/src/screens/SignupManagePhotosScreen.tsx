@@ -20,7 +20,8 @@ interface SignupManagePhotosScreenProps {
   onComplete: (photos: Photo[]) => void;
 }
 
-const MAX_PHOTOS = 6;
+/* Must match MAX_PROFILE_PHOTOS on the server, which trims anything above it. */
+const MAX_PHOTOS = 2;
 
 const benefits = [
   { icon: 'eye-outline' as const, textKey: 'suPhotoBenefit1' },

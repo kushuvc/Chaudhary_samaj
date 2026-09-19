@@ -34,9 +34,9 @@ describe('Postgres TLS selection', () => {
 describe('email sender parsing', () => {
   test('a display name with no space before the bracket splits correctly', () => {
     // This is the exact format configured in production.
-    assert.deepEqual(parseFromAddress('chaudhary samaj<aurienlimited@gmail.com>'), {
+    assert.deepEqual(parseFromAddress('chaudhary samaj<support@chaudharysamaj.com>'), {
       name: 'chaudhary samaj',
-      email: 'aurienlimited@gmail.com',
+      email: 'support@chaudharysamaj.com',
     })
   })
 

@@ -11,6 +11,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Alert, Linking, Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type { AppLanguage } from '../context/LanguageContext';
 import { InlineError } from '../components/AppFeedback';
 import { PrimaryButton, ScreenTitle, SectionCard } from '../components/AppPrimitives';
@@ -60,6 +62,13 @@ const LANGUAGE_OPTIONS: Array<{ key: AppLanguage; label: string; nativeLabel: st
   { key: 'gu-IN', label: 'Gujarati', nativeLabel: 'ગુજરાતી' },
 ];
 
+/*
+ * Where support mail goes. A domain address rather than anyone's personal
+ * inbox — it forwards, so the destination can change without every published
+ * page and app build having to change with it.
+ */
+const SUPPORT_EMAIL = 'support@chaudharysamaj.com'
+
 export function SettingsScreen() {
   const { palette, themeMode, setThemeMode } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -67,6 +76,42 @@ export function SettingsScreen() {
   const { logout } = useAuth();
   const keyboard = useKeyboard();
   const styles = useMemo(() => createStyles(palette), [palette]);
+
+  /*
+   * Opens a pre-filled support mail.
+   *
+   * The version and device are filled in because "the app is not working" costs
+   * several exchanges to place, and a member who has hit a bug is the least
+   * likely person to enjoy being interrogated. Nothing personal goes in beyond
+   * the account id already visible to us — no name, email or phone.
+   */
+  const openSupportEmail = async () => {
+    const version = Constants.expoConfig?.version ?? 'unknown';
+    const build = Constants.expoConfig?.android?.versionCode ?? 'unknown';
+    const body = [
+      '',
+      '',
+      '---',
+      'The lines below help us find the problem. Please leave them in.',
+      `App version: ${version} (build ${build})`,
+      `Device: ${Platform.OS} ${Platform.Version}`,
+      `Language: ${language ?? 'en-IN'}`,
+    ].join('\n');
+
+    const url =
+      `mailto:${SUPPORT_EMAIL}` +
+      `?subject=${encodeURIComponent('Chaudhary Samaj — support')}` +
+      `&body=${encodeURIComponent(body)}`;
+
+    try {
+      const opened = await Linking.canOpenURL(url);
+      if (!opened) throw new Error('no mail client');
+      await Linking.openURL(url);
+    } catch {
+      // A device with no mail app should still be told where to write.
+      Alert.alert(t('helpNoMailApp'), t('helpNoMailAppBody', { email: SUPPORT_EMAIL }));
+    }
+  };
   const [account, setAccount] = useState<MobileAccountSettings>(defaultAccount);
   const [notifications, setNotifications] = useState<MobileNotificationSettings>(defaultNotifications);
   const [privacy, setPrivacy] = useState<MobilePrivacySettings>(defaultPrivacy);
@@ -295,6 +340,22 @@ export function SettingsScreen() {
           * switch flipped and changed nothing. Sign-in already uses an emailed
           * code, which is the second factor.
           */}
+      </SectionCard>
+
+      {/* Help and support */}
+      <SectionCard>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('helpSupport')}</Text>
+        <Text style={[styles.noteText, { color: palette.muted, marginTop: 4 }]}>
+          {t('helpSupportSub')}
+        </Text>
+        <Pressable
+          style={[styles.supportBtn, { borderColor: palette.border }]}
+          onPress={() => void openSupportEmail()}
+        >
+          <Ionicons name="mail-outline" size={18} color={palette.primary} />
+          <Text style={[styles.supportBtnText, { color: palette.primary }]}>{t('helpEmailUs')}</Text>
+        </Pressable>
+        <Text style={[styles.noteText, { color: palette.muted, marginTop: 8 }]}>{SUPPORT_EMAIL}</Text>
       </SectionCard>
 
       {/* Danger Zone */}
@@ -545,6 +606,17 @@ function createStyles(palette: ThemePalette) {
       paddingVertical: spacing.sm,
       alignSelf: 'flex-start' as const,
     },
+    supportBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.md,
+      paddingVertical: 12,
+      borderRadius: radius.md,
+      borderWidth: 1,
+    },
+    supportBtnText: { fontSize: 15, fontWeight: '700' },
     deleteBtnText: {
       fontWeight: '700',
       fontSize: 14,

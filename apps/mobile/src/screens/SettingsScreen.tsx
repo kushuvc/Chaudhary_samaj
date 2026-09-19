@@ -344,18 +344,47 @@ export function SettingsScreen() {
 
       {/* Help and support */}
       <SectionCard>
-        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('helpSupport')}</Text>
-        <Text style={[styles.noteText, { color: palette.muted, marginTop: 4 }]}>
+        {/*
+          * Deliberately the largest, plainest block on this screen. Someone
+          * reaching for support is usually stuck or upset, often reading a
+          * second language, and sometimes not young. Small grey text and a
+          * thin outlined button are the wrong things to hand them.
+          */}
+        <View style={styles.supportHead}>
+          <View style={[styles.supportIcon, { backgroundColor: palette.primarySoft }]}>
+            <Ionicons name="chatbubble-ellipses" size={22} color={palette.primary} />
+          </View>
+          <Text style={[styles.supportTitle, { color: palette.text }]}>{t('helpSupport')}</Text>
+        </View>
+
+        <Text style={[styles.supportBody, { color: palette.textSoft ?? palette.text }]}>
           {t('helpSupportSub')}
         </Text>
+
         <Pressable
-          style={[styles.supportBtn, { borderColor: palette.border }]}
+          style={({ pressed }) => [
+            styles.supportBtn,
+            { backgroundColor: palette.primary },
+            pressed && { opacity: 0.85 },
+          ]}
           onPress={() => void openSupportEmail()}
+          accessibilityRole="button"
         >
-          <Ionicons name="mail-outline" size={18} color={palette.primary} />
-          <Text style={[styles.supportBtnText, { color: palette.primary }]}>{t('helpEmailUs')}</Text>
+          <Ionicons name="mail" size={20} color="#FFFFFF" />
+          <Text style={styles.supportBtnText}>{t('helpEmailUs')}</Text>
         </Pressable>
-        <Text style={[styles.noteText, { color: palette.muted, marginTop: 8 }]}>{SUPPORT_EMAIL}</Text>
+
+        <Text style={[styles.supportReply, { color: palette.muted }]}>{t('helpReplyTime')}</Text>
+
+        <View style={[styles.supportAddressBox, { borderColor: palette.border }]}>
+          <Text style={[styles.supportAddressLabel, { color: palette.muted }]}>
+            {t('helpOrWriteTo')}
+          </Text>
+          {/* Selectable so it can be copied on a device with no mail app set up. */}
+          <Text selectable style={[styles.supportAddress, { color: palette.primary }]}>
+            {SUPPORT_EMAIL}
+          </Text>
+        </View>
       </SectionCard>
 
       {/* Danger Zone */}
@@ -606,17 +635,37 @@ function createStyles(palette: ThemePalette) {
       paddingVertical: spacing.sm,
       alignSelf: 'flex-start' as const,
     },
+    supportHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    supportIcon: {
+      width: 40, height: 40, borderRadius: 20,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    supportTitle: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, flex: 1 },
+    /* 16.5 with generous leading — comfortably readable in Gujarati and Hindi,
+       whose conjuncts suffer badly at the 13px this used to be. */
+    supportBody: { fontSize: 16.5, lineHeight: 25, marginTop: spacing.sm + 2 },
     supportBtn: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: spacing.sm,
       marginTop: spacing.md,
-      paddingVertical: 12,
+      paddingVertical: 16,
+      borderRadius: radius.md,
+    },
+    supportBtnText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+    supportReply: { fontSize: 14, textAlign: 'center', marginTop: spacing.sm },
+    supportAddressBox: {
+      marginTop: spacing.md,
+      paddingVertical: spacing.sm + 2,
+      paddingHorizontal: spacing.md,
       borderRadius: radius.md,
       borderWidth: 1,
+      borderStyle: 'dashed',
+      alignItems: 'center',
     },
-    supportBtnText: { fontSize: 15, fontWeight: '700' },
+    supportAddressLabel: { fontSize: 13.5 },
+    supportAddress: { fontSize: 16, fontWeight: '700', marginTop: 3 },
     deleteBtnText: {
       fontWeight: '700',
       fontSize: 14,

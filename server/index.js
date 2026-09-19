@@ -113,6 +113,25 @@ async function pgVerifyPassword(password, storedHash) {
 }
 
 const app = express()
+
+/*
+ * Trust exactly one proxy hop.
+ *
+ * Render terminates TLS at its edge and forwards, so every request arrives
+ * from the same upstream address. Without this, express-rate-limit sees one
+ * client for the whole community — it logged ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+ * on every request and could not tell members apart, so a single abuser would
+ * have exhausted the limit for everyone.
+ *
+ * One hop, not `true`. With `true` Express believes the left-most entry of
+ * X-Forwarded-For, which the client writes — anyone could set a fresh fake IP
+ * per request and never hit a limit at all. Counting one hop in from the
+ * socket takes the address Render itself observed, which a client cannot
+ * forge. If a second proxy is ever put in front of this, raise the number to
+ * match, or the limiter starts reading a spoofable value again.
+ */
+app.set('trust proxy', 1)
+
 const port = process.env.PORT || 3000
 const OTP_SEND_TIMEOUT_MS = Number(process.env.OTP_SEND_TIMEOUT_MS || 25000)
 

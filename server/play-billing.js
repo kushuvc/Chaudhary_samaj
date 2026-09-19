@@ -215,6 +215,34 @@ export async function describePlayBillingHealth() {
   return result
 }
 
+/**
+ * Which Play subscription states still mean "this member may use the app".
+ *
+ *   ACTIVE           — paying, nothing wrong.
+ *   IN_GRACE_PERIOD  — a renewal failed and Google is still retrying. Cutting
+ *                      access here punishes someone whose card simply expired.
+ *   CANCELED         — they turned off auto-renew, but the period they already
+ *                      paid for has not ended. Google holds a subscription in
+ *                      this state from the moment of cancellation until expiry.
+ *
+ * CANCELED was missing and it was a real fault: cancelling took access away
+ * that instant rather than at the end of the paid period. The expiry date is
+ * what ends access — every caller checks it — so this only has to answer
+ * whether the member is still owed the time.
+ *
+ * Deliberately excluded: ON_HOLD (payment failed, retries exhausted), PAUSED
+ * (member chose to suspend), EXPIRED, and PENDING.
+ */
+const ENTITLED_STATES = new Set([
+  'SUBSCRIPTION_STATE_ACTIVE',
+  'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+  'SUBSCRIPTION_STATE_CANCELED',
+])
+
+export function isEntitledState(state) {
+  return ENTITLED_STATES.has(state)
+}
+
 export async function getSubscriptionFromPlay(purchaseToken) {
   if (!isPlayBillingConfigured()) {
     throw new Error('Play billing is not configured')
@@ -245,11 +273,8 @@ export async function getSubscriptionFromPlay(purchaseToken) {
     throw apiError
   }
 
-  // ACTIVE and IN_GRACE_PERIOD both mean the member should keep access. A
-  // grace period is a failed renewal Google is still retrying — cutting access
-  // there would punish someone whose card simply expired.
   const state = payload.subscriptionState
-  const entitled = state === 'SUBSCRIPTION_STATE_ACTIVE' || state === 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD'
+  const entitled = isEntitledState(state)
 
   const lineItem = Array.isArray(payload.lineItems) ? payload.lineItems[0] : null
 

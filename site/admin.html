@@ -300,7 +300,7 @@ const CAPABILITIES = [
  * A missing flag reads as allowed, matching the server. A row written before
  * these columns existed must not appear to have everything switched off.
  */
-function capsBlock(idPrefix, source) {
+function capsBlock(idPrefix, source, caption) {
   const caps = source.capabilities || source;
   const rows = CAPABILITIES.map(([key, label]) => {
     const snake = key.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
@@ -314,7 +314,7 @@ function capsBlock(idPrefix, source) {
       </div>`;
   }).join('');
 
-  return `<div class="caps"><p class="caps-title">Includes</p>${rows}</div>`;
+  return `<div class="caps"><p class="caps-title">${caption || 'Includes'}</p>${rows}</div>`;
 }
 
 /* ---- rules ---- */
@@ -335,7 +335,7 @@ function ruleCard(rule) {
         <label for="free-${rule.gender}" style="margin:0;color:var(--soft)">Free — everything unlocked, no payment</label>
       </div>
 
-      ${capsBlock('r-' + rule.gender, rule)}
+      ${capsBlock('r-' + rule.gender, rule, 'What they get without paying')}
 
       <div class="row">
         <div>
@@ -350,7 +350,11 @@ function ruleCard(rule) {
           <button data-save="${rule.gender}">Save</button>
         </div>
       </div>
-      <p class="hint">Price is ignored while Free is on. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.</p>
+      <p class="hint">
+        These apply to every member of this gender who has not subscribed — and to all of
+        them when Free is on. Once someone subscribes, their plan's switches take over.
+        Price is ignored while Free is on. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.
+      </p>
     </div>`;
 }
 

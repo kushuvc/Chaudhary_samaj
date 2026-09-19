@@ -264,6 +264,27 @@ const migrations = [
   `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS can_view_phone BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS can_send_interest BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS can_chat BOOLEAN NOT NULL DEFAULT true`,
+  /*
+   * Seed the per-gender switches to what the app actually did, once.
+   *
+   * Those switches used to apply only when a gender was set to free, and
+   * neither was — so every one of them has been sitting at its default with no
+   * effect. Now that they govern every non-subscriber, leaving them at `true`
+   * would hand contact numbers to people who have not paid, which is not a
+   * change anyone asked for. Interests and chat were always open to
+   * non-payers; contact numbers never were.
+   *
+   * The marker column makes this run once per row rather than on every deploy,
+   * which would otherwise undo the admin screen every time the service
+   * restarted.
+   */
+  `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS caps_seeded BOOLEAN NOT NULL DEFAULT false`,
+  `UPDATE subscription_rules
+      SET can_view_phone = false,
+          can_send_interest = true,
+          can_chat = true,
+          caps_seeded = true
+    WHERE caps_seeded = false`,
 ]
 
 for (const sql of migrations) {

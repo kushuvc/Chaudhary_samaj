@@ -218,12 +218,30 @@ describe('sending interests', () => {
 })
 
 describe('a free gender gets the capabilities set for it', () => {
-  test('free members can be given everything, which is the default', async () => {
+  test('the seeded default is what the app already did, not everything', async () => {
+    const her = await signUpUser(server, { gender: 'female' })
+    const res = await server.request('GET', '/api/payments/subscription', { token: her.token })
+    // Interests and chat were always open to non-payers; contact numbers were
+    // not. Seeding these to all-true would have handed out numbers the moment
+    // the switches started governing non-subscribers.
+    assert.deepEqual(res.body.data.plan.capabilities, {
+      canViewPhone: false, canSendInterest: true, canChat: true,
+    })
+  })
+
+  test('a gender can be given everything deliberately', async () => {
+    await server.request('PUT', '/api/admin/subscription-rules/female', {
+      token: admin.token,
+      body: { isFree: true, canViewPhone: true },
+    })
     const her = await signUpUser(server, { gender: 'female' })
     const res = await server.request('GET', '/api/payments/subscription', { token: her.token })
     assert.equal(res.body.data.plan.freeForYou, true)
-    assert.deepEqual(res.body.data.plan.capabilities, {
-      canViewPhone: true, canSendInterest: true, canChat: true,
+    assert.equal(res.body.data.plan.capabilities.canViewPhone, true)
+
+    await server.request('PUT', '/api/admin/subscription-rules/female', {
+      token: admin.token,
+      body: { isFree: false, canViewPhone: false },
     })
   })
 
@@ -264,6 +282,66 @@ describe('a retired plan keeps working for whoever holds it', () => {
     // would be wrong.
     assert.equal(res.body.data.plan.capabilities.canViewPhone, true)
     assert.equal(res.body.data.entitled, true)
+  })
+})
+
+describe('the per-gender switches govern every non-subscriber', () => {
+  /*
+   * They used to apply only when a gender was set to free, so unticking one on
+   * a paid gender silently did nothing — the admin card looked like a control
+   * and was not.
+   */
+  test('unticking interests stops a non-subscriber of that gender sending one', async () => {
+    await server.request('PUT', '/api/admin/subscription-rules/male', {
+      token: admin.token,
+      body: { isFree: false, canSendInterest: false },
+    })
+
+    const him = await signUpUser(server, { gender: 'male' })
+    const her = await signUpUser(server, { gender: 'female' })
+    const herProfileId = (
+      await server.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [her.userId])
+    )[0].id
+
+    const res = await server.request('POST', `/api/matrimony/profiles/${herProfileId}/interest`, {
+      token: him.token,
+    })
+    assert.equal(res.status, 403)
+    assert.equal(res.body.code, 'SUBSCRIPTION_REQUIRED')
+
+    await server.request('PUT', '/api/admin/subscription-rules/male', {
+      token: admin.token,
+      body: { isFree: false, canSendInterest: true },
+    })
+  })
+
+  test('a subscription overrides the gender switches', async () => {
+    await server.request('PUT', '/api/admin/subscription-rules/male', {
+      token: admin.token,
+      body: { isFree: false, canSendInterest: false },
+    })
+    await putPlan('full_interest', {
+      name: 'Full', durationDays: 30, pricePaise: 20000, playProductId: '',
+      canSendInterest: true,
+    })
+
+    const him = await signUpUser(server, { gender: 'male' })
+    await subscribe(him.userId, 'full_interest')
+    const her = await signUpUser(server, { gender: 'female' })
+    const herProfileId = (
+      await server.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [her.userId])
+    )[0].id
+
+    // Paying is what the plan is for: its switches win over the gender's.
+    const res = await server.request('POST', `/api/matrimony/profiles/${herProfileId}/interest`, {
+      token: him.token,
+    })
+    assert.equal(res.status, 200)
+
+    await server.request('PUT', '/api/admin/subscription-rules/male', {
+      token: admin.token,
+      body: { isFree: false, canSendInterest: true },
+    })
   })
 })
 

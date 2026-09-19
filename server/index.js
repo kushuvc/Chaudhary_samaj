@@ -2154,10 +2154,16 @@ async function resolveAccess(userId) {
 
   const planCode = await activePlanCode(userId)
   if (!planCode) {
+    /*
+     * A member of this gender who has not paid. The per-gender switches say
+     * what they get, the same switches that apply when the gender is free —
+     * so the admin card means one thing rather than silently applying only in
+     * the free case, which is how it read before and fooled nobody usefully.
+     */
     return {
       entitled: false,
       rule,
-      capabilities: FREE_TIER_CAPABILITIES,
+      capabilities: rule.capabilities || FREE_TIER_CAPABILITIES,
       reason: 'none',
       planCode: null,
     }

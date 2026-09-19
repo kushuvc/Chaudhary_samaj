@@ -178,6 +178,19 @@ export function mapPublicProfile(row) {
     horoscopeTime: row.horoscope_time,
     horoscopePlace: row.horoscope_place,
     village: row.village,
+    /*
+     * The Location and Religious sections of the profile screen read these,
+     * and they were never mapped — so a member who filled in their country,
+     * state, caste and gol saw four blank rows on every profile, while the
+     * answers sat in the database all along.
+     *
+     * `city` has no column of its own; `location` is where the city is stored,
+     * and the screen already reads that too.
+     */
+    country: row.country,
+    state: row.state,
+    caste: row.caste,
+    subCaste: row.subcaste,
     hobbies: (() => {
       if (!row.hobbies) return []
       if (Array.isArray(row.hobbies)) return row.hobbies

@@ -547,7 +547,8 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           <Text style={styles.sectionTitle}>{t('secLocationDetails')}</Text>
           <InfoRow label={t('fldCountry')} value={profile.country} />
           <InfoRow label={t('fldState')} value={profile.state} />
-          <InfoRow label={t('fldCity')} value={profile.city} />
+          {/* There is no separate city column; the city is what `location` holds. */}
+          <InfoRow label={t('fldCity')} value={profile.location} />
           <InfoRow label={t('fldVillage')} value={profile.village} />
           <InfoRow label={t('fldNativeCity')} value={profile.nativeCity} />
           <InfoRow label={t('fldNativeVillage')} value={profile.nativeVillage} />

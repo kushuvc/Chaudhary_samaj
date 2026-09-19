@@ -290,6 +290,21 @@ export const api = {
         hobbies: payload.hobbies,
         music: payload.music,
         sports: payload.sports,
+        /*
+         * Collected by the signup steps and stored by the server, but absent
+         * from this body — so eight answers a member typed were discarded on
+         * the way out. `bio` was the visible one: every profile fell back to
+         * "New member. Please update your profile." however much someone wrote
+         * about themselves.
+         */
+        bio: payload.bio,
+        subcaste: payload.subcaste,
+        openToAnySubcaste: payload.openToAnySubcaste,
+        motherTongue: payload.motherTongue,
+        profileCreatedFor: payload.profileCreatedFor,
+        employmentType: payload.employmentType,
+        incomeCurrency: payload.incomeCurrency,
+        annualIncome: payload.annualIncome,
         createAccount: payload.createAccount,
       })
     });

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -60,6 +61,7 @@ export function SubscriptionsScreen() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [awaitingPayment, setAwaitingPayment] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const pendingLinkIdRef = useRef<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -470,50 +472,27 @@ export function SubscriptionsScreen() {
         )}
 
         {/*
-          * Shown to everyone, subscribed or not — the half about cancelling is
-          * only useful to someone who has already paid, and a member hunting
-          * for how to stop paying should not have to ask us.
-          *
-          * Written plainly and left open rather than behind a tap: this is a
-          * community app read largely in a second language, and an accordion
-          * hides the answer from exactly the person who needed it.
+          * The answers used to sit open on the page and ran longer than the
+          * plans themselves, which buried the thing people came here to do.
+          * Behind one row instead — offered to everyone, subscribed or not,
+          * because a member looking for how to stop paying is exactly who
+          * must not have to ask support.
           */}
-        <View style={styles.helpCard}>
-          <Text style={styles.helpTitle}>{t('helpTitle')}</Text>
-
-          <Text style={styles.helpHeading}>{t('helpWhatTitle')}</Text>
-          <Text style={styles.helpBody}>{t('helpWhatBody')}</Text>
-
-          <Text style={styles.helpHeading}>{t('helpPayTitle')}</Text>
-          {['helpPayStep1', 'helpPayStep2', 'helpPayStep3', 'helpPayStep4'].map((key, i) => (
-            <View key={key} style={styles.helpStep}>
-              <View style={styles.helpStepNum}>
-                <Text style={styles.helpStepNumText}>{i + 1}</Text>
-              </View>
-              <Text style={styles.helpStepText}>{t(key)}</Text>
-            </View>
-          ))}
-          <View style={styles.helpNote}>
-            <Ionicons name="shield-checkmark" size={16} color={palette.primary} />
-            <Text style={styles.helpNoteText}>{t('helpPaySafe')}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.helpTrigger, pressed && styles.helpTriggerPressed]}
+          onPress={() => setHelpOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t('helpOpenTitle')}
+        >
+          <View style={styles.helpTriggerIcon}>
+            <Ionicons name="help-circle" size={22} color={palette.primary} />
           </View>
-
-          <Text style={styles.helpHeading}>{t('helpRenewTitle')}</Text>
-          <Text style={styles.helpBody}>{t('helpRenewBody')}</Text>
-
-          <Text style={styles.helpHeading}>{t('helpCancelTitle')}</Text>
-          <Text style={styles.helpBody}>{t('helpCancelBody')}</Text>
-          <View style={styles.helpNote}>
-            <Ionicons name="checkmark-circle" size={16} color={palette.primary} />
-            <Text style={styles.helpNoteText}>{t('helpCancelKeep')}</Text>
+          <View style={styles.helpTriggerText}>
+            <Text style={styles.helpTriggerTitle}>{t('helpOpenTitle')}</Text>
+            <Text style={styles.helpTriggerSub}>{t('helpOpenSub')}</Text>
           </View>
-
-          <Text style={styles.helpHeading}>{t('helpChangeTitle')}</Text>
-          <Text style={styles.helpBody}>{t('helpChangeBody')}</Text>
-
-          <Text style={styles.helpHeading}>{t('helpPhoneTitle')}</Text>
-          <Text style={styles.helpBody}>{t('helpPhoneBody')}</Text>
-        </View>
+          <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+        </Pressable>
 
         <View style={styles.footnote}>
           <Ionicons name="lock-closed" size={13} color={palette.muted} />
@@ -527,6 +506,78 @@ export function SubscriptionsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <Modal
+        visible={helpOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setHelpOpen(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          {/* Tapping the dimmed area closes, the way every other sheet on the
+              phone behaves. The sheet itself swallows the press. */}
+          <Pressable style={styles.sheetDismissArea} onPress={() => setHelpOpen(false)} />
+          <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+            <View style={styles.sheetGrabber} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{t('helpTitle')}</Text>
+              <Pressable
+                onPress={() => setHelpOpen(false)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={t('helpClose')}
+              >
+                <Ionicons name="close" size={22} color={palette.muted} />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.sheetScroll}
+              contentContainerStyle={styles.sheetContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.helpHeading}>{t('helpWhatTitle')}</Text>
+              <Text style={styles.helpBody}>{t('helpWhatBody')}</Text>
+
+              <Text style={styles.helpHeading}>{t('helpPayTitle')}</Text>
+              {['helpPayStep1', 'helpPayStep2', 'helpPayStep3', 'helpPayStep4'].map((key, i) => (
+                <View key={key} style={styles.helpStep}>
+                  <View style={styles.helpStepNum}>
+                    <Text style={styles.helpStepNumText}>{i + 1}</Text>
+                  </View>
+                  <Text style={styles.helpStepText}>{t(key)}</Text>
+                </View>
+              ))}
+              <View style={styles.helpNote}>
+                <Ionicons name="shield-checkmark" size={16} color={palette.primary} />
+                <Text style={styles.helpNoteText}>{t('helpPaySafe')}</Text>
+              </View>
+
+              <Text style={styles.helpHeading}>{t('helpRenewTitle')}</Text>
+              <Text style={styles.helpBody}>{t('helpRenewBody')}</Text>
+
+              <Text style={styles.helpHeading}>{t('helpCancelTitle')}</Text>
+              <Text style={styles.helpBody}>{t('helpCancelBody')}</Text>
+              <View style={styles.helpNote}>
+                <Ionicons name="checkmark-circle" size={16} color={palette.primary} />
+                <Text style={styles.helpNoteText}>{t('helpCancelKeep')}</Text>
+              </View>
+
+              <Text style={styles.helpHeading}>{t('helpChangeTitle')}</Text>
+              <Text style={styles.helpBody}>{t('helpChangeBody')}</Text>
+
+              <Text style={styles.helpHeading}>{t('helpPhoneTitle')}</Text>
+              <Text style={styles.helpBody}>{t('helpPhoneBody')}</Text>
+            </ScrollView>
+
+            {/* A rule under the scrolling text, so a line cut off mid-glyph
+                at the fold reads as "there is more" rather than as broken. */}
+            <View style={styles.sheetFooter}>
+              <PrimaryButton label={t('helpClose')} onPress={() => setHelpOpen(false)} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -674,22 +725,67 @@ function createStyles(palette: ThemePalette) {
     },
     footnoteText: { fontSize: 12.5, color: palette.muted },
 
-    /* Sized for reading, not skimming: this is the screen where money is
-       involved and the text is often not the reader's first language. */
-    helpCard: {
+    /* One quiet row, not a wall of text. It has to read as a thing you can
+       tap — icon, two lines, chevron — or nobody finds the answers. */
+    helpTrigger: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
       backgroundColor: palette.surface,
       borderRadius: radius.lg,
       borderWidth: 1,
       borderColor: palette.border,
-      padding: spacing.lg,
-      gap: 2,
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.lg,
     },
-    helpTitle: {
+    helpTriggerPressed: { opacity: 0.6 },
+    helpTriggerIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: palette.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    helpTriggerText: { flex: 1, gap: 2 },
+    helpTriggerTitle: { fontSize: 15.5, fontWeight: '700', color: palette.text },
+    helpTriggerSub: { fontSize: 13, color: palette.muted },
+
+    sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+    sheetDismissArea: { flex: 1 },
+    sheet: {
+      /* Capped so the plans stay visible behind it — the sheet is an aside,
+         not a second screen. */
+      maxHeight: '82%',
+      backgroundColor: palette.surface,
+      borderTopLeftRadius: radius.xl,
+      borderTopRightRadius: radius.xl,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      gap: spacing.sm,
+    },
+    sheetGrabber: {
+      alignSelf: 'center',
+      width: 40,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: palette.border,
+      marginBottom: spacing.sm,
+    },
+    sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    sheetScroll: { flexGrow: 0 },
+    sheetContent: { paddingBottom: spacing.lg, gap: 2 },
+    sheetFooter: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: palette.border,
+      paddingTop: spacing.md,
+    },
+    sheetTitle: {
+      flex: 1,
       fontSize: 19,
       fontWeight: '800',
       color: palette.text,
       letterSpacing: -0.3,
-      marginBottom: spacing.sm,
     },
     helpHeading: {
       fontSize: 15.5,

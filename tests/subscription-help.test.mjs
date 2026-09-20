@@ -16,6 +16,7 @@ const languageFile = readFileSync(join(root, 'apps/mobile/src/context/LanguageCo
  * "not subscribed yet" branch where a paying member would never see it.
  */
 const HELP_KEYS = [
+  'helpOpenTitle', 'helpOpenSub', 'helpClose',
   'helpTitle',
   'helpWhatTitle', 'helpWhatBody',
   'helpPayTitle', 'helpPayStep1', 'helpPayStep2', 'helpPayStep3', 'helpPayStep4', 'helpPaySafe',
@@ -41,16 +42,20 @@ describe('subscription help section', () => {
     }
   })
 
-  test('the help card sits outside the not-yet-subscribed branch', () => {
-    // Someone who already pays is exactly who needs the cancel instructions,
-    // so the card must render after the entitled/unentitled fork closes and
-    // before the billing footnote.
-    const card = screen.indexOf('styles.helpCard')
+  test('anyone can open it, subscribed or not', () => {
+    // A paying member is exactly who needs the cancel steps, so the row that
+    // opens the sheet must not sit inside the not-yet-subscribed branch.
+    const trigger = screen.indexOf('styles.helpTrigger')
     const footnote = screen.indexOf('styles.footnote')
-    assert.ok(card > -1 && footnote > -1, 'help card or footnote missing')
-    assert.ok(card < footnote, 'help card should come before the billing footnote')
-
-    const between = screen.slice(card, footnote)
-    assert.ok(!between.includes('{entitled'), 'help card is gated on entitlement')
+    assert.ok(trigger > -1, 'no row opens the help sheet')
+    assert.ok(trigger < footnote, 'help row should come before the billing footnote')
+    assert.ok(!screen.slice(trigger, footnote).includes('{entitled'), 'help row is gated on entitlement')
   })
+
+  test('the sheet can be dismissed', () => {
+    // A modal with no way out traps whoever opened it.
+    assert.match(screen, /onRequestClose=\{\(\) => setHelpOpen\(false\)\}/, 'Android back button does not close the sheet')
+    assert.ok(screen.includes('sheetDismissArea'), 'tapping outside the sheet does not close it')
+  })
+
 })

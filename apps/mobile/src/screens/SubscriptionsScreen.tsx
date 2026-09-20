@@ -469,6 +469,52 @@ export function SubscriptionsScreen() {
           </>
         )}
 
+        {/*
+          * Shown to everyone, subscribed or not — the half about cancelling is
+          * only useful to someone who has already paid, and a member hunting
+          * for how to stop paying should not have to ask us.
+          *
+          * Written plainly and left open rather than behind a tap: this is a
+          * community app read largely in a second language, and an accordion
+          * hides the answer from exactly the person who needed it.
+          */}
+        <View style={styles.helpCard}>
+          <Text style={styles.helpTitle}>{t('helpTitle')}</Text>
+
+          <Text style={styles.helpHeading}>{t('helpWhatTitle')}</Text>
+          <Text style={styles.helpBody}>{t('helpWhatBody')}</Text>
+
+          <Text style={styles.helpHeading}>{t('helpPayTitle')}</Text>
+          {['helpPayStep1', 'helpPayStep2', 'helpPayStep3', 'helpPayStep4'].map((key, i) => (
+            <View key={key} style={styles.helpStep}>
+              <View style={styles.helpStepNum}>
+                <Text style={styles.helpStepNumText}>{i + 1}</Text>
+              </View>
+              <Text style={styles.helpStepText}>{t(key)}</Text>
+            </View>
+          ))}
+          <View style={styles.helpNote}>
+            <Ionicons name="shield-checkmark" size={16} color={palette.primary} />
+            <Text style={styles.helpNoteText}>{t('helpPaySafe')}</Text>
+          </View>
+
+          <Text style={styles.helpHeading}>{t('helpRenewTitle')}</Text>
+          <Text style={styles.helpBody}>{t('helpRenewBody')}</Text>
+
+          <Text style={styles.helpHeading}>{t('helpCancelTitle')}</Text>
+          <Text style={styles.helpBody}>{t('helpCancelBody')}</Text>
+          <View style={styles.helpNote}>
+            <Ionicons name="checkmark-circle" size={16} color={palette.primary} />
+            <Text style={styles.helpNoteText}>{t('helpCancelKeep')}</Text>
+          </View>
+
+          <Text style={styles.helpHeading}>{t('helpChangeTitle')}</Text>
+          <Text style={styles.helpBody}>{t('helpChangeBody')}</Text>
+
+          <Text style={styles.helpHeading}>{t('helpPhoneTitle')}</Text>
+          <Text style={styles.helpBody}>{t('helpPhoneBody')}</Text>
+        </View>
+
         <View style={styles.footnote}>
           <Ionicons name="lock-closed" size={13} color={palette.muted} />
           {/* Name the processor that will actually take the payment. This read
@@ -627,6 +673,54 @@ function createStyles(palette: ThemePalette) {
       marginTop: spacing.xs,
     },
     footnoteText: { fontSize: 12.5, color: palette.muted },
+
+    /* Sized for reading, not skimming: this is the screen where money is
+       involved and the text is often not the reader's first language. */
+    helpCard: {
+      backgroundColor: palette.surface,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: palette.border,
+      padding: spacing.lg,
+      gap: 2,
+    },
+    helpTitle: {
+      fontSize: 19,
+      fontWeight: '800',
+      color: palette.text,
+      letterSpacing: -0.3,
+      marginBottom: spacing.sm,
+    },
+    helpHeading: {
+      fontSize: 15.5,
+      fontWeight: '700',
+      color: palette.text,
+      marginTop: spacing.md,
+      marginBottom: 4,
+    },
+    helpBody: { fontSize: 15, lineHeight: 23, color: palette.textSoft ?? palette.text },
+    helpStep: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginTop: 8 },
+    helpStepNum: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: palette.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 1,
+    },
+    helpStepNumText: { fontSize: 12.5, fontWeight: '800', color: palette.primary },
+    helpStepText: { flex: 1, fontSize: 15, lineHeight: 23, color: palette.textSoft ?? palette.text },
+    helpNote: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+      padding: spacing.sm + 2,
+      borderRadius: radius.md,
+      backgroundColor: palette.primarySoft,
+    },
+    helpNoteText: { flex: 1, fontSize: 14, lineHeight: 21, color: palette.text },
     restoreButton: { paddingVertical: 12, alignItems: 'center' },
     restoreButtonText: { color: palette.primary, fontSize: 14, fontWeight: '600' },
     playError: { fontSize: 13, color: palette.danger, marginTop: spacing.sm, textAlign: 'center' },

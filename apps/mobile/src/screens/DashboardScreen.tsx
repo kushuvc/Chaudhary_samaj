@@ -209,8 +209,10 @@ export function DashboardScreen() {
                     .filter(Boolean)
                     .join(' • ') || optionLabel('Chaudhary', language)}
                 </Text>
-                <View style={[styles.profileBadge, profile.gender === 'female' ? styles.profileBadgeFemale : styles.profileBadgeMale]}>
-                  <Text style={styles.profileBadgeText}>{profile.gender === 'female' ? '♀' : '♂'}</Text>
+                {/* Compared case-insensitively: stored values have not always
+                    been lowercase, and a capitalised one showed the wrong sign. */}
+                <View style={[styles.profileBadge, (profile.gender || '').toLowerCase() === 'female' ? styles.profileBadgeFemale : styles.profileBadgeMale]}>
+                  <Text style={styles.profileBadgeText}>{(profile.gender || '').toLowerCase() === 'female' ? '♀' : '♂'}</Text>
                 </View>
               </Pressable>
             ))}

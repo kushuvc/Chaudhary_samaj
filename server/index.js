@@ -577,7 +577,11 @@ app.post('/api/auth/signup', async (request, response) => {
           userId,                                       // $2  user_id
           dateOfBirth || null,                          // $3  date_of_birth
           calcAge,                                      // $4  age
-          safeStr(gender, 'unspecified'),               // $5  gender
+          // Lowercased on the way in. Every read already lowercases to compare,
+          // so a stray 'Male' was harmless — but only because each of those
+          // call sites remembered to, and one that forgets would silently show
+          // a member the wrong half of the directory.
+          safeStr(gender, 'unspecified').toLowerCase(), // $5  gender
           safeStr(city || location),                    // $6  location
           safeStr(community || caste, 'Chaudhary'),     // $7  community
           safeStr(subCommunity),                        // $8  sub_community

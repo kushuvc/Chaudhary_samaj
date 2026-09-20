@@ -285,6 +285,9 @@ const migrations = [
           can_chat = true,
           caps_seeded = true
     WHERE caps_seeded = false`,
+  // One row arrived as 'Male'. Reads all lowercase before comparing, so it
+  // behaved — but the value should not vary, and this is idempotent.
+  `UPDATE matrimony_profiles SET gender = lower(gender) WHERE gender <> lower(gender)`,
 ]
 
 for (const sql of migrations) {

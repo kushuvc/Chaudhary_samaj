@@ -3111,10 +3111,19 @@ app.put('/api/matrimony/me', async (request, response) => {
 
   try {
     // Update users table
-    if (user.fullName || user.phone) {
+    /*
+     * Name only. Phone is deliberately not writable here.
+     *
+     * It is an identity field — the number a sign-in code goes to — and this
+     * endpoint took whatever the client sent, so anyone could move their
+     * account onto a different number, or collide with someone else's and get
+     * a raw unique-constraint 500 for their trouble. Changing it should be a
+     * deliberate, verified flow, not a side effect of saving a profile.
+     */
+    if (user.fullName) {
       await pgQuery(
-        'UPDATE users SET full_name = COALESCE($1, full_name), phone = COALESCE($2, phone), updated_at = $3 WHERE id = $4',
-        [user.fullName || null, user.phone || null, now, activeUserId]
+        'UPDATE users SET full_name = COALESCE($1, full_name), updated_at = $2 WHERE id = $3',
+        [user.fullName || null, now, activeUserId]
       )
     }
 

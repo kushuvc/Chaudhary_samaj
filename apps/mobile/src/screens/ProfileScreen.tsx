@@ -432,11 +432,19 @@ export function ProfileScreen() {
           placeholder={t('fullNamePlaceholder')}
           styles={styles}
         />
+        {/*
+          * Email and phone stay read-only even while editing. They are how an
+          * account is identified and recovered — the address a password reset
+          * goes to, the number a sign-in code goes to. Letting someone retype
+          * either in a profile form is how an account quietly moves to an
+          * address its owner does not hold. The server refuses the change too;
+          * this only stops the app offering it.
+          */}
         <LabeledInput
           label={t('emailLabel')}
           value={profile.email}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, email: value }))}
-          editable={isEditing}
+          onChangeText={() => {}}
+          editable={false}
           placeholder={t('contactEmailPlaceholder')}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -445,12 +453,15 @@ export function ProfileScreen() {
         <LabeledInput
           label={t('phoneLabel')}
           value={profile.phone || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, phone: value }))}
-          editable={isEditing}
+          onChangeText={() => {}}
+          editable={false}
           placeholder={t('phonePlaceholder')}
           keyboardType="phone-pad"
           styles={styles}
         />
+        {isEditing ? (
+          <Text style={[styles.fieldHint, { color: palette.muted }]}>{t('fieldLockedNote')}</Text>
+        ) : null}
         <LabeledInput
           label={t('locationLabel')}
           value={profile.location}
@@ -846,6 +857,7 @@ function createStyles(palette: ThemePalette) {
   fieldGroup: {
     marginBottom: spacing.sm,
   },
+  fieldHint: { fontSize: 13, lineHeight: 19, marginTop: -2, marginBottom: 10 },
   fieldLabel: {
     ...type.caption,
     color: palette.muted,

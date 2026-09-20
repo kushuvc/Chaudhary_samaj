@@ -61,3 +61,23 @@ describe('published contact address', () => {
     }
   })
 })
+
+describe('Play billing health panel', () => {
+  /*
+   * The failure this exists to catch is silent: a service account can hold a
+   * valid key and still be unable to read purchases, and nothing says so until
+   * someone pays and is granted nothing.
+   */
+  test('the endpoint is admin-only', async () => {
+    assert.equal((await fetch(`${server.base}/api/admin/play/health`)).status, 401)
+  })
+
+  test('the panel is on the page and cross-checks plans', () => {
+    const html = readFileSync(join(root, 'site/admin.html'), 'utf8')
+    assert.match(html, /id="runPlayCheck"/, 'there must be a way to run it')
+    assert.match(html, /admin\/play\/health/, 'it must call the health endpoint')
+    // Reading a purchase is the check that matters; the verdict keys off it.
+    assert.match(html, /canReadPurchases/)
+    assert.match(html, /cannot be bought/, 'a plan Play cannot see must be called out')
+  })
+})

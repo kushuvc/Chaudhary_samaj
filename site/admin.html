@@ -53,6 +53,16 @@
   .caps .switch{margin:0;font-size:.9rem}
   .caps-title{width:100%;font-size:.8rem;color:var(--muted);margin:0 0 .1rem;
     text-transform:uppercase;letter-spacing:.04em}
+  .chk{display:flex;gap:.6rem;align-items:baseline;padding:.4rem 0;border-top:1px solid var(--line)}
+  .chk:first-of-type{border-top:0}
+  .chk .mark{font-weight:700;flex:0 0 1.2rem}
+  .chk .mark.ok{color:var(--ok)} .chk .mark.bad{color:var(--err)} .chk .mark.warn{color:var(--warn)}
+  .chk .what{flex:1}
+  .chk .detail{color:var(--muted);font-size:.85rem;display:block;margin-top:.1rem;
+    word-break:break-all;font-family:var(--mono,monospace)}
+  .verdict{border-radius:9px;padding:.7rem .9rem;margin:0 0 .9rem;font-size:.93rem;font-weight:600}
+  .verdict.ok{background:var(--okbg);color:var(--ok)}
+  .verdict.bad{background:var(--errbg);color:var(--err)}
   .pill.off{background:var(--line);color:var(--muted)}
   .plan-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
   .plan-head code{font-size:.8rem;color:var(--muted);background:var(--bg);
@@ -182,6 +192,20 @@
       The code is permanent once someone has bought it — it is what their subscription record points at.
       Lowercase letters, numbers and underscores.
     </p>
+  </div>
+
+  <h2 class="section-title">Google Play connection</h2>
+  <p class="sub" style="margin:-.3rem 0 1rem">
+    Whether the server can actually reach Google to verify a purchase. Worth checking before
+    taking real money — the failure that matters here is silent, and shows up as a member who
+    paid and got nothing.
+  </p>
+  <div class="card">
+    <div class="head">
+      <h2>Health check</h2>
+      <button id="runPlayCheck" class="secondary" type="button">Run check</button>
+    </div>
+    <div id="playHealth"><p class="hint" style="margin:0">Not run yet.</p></div>
   </div>
 </section>
 
@@ -581,6 +605,81 @@ $('addPlan').onclick = async () => {
     $('addPlan').disabled = false;
   }
 };
+
+/* ---- google play connection ---- */
+function chk(state, what, detail) {
+  const mark = state === true ? '✓' : state === 'warn' ? '!' : '✗';
+  const cls = state === true ? 'ok' : state === 'warn' ? 'warn' : 'bad';
+  return `<div class="chk"><span class="mark ${cls}">${mark}</span>
+    <span class="what">${esc(what)}${detail ? `<span class="detail">${esc(detail)}</span>` : ''}</span></div>`;
+}
+
+async function runPlayCheck() {
+  const box = $('playHealth');
+  box.innerHTML = '<p class="hint" style="margin:0">Checking…</p>';
+  $('runPlayCheck').disabled = true;
+
+  try {
+    const [health, plans] = await Promise.all([
+      call('/admin/play/health').then((b) => b.data),
+      call('/admin/plans').then((b) => b.data),
+    ]);
+
+    /*
+     * Reading a purchase is the one that matters. A service account can hold a
+     * valid key and still be unable to see this app — those are separate
+     * grants, and only the second fails at the moment someone pays.
+     */
+    const ready = health.canAuthenticate && health.canReadPurchases;
+    const rows = [];
+
+    rows.push(chk(health.hasCredentials, 'Service account configured',
+      health.clientEmail || 'PLAY_SERVICE_ACCOUNT_JSON not set'));
+    rows.push(chk(health.packageName ? true : false, 'Package name', health.packageName || 'not set'));
+    rows.push(chk(health.jsonParses, 'Key file parses'));
+    rows.push(chk(health.hasPrivateKey && health.privateKeyLooksWrapped, 'Private key intact',
+      health.hasPrivateKey
+        ? (health.privateKeyLooksWrapped ? null : 'newlines were stripped — it cannot sign')
+        : 'no private_key field'));
+    rows.push(chk(health.canAuthenticate, 'Google accepts the key'));
+    rows.push(chk(health.canReadPurchases, 'Can verify a purchase',
+      health.purchaseProbeStatus
+        ? `probe returned ${health.purchaseProbeStatus}` +
+          (health.purchaseProbeStatus === 401 || health.purchaseProbeStatus === 403
+            ? ' — grant this account access to the app in Play Console'
+            : ' — expected for a dummy token, so access is fine')
+        : null));
+    rows.push(chk(health.canReadPackage, 'Can list the app\'s subscriptions',
+      health.packageAccessStatus ? `HTTP ${health.packageAccessStatus}` : null));
+
+    // The cross-check worth having: a plan pointing at a product Play does not
+    // have is unbuyable, and nothing says so until someone taps Subscribe.
+    const visible = health.subscriptionsVisible || [];
+    const wanted = plans.filter((x) => x.isActive && x.playProductId);
+    for (const plan of wanted) {
+      const found = visible.includes(plan.playProductId);
+      rows.push(chk(found ? true : 'warn', `Plan "${plan.name}" → ${plan.playProductId}`,
+        found ? 'found in Play Console' : 'Play does not report this product — the plan cannot be bought'));
+    }
+    if (!wanted.length) {
+      rows.push(chk('warn', 'No active plan has a Play product id', 'nothing can be sold on Android'));
+    }
+
+    box.innerHTML =
+      `<div class="verdict ${ready ? 'ok' : 'bad'}">` +
+      (ready
+        ? 'Billing is reachable — the server can verify a purchase with Google.'
+        : 'Billing is NOT reachable. A member who pays would not be granted access.') +
+      '</div>' + rows.join('') +
+      (health.error ? `<p class="hint" style="color:var(--err)">${esc(health.error)}</p>` : '');
+  } catch (err) {
+    box.innerHTML = `<p class="hint" style="color:var(--err)">${esc(err.message)}</p>`;
+  } finally {
+    $('runPlayCheck').disabled = false;
+  }
+}
+
+$('runPlayCheck').onclick = () => void runPlayCheck();
 
 /* A stored token may have expired or belong to a non-admin. */
 if (token) {

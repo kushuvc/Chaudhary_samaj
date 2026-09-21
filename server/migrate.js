@@ -285,6 +285,22 @@ const migrations = [
           can_chat = true,
           caps_seeded = true
     WHERE caps_seeded = false`,
+  /*
+   * Which profiles each free member was given.
+   *
+   * The free allowance used to mean "the first N of the current ordering",
+   * and that ordering is newest-first — so every single registration handed
+   * every free member two different profiles, for ever. Recording the grant
+   * makes it what it always claimed to be: these N profiles, permanently.
+   */
+  `CREATE TABLE IF NOT EXISTS matrimony_free_allocations (
+     viewer_user_id TEXT NOT NULL,
+     profile_id TEXT NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     PRIMARY KEY (viewer_user_id, profile_id)
+   )`,
+  `CREATE INDEX IF NOT EXISTS matrimony_free_allocations_viewer_idx
+     ON matrimony_free_allocations (viewer_user_id, created_at)`,
   // One row arrived as 'Male'. Reads all lowercase before comparing, so it
   // behaved — but the value should not vary, and this is idempotent.
   `UPDATE matrimony_profiles SET gender = lower(gender) WHERE gender <> lower(gender)`,

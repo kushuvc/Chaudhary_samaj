@@ -1633,7 +1633,12 @@ app.get('/api/matrimony/profiles', async (request, response) => {
     baseProfiles = null
   }
 
-  const profiles = (baseProfiles || getPublicProfiles(activeUserId)).filter((profile) => {
+  // Held separately from the filtered list below: the free allowance is
+  // resolved against everything this member could see, never against what
+  // they have filtered or sorted to.
+  const allProfiles = baseProfiles || getPublicProfiles(activeUserId)
+
+  const profiles = allProfiles.filter((profile) => {
     const searchText = String(search || '').trim().toLowerCase()
     const matchesSearch =
       !searchText ||
@@ -1682,14 +1687,9 @@ app.get('/api/matrimony/profiles', async (request, response) => {
    * `sortBy` on every request; this endpoint never read it, so the chips lit
    * up and nothing moved.
    *
-   * Rank in the default order is captured first, because the free allowance
-   * below is "these N profiles" and must not become "the first N of whatever
-   * order you asked for" — otherwise sorting by name ascending and then
-   * descending would walk an unsubscribed member through two different free
-   * sets.
+   * Sorting cannot widen the free allowance, because that allowance is a
+   * recorded set of profile ids rather than a position in this list.
    */
-  const canonicalRank = new Map(profiles.map((profile, index) => [profile.id, index]))
-
   if (sortBy === 'name' || sortBy === 'age') {
     profiles.sort((a, b) => {
       if (sortBy === 'age') {
@@ -1738,11 +1738,19 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   }
 
   const freeLimit = access.rule.freeProfileLimit
-  const visible = access.entitled
-    ? page
-    : page.map((profile) =>
-        (canonicalRank.get(profile.id) ?? Infinity) < freeLimit ? profile : lockedProfile(profile)
-      )
+  let visible = page
+  if (!access.entitled) {
+    let allowed
+    try {
+      allowed = await resolveFreeAllocation(activeUserId, allProfiles, freeLimit)
+    } catch (err) {
+      // Fail closed, as with the access check above.
+      console.error('[paywall] could not resolve the free allowance:', err.message)
+      response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+      return
+    }
+    visible = page.map((profile) => (allowed.has(profile.id) ? profile : lockedProfile(profile)))
+  }
 
   response.json({
     success: true,
@@ -1850,7 +1858,7 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     let allowedIds = []
     try {
       const all = (await getPublicProfilesFast(activeUserId, await genderOf(activeUserId))) || []
-      allowedIds = all.slice(0, access.rule.freeProfileLimit).map((entry) => entry.id)
+      allowedIds = [...(await resolveFreeAllocation(activeUserId, all, access.rule.freeProfileLimit))]
     } catch (err) {
       console.error('[paywall] could not resolve the free allowance:', err.message)
       response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
@@ -2263,6 +2271,64 @@ async function requireCapability(userId, capability, response, message) {
  * how many there are, and nothing else. No name, age, location, bio, photo or
  * contact detail leaves the server for a profile the caller has not paid for.
  */
+/**
+ * The set of profile ids a free member may read, fixed once and then kept.
+ *
+ * The free allowance used to be "the first N of the current ordering". That
+ * ordering is `compatibility_score DESC, created_at DESC` — newest first — so
+ * every new registration pushed two fresh profiles to the top of every free
+ * member's list and retired the two they had. Free browsing was therefore
+ * unlimited, given patience, and nobody ever saw the same two profiles twice.
+ *
+ * The grant is now recorded the first time a member browses, so it survives
+ * new registrations. It is also resolved against the member's full list
+ * rather than whatever they have filtered or sorted to — otherwise setting an
+ * education filter, or flipping the sort, would each reveal a different two.
+ *
+ * Only tops up: if a granted profile is deleted or blocks the viewer it is
+ * replaced, and if the plan's allowance is raised the extra slots are filled.
+ * Lowering the allowance keeps the oldest grants and simply shows fewer.
+ */
+async function resolveFreeAllocation(viewerUserId, baseProfiles, freeLimit) {
+  if (freeLimit <= 0) return new Set()
+
+  const available = new Map(baseProfiles.map((profile) => [profile.id, profile]))
+
+  const rows = await pgQuery(
+    `SELECT profile_id FROM matrimony_free_allocations
+      WHERE viewer_user_id = $1
+      ORDER BY created_at, profile_id`,
+    [viewerUserId]
+  )
+
+  // Grants for profiles that have since gone are dropped from the count, so
+  // the member keeps a full allowance rather than silently losing a slot.
+  const granted = rows.map((row) => row.profile_id).filter((id) => available.has(id))
+  const allowed = new Set(granted.slice(0, freeLimit))
+
+  if (allowed.size < freeLimit) {
+    const held = new Set(rows.map((row) => row.profile_id))
+    const additions = []
+    for (const profile of baseProfiles) {
+      if (allowed.size + additions.length >= freeLimit) break
+      if (held.has(profile.id)) continue
+      additions.push(profile.id)
+    }
+
+    if (additions.length > 0) {
+      await pgQuery(
+        `INSERT INTO matrimony_free_allocations (viewer_user_id, profile_id)
+         SELECT $1, unnest($2::text[])
+         ON CONFLICT DO NOTHING`,
+        [viewerUserId, additions]
+      )
+      for (const id of additions) allowed.add(id)
+    }
+  }
+
+  return allowed
+}
+
 function lockedProfile(profile) {
   return { id: profile.id, isLocked: true }
 }
@@ -4286,6 +4352,14 @@ app.delete('/api/auth/account', async (request, response) => {
     await pgQuery('DELETE FROM matrimony_interests WHERE sender_id = $1 OR receiver_id = $1', [activeUserId])
     await pgQuery('DELETE FROM matrimony_matches WHERE user1_id = $1 OR user2_id = $1', [activeUserId])
     await pgQuery('DELETE FROM user_subscriptions WHERE user_id = $1', [activeUserId])
+    // Both directions: the grants this member held, and anyone who was
+    // granted this member's profile.
+    await pgQuery(
+      `DELETE FROM matrimony_free_allocations
+        WHERE viewer_user_id = $1
+           OR profile_id IN (SELECT id FROM matrimony_profiles WHERE user_id = $1)`,
+      [activeUserId]
+    )
     await pgQuery('DELETE FROM user_settings WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM matrimony_profiles WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM auth_accounts WHERE user_id = $1', [activeUserId])

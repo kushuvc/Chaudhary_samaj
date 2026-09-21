@@ -24,13 +24,20 @@ import type { MatrimonyFilterOptions, MatrimonyProfile } from '../types';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FadeInView } from '../components/Motion';
 
-type MatchTab = 'all' | 'newlyJoined' | 'more';
+/*
+ * "More" listed exactly the same profiles as "All" — it mapped to the same
+ * server tab — so it was a third way to see the first screen. Replaced with
+ * Shortlisted, which the bookmark on every card has been writing to all
+ * along with nowhere to read it back.
+ */
+type MatchTab = 'all' | 'newlyJoined' | 'shortlisted';
 
 const TAB_CONFIG: Array<{ key: MatchTab; labelKey: string }> = [
   { key: 'all', labelKey: 'matchTabAll' },
   { key: 'newlyJoined', labelKey: 'matchTabNewlyJoined' },
-  { key: 'more', labelKey: 'matchTabMore' },
+  { key: 'shortlisted', labelKey: 'matchTabShortlisted' },
 ];
 
 const EMPTY_OPTIONS: MatrimonyFilterOptions = {
@@ -133,7 +140,6 @@ export function MatrimonyScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [actionProfileId, setActionProfileId] = useState<string | null>(null);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [profileDetailVisible, setProfileDetailVisible] = useState(false);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
@@ -169,7 +175,7 @@ export function MatrimonyScreen() {
     try {
       setError(null);
       const response = await api.getMatrimonyProfiles({
-        tab: tab === 'more' ? 'all' : tab,
+        tab,
         search,
         gender: filters.gender,
         education: filters.education,
@@ -201,7 +207,7 @@ export function MatrimonyScreen() {
     setLoadingMore(true);
     try {
       const response = await api.getMatrimonyProfiles({
-        tab: tab === 'more' ? 'all' : tab,
+        tab,
         search,
         gender: filters.gender,
         education: filters.education,
@@ -242,27 +248,35 @@ export function MatrimonyScreen() {
     loadProfiles();
   };
 
-  const runAction = async (profileId: string, action: 'shortlist' | 'view' | 'unlock') => {
+  /**
+   * Shortlisting is one tap and should feel like one.
+   *
+   * It used to pop a modal alert and then reload the whole list, so saving
+   * someone cost a dismissed dialog and a visible reflow. The bookmark now
+   * flips immediately and the request settles behind it; a failure puts the
+   * bookmark back and says so, which is the only case worth interrupting for.
+   */
+  const toggleShortlist = async (profileId: string) => {
+    const wasShortlisted = Boolean(profiles.find((p) => p.id === profileId)?.isShortlisted);
+    const flip = (value: boolean) =>
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profileId ? { ...p, isShortlisted: value } : p)),
+      );
+
+    flip(!wasShortlisted);
     try {
-      setActionProfileId(profileId);
-      if (action === 'shortlist') {
-        const wasShortlisted = profiles.find(p => p.id === profileId)?.isShortlisted;
-        await api.toggleMatrimonyShortlist(profileId);
-        showAlert(
-          wasShortlisted ? t('mmShortlistRemovedTitle') : t('mmShortlistAddedTitle'),
-          wasShortlisted ? t('mmShortlistRemovedBody') : t('mmShortlistAddedBody')
-        );
-      } else if (action === 'view') {
-        await api.markMatrimonyViewed(profileId);
-      } else {
-        await api.unlockPhoneNumber(profileId);
+      await api.toggleMatrimonyShortlist(profileId);
+      // On the shortlist tab itself, un-saving someone should take them out of
+      // the list rather than leave a hollow bookmark behind.
+      if (tab === 'shortlisted' && wasShortlisted) {
+        setProfiles((prev) => prev.filter((p) => p.id !== profileId));
+        // Keep the "N matches" heading honest — dropping the card without
+        // this left the count one ahead of the list.
+        setTotalMatches((prev) => Math.max(prev - 1, 0));
       }
-      await loadProfiles();
     } catch (err) {
+      flip(wasShortlisted);
       showAlert(t('mmActionFailed'), (err as Error).message || t('alertSomethingWrong'));
-      setError((err as Error).message);
-    } finally {
-      setActionProfileId(null);
     }
   };
 
@@ -278,7 +292,7 @@ export function MatrimonyScreen() {
   const tabLabel = (key: MatchTab) => {
     if (key === 'all') return t('matchTabAll');
     if (key === 'newlyJoined') return t('matchTabNewlyJoined');
-    return t('matchTabMore');
+    return t('matchTabShortlisted');
   };
 
   return (
@@ -375,12 +389,23 @@ export function MatrimonyScreen() {
         {error ? <InlineError message={error} /> : null}
 
         {profiles.length === 0 ? (
-          <EmptyState
-            title={t('noMatchesFound')}
-            subtitle={t('noMatchesSubtitle')}
-            actionLabel={t('resetFilters')}
-            onAction={clearFilters}
-          />
+          tab === 'shortlisted' ? (
+            // "No matches found — adjust your filters" is wrong here: nothing
+            // is filtered out, the member simply has not saved anyone yet.
+            <EmptyState
+              title={t('shortlistEmptyTitle')}
+              subtitle={t('shortlistEmptyBody')}
+              actionLabel={t('matchTabAll')}
+              onAction={() => setTab('all')}
+            />
+          ) : (
+            <EmptyState
+              title={t('noMatchesFound')}
+              subtitle={t('noMatchesSubtitle')}
+              actionLabel={t('resetFilters')}
+              onAction={clearFilters}
+            />
+          )
         ) : null}
 
         {profiles.map((profile, index) => {
@@ -394,7 +419,8 @@ export function MatrimonyScreen() {
             || null;
           if (isLocked) {
             return (
-              <View key={profile.id} style={[styles.newCard, { overflow: 'hidden' }]}>
+              <FadeInView key={profile.id} index={index}>
+              <View style={[styles.newCard, { overflow: 'hidden' }]}>
                 {/* Blurred locked overlay */}
                 <View style={styles.lockedOverlay}>
                   <Ionicons name="lock-closed" size={36} color="#FFFFFF" />
@@ -420,10 +446,12 @@ export function MatrimonyScreen() {
                   </View>
                 </View>
               </View>
+              </FadeInView>
             );
           }
           return (
-            <View key={profile.id} style={styles.newCard}>
+            <FadeInView key={profile.id} index={index}>
+            <View style={styles.newCard}>
               {/* Profile Image Area */}
               <Pressable style={styles.imageContainer} onPress={() => { setSelectedProfileId(profile.id); setProfileDetailVisible(true); }}>
                 {primaryPhoto?.uri ? (
@@ -433,7 +461,7 @@ export function MatrimonyScreen() {
                     <Ionicons name="person" size={80} color={palette.muted} />
                   </View>
                 )}
-                <Pressable style={styles.shortlistButton} onPress={() => runAction(profile.id, 'shortlist')}>
+                <Pressable style={styles.shortlistButton} onPress={() => void toggleShortlist(profile.id)}>
                   <Ionicons name={profile.isShortlisted ? "bookmark" : "bookmark-outline"} size={20} color="#FFFFFF" />
                 </Pressable>
               </Pressable>
@@ -532,6 +560,7 @@ export function MatrimonyScreen() {
                 )}
               </View>
             </View>
+            </FadeInView>
           );
         })}
 

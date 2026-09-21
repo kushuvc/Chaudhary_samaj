@@ -15,7 +15,7 @@ export const CASTES = [
 ];
 
 export const SUBCASTES: Record<string, string[]> = {
-  Chaudhary: ['Anjana', 'Desai', 'Kadva', 'Leva', 'Other'],
+  Chaudhary: ['Anjana', 'Desai', 'Jat', 'Kadva', 'Leva', 'Other'],
   Patel: ['Kadva', 'Leva', 'Anjana', 'Matia', 'Other'],
   Brahmin: ['Audichya', 'Nagar', 'Shrimali', 'Modh', 'Other'],
   Jat: ['Deshwal', 'Malik', 'Dahiya', 'Other'],

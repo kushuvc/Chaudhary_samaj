@@ -1623,6 +1623,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
     minAge,
     maxAge,
     tab,
+    sortBy,
   } = request.query
 
   let baseProfiles = null
@@ -1675,6 +1676,36 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   })
 
   /*
+   * Sorting.
+   *
+   * The app has offered Name and Age since the filter sheet shipped and sent
+   * `sortBy` on every request; this endpoint never read it, so the chips lit
+   * up and nothing moved.
+   *
+   * Rank in the default order is captured first, because the free allowance
+   * below is "these N profiles" and must not become "the first N of whatever
+   * order you asked for" — otherwise sorting by name ascending and then
+   * descending would walk an unsubscribed member through two different free
+   * sets.
+   */
+  const canonicalRank = new Map(profiles.map((profile, index) => [profile.id, index]))
+
+  if (sortBy === 'name' || sortBy === 'age') {
+    profiles.sort((a, b) => {
+      if (sortBy === 'age') {
+        // Youngest first, and anyone without an age sinks rather than
+        // sorting as 0 and taking over the top of the list.
+        const left = Number.isFinite(Number(a.age)) ? Number(a.age) : Infinity
+        const right = Number.isFinite(Number(b.age)) ? Number(b.age) : Infinity
+        if (left !== right) return left - right
+      }
+      // localeCompare so Hindi and Gujarati names order sensibly rather than
+      // by UTF-16 code unit, and so case never decides the order.
+      return String(a.name || '').localeCompare(String(b.name || ''), 'en', { sensitivity: 'base' })
+    })
+  }
+
+  /*
    * Pagination.
    *
    * This endpoint returned every matching profile. Each row carries the full
@@ -1709,8 +1740,8 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   const freeLimit = access.rule.freeProfileLimit
   const visible = access.entitled
     ? page
-    : page.map((profile, index) =>
-        offset + index < freeLimit ? profile : lockedProfile(profile)
+    : page.map((profile) =>
+        (canonicalRank.get(profile.id) ?? Infinity) < freeLimit ? profile : lockedProfile(profile)
       )
 
   response.json({
@@ -2318,6 +2349,10 @@ app.post('/api/matrimony/profiles/:id/shortlist', async (request, response) => {
         metadata: { shortlisted: Boolean(nextValue) },
       }),
     ])
+
+    // The listing is cached per viewer and carries is_shortlisted with it, so
+    // without this the Shortlisted tab keeps showing what it showed before.
+    invalidateFastCache('publicProfiles')
 
     response.json({ success: true, data: { shortlisted: Boolean(nextValue) } })
   } catch (err) {

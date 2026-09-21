@@ -19,6 +19,7 @@ import { optionLabel } from '../constants/optionTranslations';
 import { api } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import type { ThemePalette } from '../context/ThemeContext';
+import { FadeInView, PressableScale, Pulse } from '../components/Motion';
 import type { MatrimonyProfile } from '../types';
 
 export function DashboardScreen() {
@@ -49,7 +50,16 @@ export function DashboardScreen() {
         api.getMyMatrimonyProfile().catch(() => null),
       ]);
       setTotalProfiles(matrimonyRes.profiles.length);
-      setRecentProfiles(matrimonyRes.profiles.slice(0, 4));
+      /*
+       * Only the profiles this member may actually see.
+       *
+       * Past the free allowance the server sends { id, isLocked } and nothing
+       * else, and this strip rendered those as a card reading "Member ·
+       * Chaudhary" with a male symbol — no name, and the wrong gender sign,
+       * because an absent gender is not female. Better to show fewer real
+       * people than four cards of placeholder.
+       */
+      setRecentProfiles(matrimonyRes.profiles.filter((p: MatrimonyProfile) => !p.isLocked).slice(0, 4));
       setSentInterests(interestsRes.sent.length);
       setReceivedInterests(interestsRes.received.length);
       setAcceptedInterests(interestsRes.sent.filter((i: any) => i.status === 'accepted').length);
@@ -149,7 +159,7 @@ export function DashboardScreen() {
 
       {/* Profile Incomplete Banner */}
       {!profileComplete && (
-        <Pressable style={styles.incompleteBanner} onPress={() => navigation.navigate('Profile')}>
+        <PressableScale style={styles.incompleteBanner} onPress={() => navigation.navigate('Profile')}>
           <View style={styles.incompleteBannerLeft}>
             <Ionicons name="person-circle-outline" size={32} color={palette.primary} />
             <View style={{ flex: 1 }}>
@@ -157,44 +167,52 @@ export function DashboardScreen() {
               <Text style={styles.incompleteBannerSub}>{t('dashboardCompleteProfileSub')}</Text>
             </View>
           </View>
-          <View style={styles.incompleteBannerBadge}>
+          <Pulse style={styles.incompleteBannerBadge}>
             <Text style={styles.incompleteBannerBadgeText}>→</Text>
-          </View>
-        </Pressable>
+          </Pulse>
+        </PressableScale>
       )}
 
-      {/* Interests Stats */}
+      {/* Interests Stats.
+          Each tile was a plain View, so tapping the count of received
+          interests — the obvious thing to do when it reads 3 — did nothing.
+          They now go where the number came from. */}
       <Text style={styles.sectionTitle}>{t('dashboardMyActivity')}</Text>
       <View style={styles.statsRow}>
-        <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
-          <Ionicons name="paper-plane" size={18} color={palette.primary} />
-          <Text style={[styles.statPillValue, { color: palette.primary }]}>{sentInterests}</Text>
-          <Text style={styles.statPillLabel}>{t('dashboardInterestsSent')}</Text>
-        </View>
-        <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
-          <Ionicons name="mail" size={18} color={palette.violet} />
-          <Text style={[styles.statPillValue, { color: palette.violet }]}>{receivedInterests}</Text>
-          <Text style={styles.statPillLabel}>{t('dashboardInterestsReceived')}</Text>
-        </View>
-        <View style={[styles.statPill, { backgroundColor: palette.accentSoft }]}>
-          <Ionicons name="checkmark-circle" size={18} color={palette.accent} />
-          <Text style={[styles.statPillValue, { color: palette.textSoft }]}>{acceptedInterests}</Text>
-          <Text style={styles.statPillLabel}>{t('dashboardInterestsAccepted')}</Text>
-        </View>
-        <View style={[styles.statPill, { backgroundColor: palette.primarySoft }]}>
-          <Ionicons name="people" size={18} color={palette.primaryDeep} />
-          <Text style={[styles.statPillValue, { color: palette.primaryDeep }]}>{totalProfiles}</Text>
-          <Text style={styles.statPillLabel}>{t('dashboardTotalProfiles')}</Text>
-        </View>
+        {[
+          { icon: 'paper-plane', tint: palette.primary, bg: palette.primarySoft, value: sentInterests, label: t('dashboardInterestsSent'), go: 'Interests' },
+          { icon: 'mail', tint: palette.violet, bg: palette.primarySoft, value: receivedInterests, label: t('dashboardInterestsReceived'), go: 'Interests' },
+          { icon: 'checkmark-circle', tint: palette.accent, bg: palette.accentSoft, value: acceptedInterests, label: t('dashboardInterestsAccepted'), go: 'Messages' },
+          { icon: 'people', tint: palette.primaryDeep, bg: palette.primarySoft, value: totalProfiles, label: t('dashboardTotalProfiles'), go: 'Matrimony' },
+        ].map((tile, i) => (
+          <FadeInView key={tile.label} index={i} style={styles.statPillWrap}>
+            <PressableScale
+              style={[styles.statPill, { backgroundColor: tile.bg }]}
+              onPress={() => navigation.navigate(tile.go)}
+              accessibilityRole="button"
+              accessibilityLabel={`${tile.label}: ${tile.value}`}
+            >
+              <Ionicons name={tile.icon as any} size={18} color={tile.tint} />
+              <Text style={[styles.statPillValue, { color: tile.tint }]}>{tile.value}</Text>
+              <Text style={styles.statPillLabel}>{tile.label}</Text>
+            </PressableScale>
+          </FadeInView>
+        ))}
       </View>
 
       {/* Recent Profiles */}
       {recentProfiles.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>{t('dashboardRecentProfiles')}</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{t('dashboardRecentProfiles')}</Text>
+            <Pressable onPress={() => navigation.navigate('Matrimony')} hitSlop={8}>
+              <Text style={styles.seeAllText}>{t('viewAll')} ›</Text>
+            </Pressable>
+          </View>
           <View style={styles.profilesGrid}>
-            {recentProfiles.map((profile) => (
-              <Pressable key={profile.id} style={styles.profileCard} onPress={() => setSelectedProfileId(profile.id)}>
+            {recentProfiles.map((profile, i) => (
+              <FadeInView key={profile.id} index={i} style={styles.profileCardWrap}>
+              <PressableScale style={styles.profileCard} onPress={() => setSelectedProfileId(profile.id)}>
                 <View style={styles.profileAvatar}>
                   <Ionicons name="person" size={28} color={palette.primary} />
                 </View>
@@ -214,7 +232,8 @@ export function DashboardScreen() {
                 <View style={[styles.profileBadge, (profile.gender || '').toLowerCase() === 'female' ? styles.profileBadgeFemale : styles.profileBadgeMale]}>
                   <Text style={styles.profileBadgeText}>{(profile.gender || '').toLowerCase() === 'female' ? '♀' : '♂'}</Text>
                 </View>
-              </Pressable>
+              </PressableScale>
+              </FadeInView>
             ))}
           </View>
         </>
@@ -301,6 +320,9 @@ function createStyles(palette: ThemePalette) {
     statsRow: {
       flexDirection: 'row', paddingHorizontal: 12, gap: 8, marginBottom: 8,
     },
+    /* The flex that used to sit on the pill now sits on the animated wrapper
+       around it, so the four tiles still share the row evenly. */
+    statPillWrap: { flex: 1 },
     statPill: {
       flex: 1, borderRadius: 16, padding: 12, alignItems: 'center', gap: 4,
       shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6,
@@ -312,8 +334,14 @@ function createStyles(palette: ThemePalette) {
       flexDirection: 'row', flexWrap: 'wrap',
       paddingHorizontal: 12, gap: 10, marginBottom: 8,
     },
+    profileCardWrap: { flex: 1, minWidth: '44%' },
+    sectionHeaderRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 16, marginTop: 8, marginBottom: 10,
+    },
+    seeAllText: { fontSize: 13, fontWeight: '700', color: palette.primary },
     profileCard: {
-      flex: 1, minWidth: '44%', backgroundColor: palette.surface,
+      backgroundColor: palette.surface,
       borderRadius: 16, padding: 14, alignItems: 'center',
       shadowColor: '#000', shadowOpacity: 0.06,
       shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,

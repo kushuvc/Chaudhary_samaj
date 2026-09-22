@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { Client } from 'pg'
 import { sslConfigFor } from './pg-ssl.js'
+import { GUIDE_DEFAULTS } from './guide-defaults.js'
 
 const connectionString = process.env.DATABASE_URL
 
@@ -304,6 +305,30 @@ const migrations = [
   // One row arrived as 'Male'. Reads all lowercase before comparing, so it
   // behaved — but the value should not vary, and this is idempotent.
   `UPDATE matrimony_profiles SET gender = lower(gender) WHERE gender <> lower(gender)`,
+  /*
+   * The in-app guide.
+   *
+   * In the database rather than the app bundle so a section can be reworded,
+   * added for a new feature, or hidden without shipping a release — the same
+   * reason subscription_plans moved out of the code.
+   *
+   * One row per section carries all three languages side by side, which makes
+   * a half-translated section obvious in the admin screen instead of it
+   * silently falling back to English on someone's phone.
+   */
+  `CREATE TABLE IF NOT EXISTS app_guide_sections (
+    key TEXT PRIMARY KEY,
+    icon TEXT NOT NULL DEFAULT 'information-circle-outline',
+    title_en TEXT NOT NULL,
+    title_hi TEXT NOT NULL,
+    title_gu TEXT NOT NULL,
+    body_en TEXT NOT NULL,
+    body_hi TEXT NOT NULL,
+    body_gu TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT
+  )`,
 ]
 
 for (const sql of migrations) {
@@ -312,6 +337,38 @@ for (const sql of migrations) {
     console.log('OK:', sql.slice(0, 60).trim())
   } catch (e) {
     console.error('ERR:', e.message, '|', sql.slice(0, 60).trim())
+  }
+}
+
+/*
+ * Seed the guide.
+ *
+ * Parameterised rather than inlined into the migration list above, because the
+ * text is three languages of prose and escaping it into SQL literals is how
+ * a stray apostrophe takes down a deploy.
+ *
+ * DO NOTHING on conflict: a section reworded in the admin screen must survive
+ * the next deploy running this again. Adding a section to guide-defaults.js
+ * ships it to databases that have not seen it and leaves the rest untouched.
+ */
+for (const section of GUIDE_DEFAULTS) {
+  try {
+    await client.query(
+      `INSERT INTO app_guide_sections
+         (key, icon, title_en, title_hi, title_gu, body_en, body_hi, body_gu, is_active, sort_order, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, NOW()::text)
+       ON CONFLICT (key) DO NOTHING`,
+      [
+        section.key,
+        section.icon,
+        section.title.en, section.title.hi, section.title.gu,
+        section.body.en, section.body.hi, section.body.gu,
+        section.sortOrder,
+      ]
+    )
+    console.log('OK: guide section', section.key)
+  } catch (e) {
+    console.error('ERR: guide section', section.key, '|', e.message)
   }
 }
 

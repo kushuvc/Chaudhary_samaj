@@ -4362,6 +4362,61 @@ app.post('/api/payments/play/rtdn', async (request, response) => {
  * Deliberately not behind requirePayments: the screen has to render its prices
  * even on a build where Razorpay keys are unset and only Play billing works.
  */
+/*
+ * The in-app guide.
+ *
+ * Content lives in app_guide_sections so it can be reworded or extended for a
+ * new feature from the admin screen, reaching every installed app without a
+ * release. Cached for a minute — it changes rarely and is read on every visit
+ * to the guide screen.
+ */
+const GUIDE_CACHE_KEY = 'appGuide'
+const GUIDE_CACHE_MS = 60_000
+
+/** Map an app language tag onto the column suffix holding that translation. */
+function guideLangSuffix(language) {
+  const tag = String(language || '').toLowerCase()
+  if (tag.startsWith('hi')) return 'hi'
+  if (tag.startsWith('gu')) return 'gu'
+  return 'en'
+}
+
+async function loadGuideSections() {
+  const cached = cacheGet(GUIDE_CACHE_KEY)
+  if (cached) return cached
+
+  const rows = await pgQuery(
+    `SELECT key, icon, title_en, title_hi, title_gu, body_en, body_hi, body_gu,
+            is_active, sort_order, updated_at
+       FROM app_guide_sections
+      ORDER BY sort_order, key`
+  )
+  cacheSet(GUIDE_CACHE_KEY, rows, GUIDE_CACHE_MS)
+  return rows
+}
+
+app.get('/api/guide', async (request, response) => {
+  const suffix = guideLangSuffix(request.query.lang)
+
+  try {
+    const rows = (await loadGuideSections()).filter((row) => row.is_active)
+    response.json({
+      success: true,
+      data: rows.map((row) => ({
+        key: row.key,
+        icon: row.icon || 'information-circle-outline',
+        // English is the fallback for a section someone has not translated yet:
+        // better a member reads it in the wrong language than not at all.
+        title: row[`title_${suffix}`] || row.title_en,
+        body: row[`body_${suffix}`] || row.body_en,
+      })),
+    })
+  } catch (err) {
+    console.error('[guide] could not read app_guide_sections:', err.message)
+    response.status(503).json({ success: false, error: 'Could not load the guide. Please try again.' })
+  }
+})
+
 app.get('/api/payments/plans', async (_request, response) => {
   try {
     const plans = await activePlans()
@@ -4902,6 +4957,82 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
 /* ------------------------------------------------------------------ */
 /* Admin: subscription plans                                           */
 /* ------------------------------------------------------------------ */
+
+app.get('/api/admin/guide', requireAdmin, async (_request, response) => {
+  try {
+    const rows = await pgQuery(
+      `SELECT key, icon, title_en, title_hi, title_gu, body_en, body_hi, body_gu,
+              is_active, sort_order, updated_at
+         FROM app_guide_sections
+        ORDER BY sort_order, key`
+    )
+    response.json({ success: true, data: rows })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.put('/api/admin/guide/:key', requireAdmin, async (request, response) => {
+  const key = String(request.params.key || '').trim().toLowerCase()
+  if (!/^[a-z0-9_-]{2,40}$/.test(key)) {
+    response.status(400).json({ success: false, error: 'Key must be 2-40 characters: letters, numbers, - or _' })
+    return
+  }
+
+  const body = request.body || {}
+  const text = (value) => String(value ?? '').trim()
+
+  // Every language is required. A section saved with two of the three filled in
+  // would quietly serve English to whoever speaks the missing one, and nothing
+  // in the app would ever say so.
+  const fields = {
+    title_en: text(body.title_en), title_hi: text(body.title_hi), title_gu: text(body.title_gu),
+    body_en: text(body.body_en), body_hi: text(body.body_hi), body_gu: text(body.body_gu),
+  }
+  const missing = Object.entries(fields).filter(([, value]) => !value).map(([name]) => name)
+  if (missing.length) {
+    response.status(400).json({ success: false, error: `Missing: ${missing.join(', ')}` })
+    return
+  }
+
+  try {
+    await pgQuery(
+      `INSERT INTO app_guide_sections
+         (key, icon, title_en, title_hi, title_gu, body_en, body_hi, body_gu, is_active, sort_order, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (key) DO UPDATE SET
+         icon = EXCLUDED.icon,
+         title_en = EXCLUDED.title_en, title_hi = EXCLUDED.title_hi, title_gu = EXCLUDED.title_gu,
+         body_en = EXCLUDED.body_en, body_hi = EXCLUDED.body_hi, body_gu = EXCLUDED.body_gu,
+         is_active = EXCLUDED.is_active,
+         sort_order = EXCLUDED.sort_order,
+         updated_at = EXCLUDED.updated_at`,
+      [
+        key,
+        text(body.icon) || 'information-circle-outline',
+        fields.title_en, fields.title_hi, fields.title_gu,
+        fields.body_en, fields.body_hi, fields.body_gu,
+        body.is_active === undefined ? true : Boolean(body.is_active),
+        Number.isFinite(Number(body.sort_order)) ? Math.trunc(Number(body.sort_order)) : 0,
+        new Date().toISOString(),
+      ]
+    )
+    cacheInvalidate(GUIDE_CACHE_KEY)
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.delete('/api/admin/guide/:key', requireAdmin, async (request, response) => {
+  try {
+    await pgQuery('DELETE FROM app_guide_sections WHERE key = $1', [String(request.params.key)])
+    cacheInvalidate(GUIDE_CACHE_KEY)
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
 
 app.get('/api/admin/plans', requireAdmin, async (_request, response) => {
   try {

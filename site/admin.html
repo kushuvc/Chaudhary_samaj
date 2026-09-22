@@ -124,6 +124,36 @@
 
 <section id="rules" hidden></section>
 
+<section id="guideWrap" hidden>
+  <h2 class="section-title">App guide</h2>
+  <p class="sub" style="margin:-.3rem 0 1rem">
+    What the "How to use the app" button on the home screen shows. Editing a section here reaches
+    every installed app straight away — no new release. Add a section whenever a feature ships, and
+    fill in all three languages: a member reading Gujarati sees the English text if you leave it blank.
+  </p>
+  <div id="guide"></div>
+
+  <div class="card">
+    <div class="head"><h2>Add a section</h2></div>
+    <div class="row">
+      <div>
+        <label for="g-new-key">Key</label>
+        <input type="text" id="g-new-key" placeholder="events">
+      </div>
+      <div>
+        <label for="g-new-icon">Icon (Ionicons name)</label>
+        <input type="text" id="g-new-icon" placeholder="calendar-outline">
+      </div>
+      <div>
+        <label for="g-new-sort">Order</label>
+        <input type="number" id="g-new-sort" value="80">
+      </div>
+    </div>
+    <div id="g-new-fields"></div>
+    <div class="actions"><button id="g-add" type="button">Add section</button></div>
+  </div>
+</section>
+
 <section id="plansWrap" hidden>
   <h2 class="section-title">Plans</h2>
   <p class="sub" style="margin:-.3rem 0 1rem">
@@ -389,6 +419,7 @@ async function loadRules() {
   }
 
   await loadPlans();
+  await loadGuide();
 }
 
 async function save(gender, button) {
@@ -483,6 +514,138 @@ function planCard(plan) {
         Updated ${plan.updatedAt ? new Date(plan.updatedAt).toLocaleString() : 'never'}.
       </p>
     </div>`;
+}
+
+/* The three languages, in the order they appear on every card. */
+const GUIDE_LANGS = [['en', 'English'], ['hi', 'Hindi'], ['gu', 'Gujarati']];
+
+/* Title + body inputs for one language, used by both the cards and the add form. */
+function guideFields(prefix, section) {
+  return GUIDE_LANGS.map(([code, label]) => `
+    <div style="margin-top:.8rem">
+      <label for="${prefix}-title-${code}">${label} — title</label>
+      <input type="text" id="${prefix}-title-${code}" value="${esc(section ? section['title_' + code] : '')}">
+      <label for="${prefix}-body-${code}" style="margin-top:.4rem">${label} — text</label>
+      <textarea id="${prefix}-body-${code}" rows="3">${esc(section ? section['body_' + code] : '')}</textarea>
+    </div>
+  `).join('');
+}
+
+function guideCard(section) {
+  const p = 'g-' + section.key;
+  return `
+    <div class="card" data-key="${esc(section.key)}">
+      <div class="head"><h2>${esc(section.title_en)}</h2><code>${esc(section.key)}</code></div>
+      <div class="row">
+        <div>
+          <label for="${p}-icon">Icon</label>
+          <input type="text" id="${p}-icon" value="${esc(section.icon)}">
+        </div>
+        <div>
+          <label for="${p}-sort">Order</label>
+          <input type="number" id="${p}-sort" value="${Number(section.sort_order || 0)}">
+        </div>
+        <div>
+          <label for="${p}-active">Shown in the app</label>
+          <input type="checkbox" id="${p}-active" ${section.is_active ? 'checked' : ''}>
+        </div>
+      </div>
+      ${guideFields(p, section)}
+      <div class="actions">
+        <button type="button" data-save-guide="${esc(section.key)}">Save</button>
+        <button type="button" class="secondary" data-drop-guide="${esc(section.key)}">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function readGuideForm(prefix) {
+  const out = {
+    icon: $(prefix + '-icon').value.trim(),
+    sort_order: Number($(prefix + '-sort').value),
+  };
+  for (const [code] of GUIDE_LANGS) {
+    out['title_' + code] = $(prefix + '-title-' + code).value.trim();
+    out['body_' + code] = $(prefix + '-body-' + code).value.trim();
+  }
+  // Checked here as well as on the server so the admin is told which language
+  // is missing before the round trip, rather than after.
+  const blank = GUIDE_LANGS
+    .filter(([code]) => !out['title_' + code] || !out['body_' + code])
+    .map(([, label]) => label);
+  if (blank.length) return { error: 'Fill in every language. Missing: ' + blank.join(', ') };
+  if (!Number.isInteger(out.sort_order)) return { error: 'Order must be a whole number.' };
+  return { value: out };
+}
+
+async function loadGuide() {
+  const body = await call('/admin/guide');
+  $('guideWrap').hidden = false;
+  $('guide').innerHTML = body.data.map(guideCard).join('');
+  $('g-new-fields').innerHTML = guideFields('g-new', null);
+
+  for (const button of $('guide').querySelectorAll('[data-save-guide]')) {
+    button.onclick = () => saveGuide(button.getAttribute('data-save-guide'), button);
+  }
+  for (const button of $('guide').querySelectorAll('[data-drop-guide]')) {
+    button.onclick = () => dropGuide(button.getAttribute('data-drop-guide'), button);
+  }
+  $('g-add').onclick = () => addGuide();
+}
+
+async function saveGuide(key, button) {
+  const form = readGuideForm('g-' + key);
+  if (form.error) return msg(form.error, 'err');
+
+  button.disabled = true;
+  try {
+    await call('/admin/guide/' + encodeURIComponent(key), {
+      method: 'PUT',
+      body: JSON.stringify({ ...form.value, is_active: $('g-' + key + '-active').checked }),
+    });
+    msg('Saved "' + key + '". Members see it the next time they open the guide.', 'ok');
+    await loadGuide();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function addGuide() {
+  const key = $('g-new-key').value.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{2,40}$/.test(key)) {
+    return msg('Key must be 2-40 characters: letters, numbers, - or _', 'err');
+  }
+  const form = readGuideForm('g-new');
+  if (form.error) return msg(form.error, 'err');
+
+  try {
+    await call('/admin/guide/' + encodeURIComponent(key), {
+      method: 'PUT',
+      body: JSON.stringify({ ...form.value, is_active: true }),
+    });
+    $('g-new-key').value = '';
+    $('g-new-icon').value = '';
+    msg('Added "' + key + '".', 'ok');
+    await loadGuide();
+  } catch (err) {
+    msg(err.message, 'err');
+  }
+}
+
+async function dropGuide(key, button) {
+  if (!confirm('Delete the "' + key + '" section from the guide?')) return;
+  button.disabled = true;
+  try {
+    await call('/admin/guide/' + encodeURIComponent(key), { method: 'DELETE' });
+    msg('Deleted "' + key + '".', 'ok');
+    await loadGuide();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loadPlans() {

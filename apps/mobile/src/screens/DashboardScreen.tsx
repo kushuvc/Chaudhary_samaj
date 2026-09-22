@@ -18,6 +18,7 @@ import { useAppLanguage } from '../context/LanguageContext';
 import { optionLabel } from '../constants/optionTranslations';
 import { api } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
+import { AppGuideScreen } from './AppGuideScreen';
 import type { ThemePalette } from '../context/ThemeContext';
 import { FadeInView, PressableScale, Pulse } from '../components/Motion';
 import type { MatrimonyProfile } from '../types';
@@ -30,6 +31,7 @@ export function DashboardScreen() {
   const { session } = useAuth();
   const navigation = useNavigation<any>();
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +150,26 @@ export function DashboardScreen() {
           <Text style={styles.heroSub}>{t('dashboardFindMatches')}</Text>
         </View>
       </View>
+
+      {/* A first-time member lands here with seven tabs and no idea what any of
+          them do. One row, directly under the hero, before the stats. */}
+      <Pressable
+        style={({ pressed }) => [styles.guideButton, pressed && { opacity: 0.6 }]}
+        onPress={() => setGuideOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={t('guideTitle')}
+      >
+        <View style={styles.guideIcon}>
+          <Ionicons name="book-outline" size={22} color={palette.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.guideTitle}>{t('guideTitle')}</Text>
+          <Text style={styles.guideSub}>{t('guideSubtitle')}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+      </Pressable>
+
+      <AppGuideScreen visible={guideOpen} onClose={() => setGuideOpen(false)} />
 
       {/* Error */}
       {!!error && (
@@ -290,6 +312,27 @@ function createStyles(palette: ThemePalette) {
     heroGreeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500', marginBottom: 2 },
     heroName: { color: '#ffffff', fontSize: 26, fontWeight: '800', letterSpacing: -0.3 },
     heroSub: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 3 },
+    guideButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      backgroundColor: palette.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+    },
+    guideIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: palette.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    guideTitle: { fontSize: 15.5, fontWeight: '700', color: palette.text },
+    guideSub: { fontSize: 13, color: palette.muted, marginTop: 1 },
     errorBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       backgroundColor: palette.warningSoft, borderRadius: 10, padding: 12,

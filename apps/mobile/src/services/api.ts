@@ -63,6 +63,15 @@ const UPLOAD_TIMEOUT_MS = 90000;
 let authToken: string | null = null;
 let userId: string | null = null;
 
+/** One entry in the in-app guide. */
+export interface GuideSection {
+  key: string;
+  /** An Ionicons name. */
+  icon: string;
+  title: string;
+  body: string;
+}
+
 export const setApiSession = (session: AuthSession | null) => {
   authToken = session?.authToken || null;
   userId = session?.user?.id || null;
@@ -369,6 +378,19 @@ export const api = {
       hasMore: response.pagination?.hasMore ?? false,
     };
   },
+  /**
+   * The in-app guide, already resolved to one language by the server.
+   *
+   * Content lives in the database so a section can be reworded or added for a
+   * new feature without shipping a release.
+   */
+  getAppGuide: async (language: string): Promise<GuideSection[]> => {
+    const response = await request<{ data: GuideSection[] }>(
+      `/guide?lang=${encodeURIComponent(language)}`,
+    );
+    return response.data;
+  },
+
   getMatrimonyFilterOptions: async () => {
     const response = await request<{ data: MatrimonyFilterOptions }>('/matrimony/filter-options');
     return response.data;

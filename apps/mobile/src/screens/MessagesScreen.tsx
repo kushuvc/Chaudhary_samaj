@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import {
   FlatList,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -62,6 +64,65 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  // The chat menu, and the report sheet it can open.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const REPORT_REASONS = [
+    { id: 'harassment', label: t('rptHarassment') },
+    { id: 'fake_profile', label: t('rptFake') },
+    { id: 'inappropriate_content', label: t('rptInappropriate') },
+    { id: 'scam', label: t('rptScam') },
+    { id: 'underage', label: t('rptUnderage') },
+    { id: 'other', label: t('rptOther') },
+  ];
+
+  /**
+   * End the conversation. The server deletes the match and its messages for
+   * both people and withdraws the accepted interests, so neither side is left
+   * reading as mutually interested.
+   */
+  const handleUnmatch = async () => {
+    if (!selectedMatch || busy) return;
+    setBusy(true);
+    try {
+      await api.unmatch(selectedMatch.id);
+      setSelectedMatch(null);
+      setMessages([]);
+      setView('list');
+      await loadMatches();
+    } catch (err) {
+      showAlert(t('lblFailed'), (err as Error).message || t('alertSomethingWrong'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Report, then leave the conversation.
+   *
+   * The server hides the reported member from the reporter straight away, so
+   * staying in a chat with someone who has just been hidden would only show
+   * an empty screen.
+   */
+  const handleReport = async () => {
+    if (!selectedMatch || !reportReason || busy) return;
+    setBusy(true);
+    try {
+      await api.reportProfile(selectedMatch.profileId, reportReason);
+      setReportOpen(false);
+      setSelectedMatch(null);
+      setView('list');
+      await loadMatches();
+      showAlert(t('rptThanksTitle'), t('rptThanksBody'));
+    } catch (err) {
+      showAlert(t('lblFailed'), (err as Error).message || t('alertSomethingWrong'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const loadMatches = useCallback(async () => {
     try {
@@ -257,18 +318,13 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
             {/* No presence tracking exists, so claiming "Online" was fiction. */}
             <Text style={styles.chatHeaderStatus}>{t('lblMatched')}</Text>
           </View>
+          {/* This opened an alert whose only button was "Close" — the menu
+              existed but did nothing at all. */}
           <Pressable
             style={styles.moreButton}
-            onPress={() => {
-              showAlert(
-                selectedMatch.name,
-                t('msgWhatWouldYouLike'),
-                // "Clear Chat" only emptied the local array — it looked like
-                // a delete and came back on the next poll. Removed rather than
-                // left pretending.
-                [{ text: t('actClose'), style: 'cancel' }]
-              );
-            }}
+            onPress={() => setMenuOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={t('msgWhatWouldYouLike')}
           >
             <Ionicons name="ellipsis-vertical" size={24} color={palette.text} />
           </Pressable>
@@ -304,6 +360,86 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
             <Ionicons name="send" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
+        {/* Chat menu */}
+        <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setMenuOpen(false)}>
+            <Pressable style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>{selectedMatch.name}</Text>
+
+              <Pressable
+                style={styles.sheetRow}
+                onPress={() => {
+                  setMenuOpen(false);
+                  setReportReason(null);
+                  setReportOpen(true);
+                }}
+              >
+                <Ionicons name="flag-outline" size={20} color={palette.text} />
+                <Text style={styles.sheetRowText}>{t('actReport')}</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.sheetRow}
+                onPress={() => {
+                  setMenuOpen(false);
+                  // Deleting a conversation for both people is worth a
+                  // confirmation; it cannot be undone from the app.
+                  showAlert(t('msgUnmatchTitle'), t('msgUnmatchBody'), [
+                    { text: t('actCancel'), style: 'cancel' },
+                    {
+                      text: t('actUnmatch'),
+                      style: 'destructive',
+                      onPress: () => void handleUnmatch(),
+                    },
+                  ]);
+                }}
+              >
+                <Ionicons name="heart-dislike-outline" size={20} color={palette.danger} />
+                <Text style={[styles.sheetRowText, { color: palette.danger }]}>{t('actUnmatch')}</Text>
+              </Pressable>
+
+              <Pressable style={styles.sheetCancel} onPress={() => setMenuOpen(false)}>
+                <Text style={styles.sheetCancelText}>{t('actCancel')}</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {/* Report reasons */}
+        <Modal visible={reportOpen} transparent animationType="slide" onRequestClose={() => setReportOpen(false)}>
+          <View style={styles.sheetBackdrop}>
+            <Pressable style={{ flex: 1 }} onPress={() => setReportOpen(false)} />
+            <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+              <Text style={styles.sheetTitle}>{t('rptTitle')}</Text>
+              <ScrollView style={{ maxHeight: 320 }}>
+                {REPORT_REASONS.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={styles.sheetRow}
+                    onPress={() => setReportReason(item.id)}
+                  >
+                    <Ionicons
+                      name={reportReason === item.id ? 'radio-button-on' : 'radio-button-off'}
+                      size={20}
+                      color={reportReason === item.id ? palette.primary : palette.muted}
+                    />
+                    <Text style={styles.sheetRowText}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Pressable
+                style={[styles.sheetSubmit, (!reportReason || busy) && styles.sheetSubmitDisabled]}
+                disabled={!reportReason || busy}
+                onPress={() => void handleReport()}
+              >
+                <Text style={styles.sheetSubmitText}>{busy ? t('lblPleaseWait') : t('actReport')}</Text>
+              </Pressable>
+              <Pressable style={styles.sheetCancel} onPress={() => setReportOpen(false)}>
+                <Text style={styles.sheetCancelText}>{t('actCancel')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     );
   }
@@ -512,6 +648,29 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
       alignItems: 'center',
       marginLeft: 8,
     },
+    sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: palette.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingHorizontal: 20,
+      paddingTop: 18,
+      gap: 4,
+    },
+    sheetTitle: { fontSize: 17, fontWeight: '800', color: palette.text, marginBottom: 8 },
+    sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
+    sheetRowText: { fontSize: 16, color: palette.text, fontWeight: '600' },
+    sheetSubmit: {
+      marginTop: 12,
+      backgroundColor: palette.primary,
+      borderRadius: 999,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    sheetSubmitDisabled: { opacity: 0.5 },
+    sheetSubmitText: { color: '#FFFFFF', fontSize: 15.5, fontWeight: '700' },
+    sheetCancel: { paddingVertical: 14, alignItems: 'center' },
+    sheetCancelText: { fontSize: 15.5, fontWeight: '600', color: palette.muted },
     sendButtonDisabled: {
       opacity: 0.5,
     },

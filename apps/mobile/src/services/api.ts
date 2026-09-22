@@ -817,6 +817,15 @@ export const api = {
     return response.data || {};
   },
 
+  /**
+   * End a conversation. Deletes the match and its messages for both sides and
+   * withdraws the accepted interests, so neither is left reading as mutual.
+   * Weaker than blocking: they can send a fresh interest afterwards.
+   */
+  unmatch: async (matchId: string): Promise<void> => {
+    await request<{ success: boolean }>(`/matrimony/matches/${matchId}`, { method: 'DELETE' });
+  },
+
   /** Hide a member from you, and you from them. */
   blockProfile: async (profileId: string): Promise<void> => {
     await request<{ success: boolean }>(`/matrimony/profiles/${profileId}/block`, {

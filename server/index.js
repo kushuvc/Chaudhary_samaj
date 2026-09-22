@@ -2777,6 +2777,62 @@ app.get('/api/matrimony/matches', async (request, response) => {
   }
 })
 
+/**
+ * Unmatch: end a conversation from either side.
+ *
+ * Deletes the match and its messages, and sets the accepted interests between
+ * the pair back to 'declined'. Without that last part the pair would still
+ * read as mutually interested — the contact number would stay unlocked, and
+ * the interests screen would keep offering a match that no longer exists.
+ *
+ * Deliberately not a block: the other member can send a fresh interest later.
+ * Blocking is the separate, stronger action on the same menu.
+ */
+app.delete('/api/matrimony/matches/:id', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+
+  try {
+    // The id check and the membership check are one statement, so a member
+    // cannot end a conversation they are not part of.
+    const rows = await pgQuery(
+      `SELECT user1_id, user2_id FROM matrimony_matches
+        WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)`,
+      [request.params.id, activeUserId]
+    )
+    const match = rows[0]
+    if (!match) {
+      response.status(404).json({ success: false, error: 'Match not found' })
+      return
+    }
+
+    const otherUserId = match.user1_id === activeUserId ? match.user2_id : match.user1_id
+
+    await pgQuery('DELETE FROM matrimony_messages WHERE match_id = $1', [request.params.id])
+    await pgQuery('DELETE FROM matrimony_matches WHERE id = $1', [request.params.id])
+    await pgQuery(
+      `UPDATE matrimony_interests
+          SET status = 'declined', updated_at = $3
+        WHERE status = 'accepted'
+          AND ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))`,
+      [activeUserId, otherUserId, new Date().toISOString()]
+    )
+
+    // Both sides: the other member's list must lose the conversation too.
+    cacheInvalidate(`matches:${activeUserId}`)
+    cacheInvalidate(`matches:${otherUserId}`)
+    cacheInvalidate(`interests:${activeUserId}`)
+    cacheInvalidate(`interests:${otherUserId}`)
+
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
 app.get('/api/matrimony/matches/:id/messages', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
@@ -3234,101 +3290,166 @@ app.put('/api/matrimony/me', async (request, response) => {
     // Convert photos array to JSON string for ::jsonb cast
     const photosJson = photosForDb ? JSON.stringify(photosForDb) : null
 
-    // Update matrimony_profiles
-    const queryParams = [
-      profile.location || null,
-      profile.occupation || null,
-      profile.education || null,
-      profile.bio || null,
-      profile.gender || null,
-      profile.dateOfBirth || null,
-      matrimony.maritalStatus || null,
-      matrimony.height || null,
-      matrimony.income || null,
-      matrimony.community || null,
-      matrimony.language || null,
-      matrimony.subCommunity || null,
-      matrimony.familyStatus || null,
-      matrimony.familyType || null,
-      matrimony.familyWealth || null,
-      matrimony.fatherName || null,
-      matrimony.motherName || null,
-      matrimony.fatherOccupation || null,
-      matrimony.motherOccupation || null,
-      matrimony.siblings || null,
-      profile.nativeCity || null,
-      profile.nativeVillage || null,
-      photosJson,  // Now a JSON string with ::jsonb cast
-      matrimony.eatingHabit || null,
-      matrimony.horoscopeTime || null,
-      matrimony.horoscopePlace || null,
-      matrimony.nakshatra || null,
-      matrimony.raasi || null,
-      matrimony.employmentType || null,
-      matrimony.incomeCurrency || null,
-      matrimony.annualIncome || null,
-      matrimony.motherTongue || null,
-      matrimony.subcaste || null,
-      Array.isArray(matrimony.hobbies) ? JSON.stringify(matrimony.hobbies) : null,
-      Array.isArray(matrimony.music) ? JSON.stringify(matrimony.music) : null,
-      Array.isArray(matrimony.sports) ? JSON.stringify(matrimony.sports) : null,
-      Array.isArray(matrimony.cuisine) ? JSON.stringify(matrimony.cuisine) : null,
-      now,
-      activeUserId,
-    ]
-    console.log('[update profile] Query param 23 (photos):', typeof queryParams[22], queryParams[22]?.slice(0, 100))
-
-    try {
-      await pgQuery(
-        `UPDATE matrimony_profiles SET
-          location = COALESCE($1, location),
-          occupation = COALESCE($2, occupation),
-          education = COALESCE($3, education),
-          bio = COALESCE($4, bio),
-          gender = COALESCE($5, gender),
-          date_of_birth = COALESCE($6, date_of_birth),
-          marital_status = COALESCE($7, marital_status),
-          height = COALESCE($8, height),
-          income = COALESCE($9, income),
-          community = COALESCE($10, community),
-          language = COALESCE($11, language),
-          sub_community = COALESCE($12, sub_community),
-          family_status = COALESCE($13, family_status),
-          family_type = COALESCE($14, family_type),
-          family_wealth = COALESCE($15, family_wealth),
-          father_name = COALESCE($16, father_name),
-          mother_name = COALESCE($17, mother_name),
-          father_occupation = COALESCE($18, father_occupation),
-          mother_occupation = COALESCE($19, mother_occupation),
-          siblings = COALESCE($20, siblings),
-          native_city = COALESCE($21, native_city),
-          native_village = COALESCE($22, native_village),
-          photos = COALESCE($23::jsonb, photos),
-          eating_habit = COALESCE($24, eating_habit),
-          horoscope_time = COALESCE($25, horoscope_time),
-          horoscope_place = COALESCE($26, horoscope_place),
-          nakshatra = COALESCE($27, nakshatra),
-          raasi = COALESCE($28, raasi),
-          employment_type = COALESCE($29, employment_type),
-          income_currency = COALESCE($30, income_currency),
-          annual_income = COALESCE($31, annual_income),
-          mother_tongue = COALESCE($32, mother_tongue),
-          subcaste = COALESCE($33, subcaste),
-          hobbies = COALESCE($34::jsonb, hobbies),
-          music = COALESCE($35::jsonb, music),
-          sports = COALESCE($36::jsonb, sports),
-          cuisine = COALESCE($37::jsonb, cuisine),
-          updated_at = $38
-         WHERE user_id = $39`,
-        queryParams
-      )
-    } catch (dbErr) {
-      console.error('[update profile] DB Error:', dbErr.message, '| Photos param:', JSON.stringify(photosForDb))
-      throw dbErr
+    /*
+     * Which request field lands in which column.
+     *
+     * Two bugs lived in the fixed 39-parameter statement this replaces.
+     *
+     * First, the app sends religion, caste, sub-caste, dosh, physical status,
+     * country, state, village, eating habit and the two horoscope fields under
+     * `profile`, while the statement only ever read some of them, and read
+     * others only from `matrimony`. Anything on the wrong side of that split
+     * was accepted, acknowledged, and silently dropped — which is why editing
+     * so much of the profile appeared to do nothing.
+     *
+     * Second, every column was written with COALESCE($n, column) over a value
+     * that had already been through `|| null`, so an emptied field became null
+     * became "keep what was there". Clearing anything was impossible.
+     *
+     * So: each column names the keys it may arrive under, the SET clause is
+     * built from the fields actually present, and a field that is present but
+     * empty is written as empty rather than ignored.
+     */
+    const FIELD_SOURCES = {
+      location: ['location', 'city'],
+      occupation: ['occupation'],
+      education: ['education'],
+      bio: ['bio'],
+      date_of_birth: ['dateOfBirth'],
+      marital_status: ['maritalStatus'],
+      height: ['height'],
+      income: ['income'],
+      community: ['community'],
+      language: ['language'],
+      family_status: ['familyStatus'],
+      family_type: ['familyType'],
+      family_wealth: ['familyWealth'],
+      father_name: ['fatherName'],
+      mother_name: ['motherName'],
+      father_occupation: ['fatherOccupation'],
+      mother_occupation: ['motherOccupation'],
+      siblings: ['siblings'],
+      native_city: ['nativeCity'],
+      native_village: ['nativeVillage'],
+      eating_habit: ['eatingHabit'],
+      horoscope_time: ['horoscopeTime'],
+      horoscope_place: ['horoscopePlace'],
+      nakshatra: ['nakshatra'],
+      raasi: ['raasi'],
+      employment_type: ['employmentType'],
+      income_currency: ['incomeCurrency'],
+      annual_income: ['annualIncome'],
+      mother_tongue: ['motherTongue'],
+      // Previously unreachable from the edit screen entirely.
+      physical_status: ['physicalStatus'],
+      religion: ['religion'],
+      caste: ['caste'],
+      subcaste: ['subcaste', 'subCaste'],
+      // Kept in step with `subcaste` below, because filters and older reads
+      // still go through this column.
+      sub_community: ['subCommunity'],
+      dosh: ['dosh'],
+      country: ['country'],
+      state: ['state'],
+      village: ['village'],
+      profile_created_for: ['profileCreatedFor'],
     }
 
-    // Invalidate cache so next fetch is fresh
+    const JSON_FIELDS = {
+      hobbies: ['hobbies'],
+      music: ['music'],
+      sports: ['sports'],
+      cuisine: ['cuisine'],
+    }
+
+    // Columns declared NOT NULL take '' when cleared; everything else takes NULL.
+    const NOT_NULL_COLUMNS = new Set([
+      'location', 'community', 'education', 'occupation', 'bio',
+      'marital_status', 'height', 'income', 'language',
+    ])
+
+    /** The value for a key from whichever bag carries it, or undefined. */
+    const pick = (keys) => {
+      for (const key of keys) {
+        for (const bag of [profile, matrimony]) {
+          if (bag && typeof bag === 'object' && Object.prototype.hasOwnProperty.call(bag, key)) {
+            const value = bag[key]
+            if (value !== undefined) return value
+          }
+        }
+      }
+      return undefined
+    }
+
+    const sets = []
+    const params = []
+    const assign = (column, value) => {
+      params.push(value)
+      sets.push(`${column} = $${params.length}`)
+    }
+
+    for (const [column, keys] of Object.entries(FIELD_SOURCES)) {
+      const value = pick(keys)
+      if (value === undefined) continue
+      const text = value === null ? '' : String(value).trim()
+      assign(column, text === '' ? (NOT_NULL_COLUMNS.has(column) ? '' : null) : text)
+    }
+
+    // One answer, two columns: keep them equal so whichever a reader picks
+    // gives the same sub-caste.
+    const subcasteValue = pick(['subcaste', 'subCaste'])
+    if (subcasteValue !== undefined && pick(['subCommunity']) === undefined) {
+      assign('sub_community', String(subcasteValue ?? '').trim() || null)
+    }
+
+    for (const [column, keys] of Object.entries(JSON_FIELDS)) {
+      const value = pick(keys)
+      if (!Array.isArray(value)) continue
+      params.push(JSON.stringify(value))
+      sets.push(`${column} = $${params.length}::jsonb`)
+    }
+
+    // Age follows the date of birth rather than being typed separately, so a
+    // corrected birthday does not leave a stale age on the card.
+    const dob = pick(['dateOfBirth'])
+    if (dob) {
+      const years = Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
+      if (Number.isFinite(years) && years >= 18 && years <= 120) assign('age', years)
+    }
+
+    if (photosJson !== null) {
+      params.push(photosJson)
+      sets.push(`photos = $${params.length}::jsonb`)
+    }
+
+    if (sets.length > 0) {
+      params.push(now)
+      sets.push(`updated_at = $${params.length}`)
+      params.push(activeUserId)
+      try {
+        await pgQuery(
+          `UPDATE matrimony_profiles SET ${sets.join(', ')} WHERE user_id = $${params.length}`,
+          params
+        )
+      } catch (dbErr) {
+        console.error('[update profile] DB Error:', dbErr.message)
+        throw dbErr
+      }
+    }
+
+    /*
+     * Both caches. This cleared only index.js's cache, while the profile is
+     * read back through fast-queries, which keeps its own — so a save landed
+     * in the database and the screen redrew from a stale copy. That is the
+     * other half of "I edited it and nothing changed".
+     *
+     * The listing carries name, age, location and photos too, so it has to go
+     * as well or the member's card stays wrong for everyone else.
+     */
     cacheInvalidate(`memberPayload:${activeUserId}`)
+    invalidateFastCache('currentMemberPayload')
+    invalidateFastCache('publicProfiles')
+    invalidateFastCache('matrimonyFilterOptions')
 
     // Return fresh payload
     let updated = null

@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PhotoManager } from '../components/PhotoManager';
 import type { Photo } from './SignupManagePhotosScreen';
@@ -16,6 +17,12 @@ import { KeyboardScrollContext, useKeyboardAwareScroll } from '../components/ui'
 import { useAuth } from '../context/AuthContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { optionLabel } from '../constants/optionTranslations';
+import { Select } from '../components/ui';
+import {
+  CASTES, COUNTRIES, DOSH_OPTIONS, EATING_HABITS, EMPLOYMENT_TYPES, FAMILY_STATUSES,
+  FAMILY_TYPES, FAMILY_WEALTH, HEIGHTS, INCOME_CURRENCIES, MARITAL_STATUSES,
+  MOTHER_TONGUES, NAKSHATRAS, PHYSICAL_STATUSES, RAASIS, RELIGIONS, STATES, SUBCASTES,
+} from '../constants/signupOptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
@@ -142,6 +149,69 @@ function OptionSelect({ label, value, options, editable, onSelect, styles }: Opt
   );
 }
 
+type SelectOption = { id: string; label: string };
+
+/** Turns the plain string lists into the { id, label } shape Select wants. */
+function asOptions(list: ReadonlyArray<string | SelectOption>): SelectOption[] {
+  return list.map((item) =>
+    typeof item === 'string' ? { id: item, label: item } : { id: item.id, label: item.label },
+  );
+}
+
+/**
+ * A field backed by a real dropdown.
+ *
+ * Most of this screen was free-text boxes for values that are a fixed list at
+ * signup — religion, caste, marital status, height. A member could type
+ * anything, and usually typed nothing, so the fields stayed blank. Reading
+ * mode still shows plain text; only Edit opens the picker.
+ */
+function LabeledSelect({
+  label,
+  value,
+  options,
+  editable,
+  onSelect,
+  placeholder,
+  styles,
+}: {
+  label: string;
+  value: string | null | undefined;
+  options: SelectOption[];
+  editable: boolean;
+  onSelect: (value: string) => void;
+  placeholder: string;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const { language } = useAppLanguage();
+  const selected = options.find((option) => option.id === value);
+  // Falls back to the stored value so a profile filled in by an older build,
+  // or by a list that has since changed, still shows what it holds.
+  const shown = selected ? optionLabel(selected.label, language) : optionLabel(value ?? '', language);
+
+  // Matches LabeledInput: an empty field is hidden until the member edits.
+  if (!editable && !String(value ?? '').trim()) return null;
+
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {editable ? (
+        <Select
+          value={value || null}
+          placeholder={placeholder}
+          title={label}
+          options={options}
+          onChange={onSelect}
+        />
+      ) : (
+        <View style={styles.readOnlyValueWrap}>
+          <Text style={styles.readOnlyValueText}>{shown || '-'}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 type LabeledInputProps = {
   label: string;
   value: string;
@@ -205,7 +275,7 @@ function LabeledInput({
 }
 
 export function ProfileScreen() {
-  const { session, logout } = useAuth();
+  const { session } = useAuth();
   console.log('[ProfileScreen] Session:', session ? 'Authenticated' : 'Not authenticated');
   const { t } = useAppLanguage();
   const { palette } = useAppTheme();
@@ -216,6 +286,8 @@ export function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  // What the profile looked like when Edit was tapped, so Cancel can put it back.
+  const snapshot = useRef<{ profile: typeof profile; matrimony: typeof matrimony } | null>(null);
   const [profile, setProfile] = useState<MatrimonyMemberProfile>(emptyProfile);
   const [matrimony, setMatrimony] = useState<MatrimonyMemberSettings>(emptyMatrimony);
 
@@ -406,12 +478,49 @@ export function ProfileScreen() {
       <KeyboardScrollContext.Provider value={keyboardScroll.contextValue}>
       <View style={styles.headerRow}>
         <ScreenTitle title={t('profile')} subtitle={t('profileSubtitle')} />
-        <PrimaryButton
-          label={saving ? t('saving') : isEditing ? t('save') : t('edit')}
-          onPress={isEditing ? saveProfile : () => setIsEditing(true)}
-          disabled={saving}
-        />
+        {/* One button that silently changed meaning between "Edit" and
+            "Save" left no way back out of edit mode and no sign you were in
+            it. Editing now announces itself and can be abandoned. */}
+        {isEditing ? (
+          <View style={styles.headerActions}>
+            <Pressable
+              style={styles.cancelButton}
+              onPress={() => {
+                if (snapshot.current) {
+                  setProfile(snapshot.current.profile);
+                  setMatrimony(snapshot.current.matrimony);
+                }
+                setError(null);
+                setIsEditing(false);
+              }}
+              disabled={saving}
+            >
+              <Text style={styles.cancelButtonText}>{t('actCancel')}</Text>
+            </Pressable>
+            <PrimaryButton
+              label={saving ? t('saving') : t('save')}
+              onPress={saveProfile}
+              disabled={saving}
+            />
+          </View>
+        ) : (
+          <PrimaryButton
+            label={t('edit')}
+            onPress={() => {
+              snapshot.current = { profile, matrimony };
+              setIsEditing(true);
+            }}
+            disabled={saving}
+          />
+        )}
       </View>
+
+      {isEditing ? (
+        <View style={styles.editBanner}>
+          <Ionicons name="create-outline" size={18} color={palette.primary} />
+          <Text style={styles.editBannerText}>{t('profileEditingHint')}</Text>
+        </View>
+      ) : null}
 
       {error ? <InlineError message={error} /> : null}
 
@@ -515,11 +624,12 @@ export function ProfileScreen() {
           placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <LabeledInput
+        <LabeledSelect
           label={t('fldPhysicalStatus')}
-          value={profile.physicalStatus || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, physicalStatus: value }))}
+          value={profile.physicalStatus}
+          options={asOptions(PHYSICAL_STATUSES)}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, physicalStatus: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
@@ -528,35 +638,39 @@ export function ProfileScreen() {
       {/* Religious Details from Signup */}
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('secReligiousDetails')}</Text>
-        <LabeledInput
+        <LabeledSelect
           label={t('fldReligion')}
-          value={profile.religion || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, religion: value }))}
+          value={profile.religion}
+          options={asOptions(RELIGIONS)}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, religion: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <LabeledInput
+        <LabeledSelect
           label={t('fldCaste')}
-          value={profile.caste || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, caste: value }))}
+          value={profile.caste}
+          options={asOptions(CASTES)}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, caste: value, subCaste: '' }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <LabeledInput
+        <LabeledSelect
           label={t('fldGol')}
-          value={profile.subCaste || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, subCaste: value }))}
+          value={profile.subCaste}
+          options={asOptions(SUBCASTES[profile.caste || ""] || ["Other"])}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, subCaste: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <LabeledInput
+        <LabeledSelect
           label={t('fldDosh')}
-          value={profile.dosh || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, dosh: value }))}
+          value={profile.dosh}
+          options={asOptions(DOSH_OPTIONS)}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, dosh: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
@@ -565,19 +679,21 @@ export function ProfileScreen() {
       {/* Location Details from Signup */}
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('secLocationDetails')}</Text>
-        <LabeledInput
+        <LabeledSelect
           label={t('fldCountry')}
-          value={profile.country || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, country: value }))}
+          value={profile.country}
+          options={asOptions(COUNTRIES)}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, country: value, state: '' }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <LabeledInput
+        <LabeledSelect
           label={t('fldState')}
-          value={profile.state || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, state: value }))}
+          value={profile.state}
+          options={asOptions(STATES[profile.country || ""] || ["Other"])}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, state: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
@@ -634,11 +750,12 @@ export function ProfileScreen() {
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, maritalStatus: value }))}
           styles={styles}
         />
-        <LabeledInput
+        <LabeledSelect
           label={t('fldHeight')}
-          value={matrimony.height || ''}
-          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, height: value }))}
+          value={matrimony.height}
+          options={HEIGHTS}
           editable={isEditing}
+          onSelect={(value) => setMatrimony((prev) => ({ ...prev, height: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
@@ -710,28 +827,31 @@ export function ProfileScreen() {
       {/* Family Details */}
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('secFamilyDetails')}</Text>
-        <OptionSelect
+        <LabeledSelect
           label={t('fldFamilyStatus')}
-          value={matrimony.familyStatus || ''}
-          options={['Middle Class', 'Upper Middle Class', 'Rich', 'Affluent']}
+          value={matrimony.familyStatus}
+          options={asOptions(FAMILY_STATUSES)}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, familyStatus: value }))}
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <OptionSelect
+        <LabeledSelect
           label={t('fldFamilyType')}
-          value={matrimony.familyType || ''}
-          options={['Joint Family', 'Nuclear Family', 'Extended Family']}
+          value={matrimony.familyType}
+          options={asOptions(FAMILY_TYPES)}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, familyType: value }))}
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <OptionSelect
+        <LabeledSelect
           label={t('fldFamilyWealth')}
-          value={matrimony.familyWealth || ''}
-          options={['Below Average', 'Average', 'Above Average', 'High']}
+          value={matrimony.familyWealth}
+          options={asOptions(FAMILY_WEALTH)}
           editable={isEditing}
           onSelect={(value) => setMatrimony((prev) => ({ ...prev, familyWealth: value }))}
+          placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledInput
@@ -779,11 +899,12 @@ export function ProfileScreen() {
       {/* Eating Habits from Signup */}
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('secEatingHabits')}</Text>
-        <LabeledInput
+        <LabeledSelect
           label={t('fldEatingHabit')}
-          value={profile.eatingHabit || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, eatingHabit: value }))}
+          value={profile.eatingHabit}
+          options={asOptions(EATING_HABITS)}
           editable={isEditing}
+          onSelect={(value) => setProfile((prev) => ({ ...prev, eatingHabit: value }))}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
@@ -824,9 +945,6 @@ export function ProfileScreen() {
         )}
       </SectionCard>
 
-      <Pressable style={styles.logoutButton} onPress={() => logout()}>
-        <Text style={styles.logoutButtonText}>{t('logoutLabel')}</Text>
-      </Pressable>
       </KeyboardScrollContext.Provider>
     </ScrollView>
   );
@@ -845,6 +963,19 @@ function createStyles(palette: ThemePalette) {
   headerRow: {
     gap: spacing.sm,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  cancelButton: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  cancelButtonText: { fontSize: 15, fontWeight: '700', color: palette.muted },
+  editBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: palette.primarySoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  editBannerText: { flex: 1, fontSize: 13.5, lineHeight: 19, color: palette.text },
   cardTitle: {
     ...type.body,
     fontWeight: '700',
@@ -928,16 +1059,6 @@ function createStyles(palette: ThemePalette) {
   progressFillAlt: {
     height: '100%',
     backgroundColor: palette.danger,
-  },
-  logoutButton: {
-    backgroundColor: palette.danger,
-    padding: spacing.sm,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-  },
-  logoutButtonText: {
-    color: palette.surface,
-    fontWeight: '700',
   },
   noPhotosText: {
     ...type.body,

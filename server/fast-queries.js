@@ -696,6 +696,7 @@ export async function getCurrentMemberPayloadFast(userId) {
              p.sub_community, p.education, p.occupation, p.bio, p.marital_status, p.height, p.income, p.language,
              p.compatibility_score, p.is_unlocked, p.is_shortlisted, p.is_viewed,
              p.photos, p.physical_status, p.religion, p.caste, p.dosh, p.eating_habit, p.horoscope_time, p.horoscope_place,
+             p.subcaste,
              p.country, p.state, p.village, p.native_city, p.native_village,
              p.family_status, p.family_type, p.family_wealth,
              p.father_name, p.mother_name, p.father_occupation, p.mother_occupation, p.siblings,
@@ -736,7 +737,14 @@ export async function getCurrentMemberPayloadFast(userId) {
       physicalStatus: record.physical_status || '',
       religion: record.religion || '',
       caste: record.caste || '',
-      subCaste: record.sub_community || '',
+      /*
+       * Sub-caste lives in two columns. Signup and the profile detail write
+       * and read `subcaste`; this payload only ever read `sub_community`, so
+       * a sub-caste chosen at signup never appeared on the profile screen and
+       * an edit made there appeared to do nothing. Prefers the current
+       * column, falls back so older rows still read.
+       */
+      subCaste: record.subcaste || record.sub_community || '',
       dosh: record.dosh || '',
       country: record.country || '',
       state: record.state || '',

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { showAlert } from '../utils/alert';
 import { Alert, Linking, Platform } from 'react-native';
 import Constants from 'expo-constants';
 import type { AppLanguage } from '../context/LanguageContext';
@@ -387,6 +388,25 @@ export function SettingsScreen() {
         </View>
       </SectionCard>
 
+      {/* Signing out sat at the bottom of the profile editor, under the photo
+          manager — the one screen you are on to change things, not to leave.
+          It belongs here, beside the other account controls. */}
+      <SectionCard>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('accountLabel')}</Text>
+        <Pressable
+          style={[styles.deleteBtn, styles.logoutBtn, { borderColor: palette.border }]}
+          onPress={() => {
+            showAlert(t('logoutLabel'), t('logoutConfirmBody'), [
+              { text: t('actCancel'), style: 'cancel' },
+              { text: t('logoutLabel'), style: 'destructive', onPress: () => void logout() },
+            ]);
+          }}
+        >
+          <Ionicons name="log-out-outline" size={18} color={palette.text} />
+          <Text style={[styles.deleteBtnText, { color: palette.text }]}>{t('logoutLabel')}</Text>
+        </Pressable>
+      </SectionCard>
+
       {/* Danger Zone */}
       <SectionCard>
         <Text style={[styles.sectionTitle, { color: palette.danger }]}>{t('dangerZone')}</Text>
@@ -635,6 +655,9 @@ function createStyles(palette: ThemePalette) {
       paddingVertical: spacing.sm,
       alignSelf: 'flex-start' as const,
     },
+    // The icon and the word belong on one line; stacked, the button read as
+    // a cramped tile next to the full-width controls around it.
+    logoutBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     supportHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     supportIcon: {
       width: 40, height: 40, borderRadius: 20,

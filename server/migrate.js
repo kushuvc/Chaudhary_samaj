@@ -329,6 +329,41 @@ const migrations = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT
   )`,
+  /*
+   * Row-Level Security on every table in `public`.
+   *
+   * Supabase exposes a REST API over these tables at
+   * https://<project>.supabase.co/rest/v1/. With RLS off, anyone holding the
+   * project ref and the anon key can read, edit and delete every row through
+   * it — members' details, phone numbers, messages, the lot. The project ref
+   * is public by design and the anon key is treated as public too, so the
+   * only thing standing in the way was that we happen never to have shipped
+   * the key in the app.
+   *
+   * Nothing here uses that REST API: the server connects straight to Postgres
+   * with the `pg` driver, and Supabase is used only for photo storage, which
+   * lives in the `storage` schema and is untouched by this.
+   *
+   * So RLS with no policies is exactly right — it denies the `anon` and
+   * `authenticated` roles everything, while the app keeps working because it
+   * connects as `postgres`, which owns these tables and bypasses RLS. (That
+   * bypass is why FORCE ROW LEVEL SECURITY is deliberately not used: it would
+   * lock out the server itself.)
+   *
+   * Written as a loop over the catalogue rather than a list of names, and
+   * kept last in this list, so a table created by any migration above — or
+   * added later — is covered without anyone remembering to come back. A test
+   * fails if one slips through.
+   */
+  `DO $$
+   DECLARE t record;
+   BEGIN
+     FOR t IN
+       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+     LOOP
+       EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t.tablename);
+     END LOOP;
+   END $$`,
 ]
 
 for (const sql of migrations) {

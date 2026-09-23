@@ -14,7 +14,7 @@ import type { PressableProps, ViewStyle } from 'react-native';
  */
 
 /** True when the OS asks for reduced motion. */
-function useReduceMotion() {
+export function useReduceMotion() {
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {

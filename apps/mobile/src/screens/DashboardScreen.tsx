@@ -19,6 +19,7 @@ import { optionLabel } from '../constants/optionTranslations';
 import { api } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { AppGuideScreen } from './AppGuideScreen';
+import { HeroMotion } from '../components/MatrimonyArt';
 import type { ThemePalette } from '../context/ThemeContext';
 import { FadeInView, PressableScale, Pulse } from '../components/Motion';
 import type { MatrimonyProfile } from '../types';
@@ -141,6 +142,11 @@ export function DashboardScreen() {
           <Circle cx="85" cy="45" r="2.5" fill="#ffffff" fillOpacity="0.25" />
           <Circle cx="260" cy="150" r="5" fill="#ffffff" fillOpacity="0.2" />
         </Svg>
+        {/* Rings, drifting hearts and a little sparkle over the gradient the
+            hero already had — the tab is a matrimony service and looked like
+            a settings page. */}
+        <HeroMotion ringsTop={insets.top + 30} />
+
         <View style={[styles.heroContent, { paddingTop: insets.top + 28 }]}>
           <View style={styles.heroPill}>
             <Text style={styles.heroPillText}>💍 Chaudhary Matrimony</Text>

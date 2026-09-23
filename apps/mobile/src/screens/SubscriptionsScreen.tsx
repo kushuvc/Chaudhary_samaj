@@ -16,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { GradientFill, PrimaryButton } from '../components/ui';
+import { MatrimonyArt } from '../components/MatrimonyArt';
 import { api } from '../services/api';
 import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
@@ -270,7 +271,11 @@ export function SubscriptionsScreen() {
         style={styles.scroll}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]}
       >
-        <Text style={styles.screenTitle}>{t('secMembership')}</Text>
+        <MatrimonyArt
+          scene="plans"
+          title={t('secMembership')}
+          subtitle={t('plansArtSub')}
+        />
 
         {freeForMember ? (
           <View style={styles.activeCard}>

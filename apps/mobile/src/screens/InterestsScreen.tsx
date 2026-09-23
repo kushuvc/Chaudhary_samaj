@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MatrimonyArt } from '../components/MatrimonyArt';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -231,14 +232,24 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        {onBack && (
+      {/* The banner carries the title now, so the plain header would print
+          "My Interests" twice. The back arrow still needs somewhere to live
+          when this screen is pushed rather than tabbed to. */}
+      {onBack ? (
+        <View style={styles.header}>
           <Pressable onPress={onBack} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={palette.text} />
           </Pressable>
-        )}
-        <Text style={styles.headerTitle}>{t('secMyInterests')}</Text>
-      </View>
+        </View>
+      ) : null}
+
+      <MatrimonyArt
+        scene="interests"
+        title={t('secMyInterests')}
+        subtitle={t('interestsArtSub')}
+        height={124}
+        style={{ marginHorizontal: 16, marginTop: insets.top + 12, marginBottom: 12 }}
+      />
 
       {/* Stats */}
       <View style={styles.statsRow}>

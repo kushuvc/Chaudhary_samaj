@@ -17,6 +17,7 @@ import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { useAppLanguage } from '../context/LanguageContext';
 import { optionLabel } from '../constants/optionTranslations';
+import { MatrimonyArt } from '../components/MatrimonyArt';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
@@ -311,6 +312,13 @@ export function MatrimonyScreen() {
           }
         }}
       >
+        <MatrimonyArt
+          scene="matches"
+          title={t('matrimony')}
+          subtitle={t('matrimonyArtSub')}
+          style={{ marginBottom: 12 }}
+        />
+
         <View style={styles.headerBlock}>
           <Text style={styles.matchCount}>
             {t(totalMatches === 1 ? 'matchCountOne' : 'matchCountMany', { count: totalMatches })}

@@ -259,6 +259,14 @@ const migrations = [
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_view_phone BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_send_interest BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_chat BOOLEAN NOT NULL DEFAULT true`,
+  // Who a plan is offered to: 'all', 'female' or 'male'. Defaults to 'all' so
+  // every plan that exists today stays on sale to everyone it is now.
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'all'`,
+  `DO $$ BEGIN
+     ALTER TABLE subscription_plans
+       ADD CONSTRAINT subscription_plans_audience_check CHECK (audience IN ('all', 'female', 'male'));
+   EXCEPTION WHEN duplicate_object THEN NULL;
+   END $$`,
   // The same three on the per-gender rules. Without them a gender set to free
   // would get more than the cheapest paid plan, which is not a rule anyone
   // means to write.

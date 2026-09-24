@@ -24,10 +24,10 @@
   .sub{color:var(--muted);font-size:.93rem;margin:0}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.1rem 1.2rem;margin-bottom:1rem}
   label{display:block;font-size:.85rem;color:var(--muted);margin:0 0 .3rem}
-  input[type=text],input[type=email],input[type=number]{
+  input[type=text],input[type=email],input[type=number],select{
     width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;
     background:var(--bg);color:var(--ink);font:inherit}
-  input:focus{outline:2px solid var(--brand);outline-offset:1px}
+  input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
   button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:.62rem 1rem;cursor:pointer;
     background:var(--brand);color:#fff}
   button.secondary{background:transparent;color:var(--brand);border:1px solid var(--line)}
@@ -213,6 +213,14 @@
       <div>
         <label for="new-badge">Badge (optional)</label>
         <input type="text" id="new-badge" placeholder="Best value">
+      </div>
+      <div>
+        <label for="new-audience">Offered to</label>
+        <select id="new-audience">
+          <option value="all" selected>Everyone</option>
+          <option value="female">Women only</option>
+          <option value="male">Men only</option>
+        </select>
       </div>
       <div style="flex:0 0 auto">
         <button id="addPlan">Add plan</button>
@@ -449,6 +457,14 @@ async function save(gender, button) {
 }
 
 /* ---- plans ---- */
+/* Who a plan is offered to. Mirrors PLAN_AUDIENCES on the server. */
+const AUDIENCES = [['all', 'Everyone'], ['female', 'Women only'], ['male', 'Men only']];
+
+function audienceSelect(id, value) {
+  return `<select id="${id}">${AUDIENCES.map(([v, label]) =>
+    `<option value="${v}" ${v === (value || 'all') ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
+}
+
 function planCard(plan) {
   const rupees = Math.round(Number(plan.pricePaise || 0) / 100);
   const days = Number(plan.durationDays || 0);
@@ -462,6 +478,8 @@ function planCard(plan) {
         <div class="plan-head">
           <h2>${esc(plan.name)}</h2>
           <code>${esc(plan.code)}</code>
+          ${plan.audience && plan.audience !== 'all'
+            ? `<span class="pill">${plan.audience === 'female' ? 'WOMEN ONLY' : 'MEN ONLY'}</span>` : ''}
         </div>
         <span class="pill ${plan.isActive ? 'paid' : 'off'}">
           ${plan.isActive ? '₹' + rupees + ' / ' + days + ' DAYS' : 'HIDDEN'}
@@ -502,6 +520,10 @@ function planCard(plan) {
         <div>
           <label for="badge-${esc(plan.code)}">Badge</label>
           <input type="text" id="badge-${esc(plan.code)}" value="${esc(plan.badge)}" placeholder="none">
+        </div>
+        <div>
+          <label for="aud-${esc(plan.code)}">Offered to</label>
+          ${audienceSelect('aud-' + esc(plan.code), plan.audience)}
         </div>
         <div style="flex:0 0 auto;display:flex;gap:.5rem">
           <button data-save-plan="${esc(plan.code)}">Save</button>
@@ -689,6 +711,7 @@ function readPlanForm(prefixes) {
       playProductId: $(prefixes.product).value.trim(),
       badge: $(prefixes.badge).value.trim(),
       sortOrder: sort,
+      audience: $(prefixes.audience).value,
       ...readCaps(prefixes.caps),
       ...(prefixes.active ? { isActive: $(prefixes.active).checked } : {}),
     },
@@ -699,7 +722,7 @@ async function savePlan(code, button) {
   const form = readPlanForm({
     name: 'name-' + code, days: 'days-' + code, price: 'price-p-' + code,
     sort: 'sort-' + code, product: 'prod-' + code, badge: 'badge-' + code,
-    active: 'on-' + code, caps: code,
+    active: 'on-' + code, caps: code, audience: 'aud-' + code,
   });
   if (form.error) return msg(form.error, 'err');
   if (!form.body.name) return msg('Give the plan a name.', 'err');
@@ -746,6 +769,7 @@ $('addPlan').onclick = async () => {
   const form = readPlanForm({
     name: 'new-name', days: 'new-days', price: 'new-price',
     sort: 'new-sort', product: 'new-product', badge: 'new-badge', caps: 'new',
+    audience: 'new-audience',
   });
   if (form.error) return msg(form.error, 'err');
   if (!form.body.name) return msg('Give the plan a name.', 'err');
@@ -761,6 +785,7 @@ $('addPlan').onclick = async () => {
       $(id).value = '';
     }
     for (const [key] of CAPABILITIES) $('cap-new-' + key).checked = true;
+    $('new-audience').value = 'all';
     await loadPlans();
   } catch (err) {
     msg(err.message, 'err');

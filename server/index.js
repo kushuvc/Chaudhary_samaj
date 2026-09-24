@@ -2060,8 +2060,35 @@ function planFromRow(row) {
     isActive: row.is_active === true || row.is_active === 1 || row.is_active === 't',
     sortOrder: Number(row.sort_order) || 0,
     capabilities: capabilitiesFromRow(row),
+    audience: PLAN_AUDIENCES.has(row.audience) ? row.audience : 'all',
     updatedAt: row.updated_at || null,
   }
+}
+
+/**
+ * Who a plan is offered to.
+ *
+ * 'female' and 'male' plans are shown to, and can only be bought by, members
+ * of that gender; 'all' is everyone. A member whose gender is not recorded as
+ * either gets only the 'all' plans rather than both sets.
+ */
+const PLAN_AUDIENCES = new Set(['all', 'female', 'male'])
+
+function planOpenTo(plan, gender) {
+  if (!plan) return false
+  const audience = plan.audience || 'all'
+  return audience === 'all' || audience === String(gender || '').toLowerCase()
+}
+
+/** Refuse a purchase of a plan meant for the other gender. Returns true if refused. */
+async function refuseIfNotForMember(plan, userId, response) {
+  if (planOpenTo(plan, await genderOf(userId))) return false
+  response.status(403).json({
+    success: false,
+    code: 'PLAN_NOT_FOR_MEMBER',
+    error: 'That plan is not available on your account.',
+  })
+  return true
 }
 
 /** Every plan, active or not. Admin reads this; buyers get the active ones. */
@@ -2071,7 +2098,7 @@ async function loadPlans() {
 
   const rows = await pgQuery(
     `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-            is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at
+            is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at
      FROM subscription_plans
      ORDER BY sort_order, price_paise`
   )
@@ -3767,6 +3794,9 @@ app.post('/api/payments/create-order', requirePayments, async (request, response
       response.status(400).json({ success: false, error: 'That plan is not available.' })
       return
     }
+    // Hidden in the app for the other gender, and refused here too so a
+    // hand-made request cannot buy it.
+    if (await refuseIfNotForMember(selected, activeUserId, response)) return
 
     const options = {
       amount: selected.pricePaise,
@@ -3804,6 +3834,7 @@ app.post('/api/payments/verify', requirePayments, async (request, response) => {
       response.status(400).json({ success: false, error: 'That plan is not available.' })
       return
     }
+    if (await refuseIfNotForMember(selected, activeUserId, response)) return
     const amount = Math.round(selected.pricePaise / 100)
 
     // Verify signature
@@ -4417,9 +4448,20 @@ app.get('/api/guide', async (request, response) => {
   }
 })
 
-app.get('/api/payments/plans', async (_request, response) => {
+app.get('/api/payments/plans', async (request, response) => {
   try {
-    const plans = await activePlans()
+    /*
+     * A signed-in member sees only the plans offered to their gender. Without
+     * a session there is no one to filter for, so everything active is listed
+     * with its audience, for anything that shows plans before sign-in.
+     */
+    const viewerId = resolveUserId(request)
+    const all = await activePlans()
+    let plans = all
+    if (viewerId) {
+      const gender = await genderOf(viewerId)
+      plans = all.filter((plan) => planOpenTo(plan, gender))
+    }
     response.json({
       success: true,
       data: plans.map((plan) => ({
@@ -4430,6 +4472,7 @@ app.get('/api/payments/plans', async (_request, response) => {
         playProductId: plan.playProductId,
         badge: plan.badge,
         capabilities: plan.capabilities,
+        audience: plan.audience,
       })),
     })
   } catch (err) {
@@ -4458,6 +4501,9 @@ app.post('/api/payments/create-link', requirePayments, async (request, response)
       response.status(400).json({ success: false, error: 'That plan is not available.' })
       return
     }
+    // Hidden in the app for the other gender, and refused here too so a
+    // hand-made request cannot buy it.
+    if (await refuseIfNotForMember(selected, activeUserId, response)) return
     const amount = Math.round(selected.pricePaise / 100)
     if (amount <= 0) {
       response.status(400).json({ success: false, error: 'That plan has no price set.' })
@@ -5038,7 +5084,7 @@ app.get('/api/admin/plans', requireAdmin, async (_request, response) => {
   try {
     const rows = await pgQuery(
       `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-              is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at
+              is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at
        FROM subscription_plans
        ORDER BY sort_order, price_paise`
     )
@@ -5068,8 +5114,13 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
 
   const {
     name, durationDays, pricePaise, playProductId, badge, isActive, sortOrder,
-    canViewPhone, canSendInterest, canChat,
+    canViewPhone, canSendInterest, canChat, audience,
   } = request.body || {}
+
+  if (audience !== undefined && !PLAN_AUDIENCES.has(audience)) {
+    response.status(400).json({ success: false, error: "audience must be 'all', 'female' or 'male'" })
+    return
+  }
 
   if (typeof name !== 'string' || !name.trim() || name.trim().length > 40) {
     response.status(400).json({ success: false, error: 'Name is required (up to 40 characters)' })
@@ -5118,9 +5169,9 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     const rows = await pgQuery(
       `INSERT INTO subscription_plans
          (code, name, duration_days, price_paise, play_product_id, badge,
-          is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at)
+          is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), COALESCE($8, 0),
-               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), NOW()::text)
+               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), COALESCE($12, 'all'), NOW()::text)
        ON CONFLICT (code) DO UPDATE SET
          name = $2,
          duration_days = $3,
@@ -5132,9 +5183,10 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
          can_view_phone = COALESCE($9, subscription_plans.can_view_phone),
          can_send_interest = COALESCE($10, subscription_plans.can_send_interest),
          can_chat = COALESCE($11, subscription_plans.can_chat),
+         audience = COALESCE($12, subscription_plans.audience),
          updated_at = NOW()::text
        RETURNING code, name, duration_days, price_paise, play_product_id, badge,
-                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, updated_at`,
+                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at`,
       [
         code,
         name.trim(),
@@ -5147,6 +5199,7 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
         canViewPhone === undefined ? null : canViewPhone,
         canSendInterest === undefined ? null : canSendInterest,
         canChat === undefined ? null : canChat,
+        audience === undefined ? null : audience,
       ]
     )
 

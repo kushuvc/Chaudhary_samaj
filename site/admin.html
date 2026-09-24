@@ -4,251 +4,509 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Subscriptions — Chaudhary Samaj</title>
+<title>Chaudhary Samaj Admin</title>
 <style>
   :root{
     --ink:#1b2030; --soft:#4c5468; --muted:#737c92; --line:#e5e7f0;
     --bg:#f4f5fa; --card:#ffffff; --brand:#5B5BD6; --brand2:#8B5CF6;
+    --brandsoft:#ecebfc; --side:#ffffff; --hover:#f0f1f8;
     --ok:#0f9d76; --okbg:#e6f6f1; --warn:#b4530a; --warnbg:#fdf0e3; --err:#c0344a; --errbg:#fdecef;
   }
   @media (prefers-color-scheme: dark){
     :root{ --ink:#eaecf5; --soft:#bcc3d4; --muted:#8d95aa; --line:#2a2f40;
-           --bg:#101219; --card:#181b24; --okbg:#0f2a23; --warnbg:#2c1e10; --errbg:#2b141a; }
+           --bg:#101219; --card:#181b24; --okbg:#0f2a23; --warnbg:#2c1e10; --errbg:#2b141a;
+           --brandsoft:#24234a; --side:#14161f; --hover:#1f2230; }
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
     font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  .wrap{max-width:46rem;margin:0 auto;padding:2.5rem 1.1rem 4rem}
-  header{margin-bottom:1.6rem}
-  h1{font-size:1.5rem;margin:0 0 .2rem;letter-spacing:-0.01em}
-  .sub{color:var(--muted);font-size:.93rem;margin:0}
+  h1,h2,h3{text-wrap:balance}
+
+  /* ---------- sign-in ---------- */
+  .signin-wrap{max-width:26rem;margin:0 auto;padding:4rem 1rem}
+  .brandmark{display:flex;align-items:center;gap:.6rem;margin-bottom:1.4rem}
+  .brandmark .logo{width:2.1rem;height:2.1rem;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
+  .brandmark b{font-size:1.05rem;letter-spacing:-.01em}
+  .brandmark span{display:block;font-size:.8rem;color:var(--muted);line-height:1.2}
+
+  /* ---------- shell ---------- */
+  .shell{display:grid;grid-template-columns:15.5rem minmax(0,1fr);min-height:100vh}
+  .side{background:var(--side);border-right:1px solid var(--line);padding:1.3rem .9rem;
+    position:sticky;top:0;height:100vh;display:flex;flex-direction:column}
+  .side .brandmark{padding:0 .4rem;margin-bottom:1.3rem}
+  .nav{display:flex;flex-direction:column;gap:.15rem;flex:1}
+  .nav-group{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+    margin:.9rem .6rem .25rem}
+  .nav a{display:flex;align-items:center;gap:.65rem;padding:.55rem .65rem;border-radius:9px;
+    color:var(--soft);text-decoration:none;font-weight:550;font-size:.93rem}
+  .nav a:hover{background:var(--hover);color:var(--ink)}
+  .nav a.on{background:var(--brandsoft);color:var(--brand)}
+  .nav a:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .nav svg{width:1.1rem;height:1.1rem;flex:0 0 auto}
+  .nav .count{margin-left:auto;font-size:.72rem;font-weight:700;min-width:1.35rem;text-align:center;
+    padding:.05rem .4rem;border-radius:999px;background:var(--err);color:#fff;font-variant-numeric:tabular-nums}
+  .side-foot{border-top:1px solid var(--line);padding:.9rem .5rem 0;font-size:.82rem;color:var(--muted)}
+  .side-foot .who{word-break:break-all;margin-bottom:.5rem}
+
+  .main{padding:2rem 2.2rem 4rem;max-width:62rem;width:100%;min-width:0}
+  .page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1.4rem}
+  .page-head > button{flex:0 0 auto;white-space:nowrap}
+  .page-head h1{font-size:1.45rem;margin:0 0 .15rem;letter-spacing:-.015em}
+  .sub{color:var(--muted);font-size:.93rem;margin:0;max-width:44rem}
+
+  .mobile-signout{display:none!important}
+  @media (max-width: 820px){
+    .shell{grid-template-columns:minmax(0,1fr)}
+    .side{position:sticky;top:0;z-index:5;height:auto;flex-direction:row;align-items:center;
+      padding:.6rem .7rem;border-right:0;border-bottom:1px solid var(--line);gap:.6rem}
+    .side .brandmark{margin:0;padding:0}
+    .side .brandmark > div:not(.logo){display:none}
+    .nav{flex-direction:row;overflow-x:auto;gap:.2rem;scrollbar-width:none;min-width:0}
+    .page-head{flex-direction:column}
+    .nav::-webkit-scrollbar{display:none}
+    .nav-group{display:none}
+    .nav a{white-space:nowrap;padding:.45rem .6rem}
+    .side-foot{display:none}
+    .main{padding:1.3rem 1rem 3rem}
+    .mobile-signout{display:inline-flex!important;flex:0 0 auto}
+  }
+
+  /* ---------- building blocks ---------- */
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.1rem 1.2rem;margin-bottom:1rem}
   label{display:block;font-size:.85rem;color:var(--muted);margin:0 0 .3rem}
-  input[type=text],input[type=email],input[type=number],select{
+  input[type=text],input[type=email],input[type=password],input[type=number],select,textarea{
     width:100%;padding:.6rem .7rem;border:1px solid var(--line);border-radius:8px;
     background:var(--bg);color:var(--ink);font:inherit}
-  input:focus,select:focus{outline:2px solid var(--brand);outline-offset:1px}
+  textarea{resize:vertical;line-height:1.5}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-offset:1px}
   button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:.62rem 1rem;cursor:pointer;
     background:var(--brand);color:#fff}
+  button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
   button.secondary{background:transparent;color:var(--brand);border:1px solid var(--line)}
+  button.danger{background:transparent;color:var(--err);border:1px solid var(--line)}
+  button.small{padding:.38rem .7rem;font-size:.85rem}
   button:disabled{opacity:.5;cursor:default}
   .row{display:flex;gap:.6rem;align-items:flex-end;flex-wrap:wrap}
   .row > div{flex:1 1 9rem;min-width:8rem}
+  .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1rem}
   .head{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:.9rem}
   .head h2{margin:0;font-size:1.05rem}
-  .pill{font-size:.78rem;font-weight:700;padding:.2rem .6rem;border-radius:999px;letter-spacing:.02em}
-  .pill.free{background:var(--okbg);color:var(--ok)}
-  .pill.paid{background:var(--warnbg);color:var(--warn)}
+  .pill{font-size:.72rem;font-weight:700;padding:.18rem .55rem;border-radius:999px;letter-spacing:.03em;white-space:nowrap}
+  .pill.free,.pill.ok{background:var(--okbg);color:var(--ok)}
+  .pill.paid,.pill.warn{background:var(--warnbg);color:var(--warn)}
+  .pill.bad{background:var(--errbg);color:var(--err)}
+  .pill.off{background:var(--line);color:var(--muted)}
+  .pill.aud{background:var(--brandsoft);color:var(--brand)}
   .switch{display:flex;align-items:center;gap:.55rem;margin:.2rem 0 1rem;font-size:.95rem;color:var(--soft)}
   .switch input{width:1.05rem;height:1.05rem;accent-color:var(--brand)}
-  .msg{border-radius:8px;padding:.6rem .8rem;font-size:.9rem;margin-bottom:1rem;display:none}
+  .msg{position:fixed;right:1.2rem;bottom:1.2rem;z-index:20;max-width:26rem;border-radius:10px;
+    padding:.7rem .95rem;font-size:.9rem;display:none;box-shadow:0 6px 24px rgba(20,20,60,.18)}
   .msg.show{display:block}
   .msg.ok{background:var(--okbg);color:var(--ok)}
   .msg.err{background:var(--errbg);color:var(--err)}
   .hint{color:var(--muted);font-size:.85rem;margin:.35rem 0 0}
-  .foot{color:var(--muted);font-size:.85rem;margin-top:1.4rem}
-  .section-title{font-size:1.15rem;margin:2rem 0 .5rem;letter-spacing:-0.01em}
+  .empty{color:var(--muted);text-align:center;padding:2rem 1rem}
   .caps{display:flex;gap:1.1rem;flex-wrap:wrap;margin:.85rem 0 .2rem;
     padding:.7rem .8rem;border:1px dashed var(--line);border-radius:9px}
   .caps .switch{margin:0;font-size:.9rem}
   .caps-title{width:100%;font-size:.8rem;color:var(--muted);margin:0 0 .1rem;
     text-transform:uppercase;letter-spacing:.04em}
+  [hidden]{display:none!important}
+  code{font-size:.8rem;color:var(--muted);background:var(--bg);padding:.1rem .4rem;border-radius:5px}
+
+  /* A long form stays folded until you open the one you came for. */
+  details.fold{padding:0}
+  details.fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:.7rem;
+    padding:.9rem 1.2rem}
+  /* The labels wrap among themselves; the arrow stays pinned to the right. */
+  .fold-main{display:flex;align-items:center;gap:.4rem .7rem;flex-wrap:wrap;flex:1;min-width:0}
+  details.fold > summary::-webkit-details-marker{display:none}
+  details.fold > summary:hover{background:var(--hover);border-radius:12px}
+  details.fold > summary:focus-visible{outline:2px solid var(--brand);outline-offset:-2px;border-radius:12px}
+  details.fold[open] > summary{border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}
+  details.fold .fold-body{padding:1rem 1.2rem 1.2rem}
+  .fold-title{font-weight:650;font-size:1rem}
+  .fold-meta{color:var(--muted);font-size:.85rem;font-variant-numeric:tabular-nums}
+  .chev{flex:0 0 auto;color:var(--muted);transition:transform .15s}
+  details[open] .chev{transform:rotate(90deg)}
+  @media (prefers-reduced-motion: reduce){ .chev{transition:none} }
+
+  /* ---------- overview ---------- */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(10.5rem,1fr));gap:.8rem;margin-bottom:1.4rem}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:.95rem 1rem}
+  .tile .n{font-size:1.65rem;font-weight:750;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15}
+  .tile .l{color:var(--muted);font-size:.83rem}
+  .attn{display:flex;align-items:center;gap:.8rem;padding:.75rem 0;border-top:1px solid var(--line)}
+  .attn:first-child{border-top:0}
+  .attn .dot{width:.55rem;height:.55rem;border-radius:50%;flex:0 0 auto}
+  .attn .dot.bad{background:var(--err)} .attn .dot.warn{background:var(--warn)} .attn .dot.ok{background:var(--ok)}
+  .attn .t{flex:1}
+  .attn a{color:var(--brand);font-weight:600;text-decoration:none;white-space:nowrap}
+
+  /* ---------- reports ---------- */
+  .filters{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+  .chip{background:var(--card);color:var(--soft);border:1px solid var(--line);border-radius:999px;
+    padding:.35rem .8rem;font-size:.85rem;font-weight:600}
+  .chip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .report .who{font-size:.88rem;color:var(--soft);word-break:break-all}
+  .report .why{font-weight:650;margin:.1rem 0 .25rem}
+  .report blockquote{margin:.4rem 0 0;padding:.5rem .75rem;border-left:3px solid var(--line);color:var(--soft);
+    font-size:.92rem;background:var(--bg);border-radius:0 6px 6px 0;white-space:pre-wrap}
+
+  /* ---------- members ---------- */
+  .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;font-size:.88rem}
+  th,td{text-align:left;padding:.6rem .8rem;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:650}
+  tr:last-child td{border-bottom:0}
+  td.num{font-variant-numeric:tabular-nums}
+  .pager{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:.9rem;
+    color:var(--muted);font-size:.88rem;font-variant-numeric:tabular-nums}
+
+  /* ---------- play ---------- */
   .chk{display:flex;gap:.6rem;align-items:baseline;padding:.4rem 0;border-top:1px solid var(--line)}
   .chk:first-of-type{border-top:0}
   .chk .mark{font-weight:700;flex:0 0 1.2rem}
   .chk .mark.ok{color:var(--ok)} .chk .mark.bad{color:var(--err)} .chk .mark.warn{color:var(--warn)}
   .chk .what{flex:1}
   .chk .detail{color:var(--muted);font-size:.85rem;display:block;margin-top:.1rem;
-    word-break:break-all;font-family:var(--mono,monospace)}
+    word-break:break-all;font-family:ui-monospace,Menlo,monospace}
   .verdict{border-radius:9px;padding:.7rem .9rem;margin:0 0 .9rem;font-size:.93rem;font-weight:600}
   .verdict.ok{background:var(--okbg);color:var(--ok)}
   .verdict.bad{background:var(--errbg);color:var(--err)}
-  .pill.off{background:var(--line);color:var(--muted)}
-  .plan-head{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
-  .plan-head code{font-size:.8rem;color:var(--muted);background:var(--bg);
-    padding:.1rem .4rem;border-radius:5px}
-  .per-day{color:var(--muted);font-size:.85rem;white-space:nowrap}
-  button.danger{background:transparent;color:var(--err);border:1px solid var(--line)}
-  [hidden]{display:none!important}
 </style>
 </head>
 <body>
-<div class="wrap">
 
-<header>
-  <h1>Subscriptions</h1>
-  <p class="sub">Who pays, and what they can buy. Changes apply on the next request — no app update, no redeploy.</p>
-</header>
+<div id="msg" class="msg" role="status" aria-live="polite"></div>
 
-<div id="msg" class="msg"></div>
-
-<section id="signin" class="card">
-  <h2 style="margin:0 0 .8rem;font-size:1.05rem">Sign in</h2>
-
-  <label for="email">Admin email</label>
-  <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
-
-  <!--
-    Two ways in, on purpose. This page used to offer only an emailed code, so
-    anything wrong with mail delivery — a suppression list, a spam folder, an
-    expired provider key — locked the one admin out of their own settings.
-  -->
-  <div id="stepPassword" style="margin-top:.9rem">
-    <label for="password">Password</label>
-    <input id="password" type="password" autocomplete="current-password" placeholder="Your password">
-    <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
-      <button id="signInPassword">Sign in</button>
-      <button id="useCode" class="secondary" type="button">Email me a code instead</button>
+<!-- ======================= SIGN IN ======================= -->
+<div id="signin" class="signin-wrap">
+  <div class="brandmark">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 21s-7.5-4.9-9.4-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.4 12c-1.9 4.1-9.4 9-9.4 9z"/></svg>
     </div>
-    <p class="hint">The same password you use in the app. The account must be an admin.</p>
+    <div><b>Chaudhary Samaj</b><span>Admin</span></div>
   </div>
-
-  <div id="stepEmail" hidden style="margin-top:.9rem">
-    <p class="hint" style="margin:0 0 .8rem">A six-digit code is emailed to you.</p>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-      <button id="sendCode">Email me a code</button>
-      <button id="usePassword" class="secondary" type="button">Use my password instead</button>
-    </div>
-  </div>
-
-  <div id="stepCode" hidden style="margin-top:.9rem">
-    <label for="code">Six-digit code</label>
-    <input id="code" inputmode="numeric" maxlength="6" placeholder="000000">
-    <p class="hint">Check spam if it does not arrive.</p>
-    <div style="margin-top:.8rem;display:flex;gap:.5rem;flex-wrap:wrap">
-      <button id="verify">Sign in</button>
-      <button id="backToEmail" class="secondary" type="button">Back</button>
-    </div>
-  </div>
-</section>
-
-<section id="rules" hidden></section>
-
-<section id="guideWrap" hidden>
-  <h2 class="section-title">App guide</h2>
-  <p class="sub" style="margin:-.3rem 0 1rem">
-    What the "How to use the app" button on the home screen shows. Editing a section here reaches
-    every installed app straight away — no new release. Add a section whenever a feature ships, and
-    fill in all three languages: a member reading Gujarati sees the English text if you leave it blank.
-  </p>
-  <div id="guide"></div>
 
   <div class="card">
-    <div class="head"><h2>Add a section</h2></div>
-    <div class="row">
-      <div>
-        <label for="g-new-key">Key</label>
-        <input type="text" id="g-new-key" placeholder="events">
+    <h2 style="margin:0 0 .8rem;font-size:1.05rem">Sign in</h2>
+
+    <label for="email">Admin email</label>
+    <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+
+    <!--
+      Two ways in, on purpose. This page used to offer only an emailed code, so
+      anything wrong with mail delivery — a suppression list, a spam folder, an
+      expired provider key — locked the one admin out of their own settings.
+    -->
+    <div id="stepPassword" style="margin-top:.9rem">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="Your password">
+      <div class="actions" style="margin-top:.8rem">
+        <button id="signInPassword">Sign in</button>
+        <button id="useCode" class="secondary" type="button">Email me a code instead</button>
       </div>
-      <div>
-        <label for="g-new-icon">Icon (Ionicons name)</label>
-        <input type="text" id="g-new-icon" placeholder="calendar-outline">
-      </div>
-      <div>
-        <label for="g-new-sort">Order</label>
-        <input type="number" id="g-new-sort" value="80">
+      <p class="hint">The same password you use in the app. The account must be an admin.</p>
+    </div>
+
+    <div id="stepEmail" hidden style="margin-top:.9rem">
+      <p class="hint" style="margin:0 0 .8rem">A six-digit code is emailed to you.</p>
+      <div class="actions" style="margin-top:0">
+        <button id="sendCode">Email me a code</button>
+        <button id="usePassword" class="secondary" type="button">Use my password instead</button>
       </div>
     </div>
-    <div id="g-new-fields"></div>
-    <div class="actions"><button id="g-add" type="button">Add section</button></div>
+
+    <div id="stepCode" hidden style="margin-top:.9rem">
+      <label for="code">Six-digit code</label>
+      <input id="code" inputmode="numeric" maxlength="6" placeholder="000000">
+      <p class="hint">Check spam if it does not arrive.</p>
+      <div class="actions" style="margin-top:.8rem">
+        <button id="verify">Sign in</button>
+        <button id="backToEmail" class="secondary" type="button">Back</button>
+      </div>
+    </div>
   </div>
-</section>
+</div>
 
-<section id="plansWrap" hidden>
-  <h2 class="section-title">Plans</h2>
-  <p class="sub" style="margin:-.3rem 0 1rem">
-    What the app offers on its subscription screen, in this order. The Play product id must match
-    the subscription's product ID in Play Console exactly — and the price here must match the price
-    you set there, because Google charges its own.
-  </p>
-  <div id="plans"></div>
-
-  <div class="card">
-    <div class="head"><h2>Add a plan</h2></div>
-    <div class="row">
-      <div>
-        <label for="new-code">Code</label>
-        <input type="text" id="new-code" placeholder="premium_quarterly">
+<!-- ======================= APP ======================= -->
+<div id="app" class="shell" hidden>
+  <aside class="side">
+    <div class="brandmark">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 21s-7.5-4.9-9.4-9A5.2 5.2 0 0 1 12 6.6 5.2 5.2 0 0 1 21.4 12c-1.9 4.1-9.4 9-9.4 9z"/></svg>
       </div>
-      <div>
-        <label for="new-name">Name shown in the app</label>
-        <input type="text" id="new-name" placeholder="Quarterly">
-      </div>
-    </div>
-    <div class="row" style="margin-top:.7rem">
-      <div>
-        <label for="new-days">Length (days)</label>
-        <input type="number" id="new-days" min="1" step="1" placeholder="90">
-      </div>
-      <div>
-        <label for="new-price">Price (₹)</label>
-        <input type="number" id="new-price" min="0" step="1" placeholder="500">
-      </div>
-      <div>
-        <label for="new-sort">Order</label>
-        <input type="number" id="new-sort" step="1" value="1">
-      </div>
-    </div>
-    <div class="caps">
-      <p class="caps-title">Includes</p>
-      <div class="switch">
-        <input type="checkbox" id="cap-new-canViewPhone" checked>
-        <label for="cap-new-canViewPhone" style="margin:0;color:var(--soft)">See contact numbers</label>
-      </div>
-      <div class="switch">
-        <input type="checkbox" id="cap-new-canSendInterest" checked>
-        <label for="cap-new-canSendInterest" style="margin:0;color:var(--soft)">Send interests</label>
-      </div>
-      <div class="switch">
-        <input type="checkbox" id="cap-new-canChat" checked>
-        <label for="cap-new-canChat" style="margin:0;color:var(--soft)">Message matches</label>
-      </div>
+      <div><b>Chaudhary Samaj</b><span>Admin</span></div>
     </div>
 
-    <div class="row" style="margin-top:.7rem">
-      <div>
-        <label for="new-product">Play product id (leave empty for Razorpay only)</label>
-        <input type="text" id="new-product" placeholder="premium_quarterly">
-      </div>
-      <div>
-        <label for="new-badge">Badge (optional)</label>
-        <input type="text" id="new-badge" placeholder="Best value">
-      </div>
-      <div>
-        <label for="new-audience">Offered to</label>
-        <select id="new-audience">
-          <option value="all" selected>Everyone</option>
-          <option value="female">Women only</option>
-          <option value="male">Men only</option>
-        </select>
-      </div>
-      <div style="flex:0 0 auto">
-        <button id="addPlan">Add plan</button>
-      </div>
+    <nav class="nav" aria-label="Sections">
+      <a href="#overview" data-nav="overview">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Overview
+      </a>
+
+      <p class="nav-group">Community</p>
+      <a href="#reports" data-nav="reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V4h11l-1 4h6l-2 7h-8l1-4H4"/></svg>
+        Reports <span class="count" id="reportsCount" hidden>0</span>
+      </a>
+      <a href="#members" data-nav="members">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .6 3.2 2.3 3.6 5.2"/></svg>
+        Members
+      </a>
+
+      <p class="nav-group">Money</p>
+      <a href="#plans" data-nav="plans">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>
+        Plans
+      </a>
+      <a href="#free" data-nav="free">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7C10 3 6 3 6 5.5S9 7 12 7c3 0 6 0 6-1.5S14 3 12 7"/></svg>
+        Free access
+      </a>
+      <a href="#play" data-nav="play">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3.5v17l14-8.5z"/></svg>
+        Google Play
+      </a>
+
+      <p class="nav-group">App</p>
+      <a href="#guide" data-nav="guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/></svg>
+        App guide
+      </a>
+    </nav>
+
+    <button class="secondary small mobile-signout" type="button" data-signout>Sign out</button>
+    <div class="side-foot">
+      <div class="who" id="whoami"></div>
+      <button class="secondary small" type="button" data-signout>Sign out</button>
     </div>
-    <p class="hint">
-      The code is permanent once someone has bought it — it is what their subscription record points at.
-      Lowercase letters, numbers and underscores.
-    </p>
-  </div>
+  </aside>
 
-  <h2 class="section-title">Google Play connection</h2>
-  <p class="sub" style="margin:-.3rem 0 1rem">
-    Whether the server can actually reach Google to verify a purchase. Worth checking before
-    taking real money — the failure that matters here is silent, and shows up as a member who
-    paid and got nothing.
-  </p>
-  <div class="card">
-    <div class="head">
-      <h2>Health check</h2>
-      <button id="runPlayCheck" class="secondary" type="button">Run check</button>
-    </div>
-    <div id="playHealth"><p class="hint" style="margin:0">Not run yet.</p></div>
-  </div>
-</section>
+  <main class="main">
 
-<p class="foot" id="whoami"></p>
+    <!-- ---------- OVERVIEW ---------- -->
+    <section data-section="overview" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Overview</h1>
+          <p class="sub">How the community is doing, and anything that needs you.</p>
+        </div>
+        <button class="secondary small" type="button" id="refreshOverview">Refresh</button>
+      </div>
+      <div class="tiles" id="tiles"></div>
+      <div class="card">
+        <div class="head"><h2>Needs attention</h2></div>
+        <div id="attention"><p class="hint" style="margin:0">Loading…</p></div>
+      </div>
+    </section>
 
+    <!-- ---------- REPORTS ---------- -->
+    <section data-section="reports" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Reports</h1>
+          <p class="sub">
+            Members reported from inside the app. The reported member is already hidden from whoever
+            reported them; this is where you decide whether anything more needs doing.
+          </p>
+        </div>
+      </div>
+      <div class="filters" id="reportFilters">
+        <button class="chip on" data-filter="open" type="button">Open</button>
+        <button class="chip" data-filter="actioned" type="button">Actioned</button>
+        <button class="chip" data-filter="dismissed" type="button">Dismissed</button>
+        <button class="chip" data-filter="all" type="button">All</button>
+      </div>
+      <div id="reports"></div>
+    </section>
+
+    <!-- ---------- MEMBERS ---------- -->
+    <section data-section="members" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Members</h1>
+          <p class="sub">Everyone who has signed up, newest first.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Email</th><th>Phone</th><th>Gender</th><th>Age</th>
+            <th>Location</th><th>Plan</th><th>Joined</th>
+          </tr></thead>
+          <tbody id="membersBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="secondary small" type="button" id="prevPage">← Newer</button>
+        <span id="pageInfo"></span>
+        <button class="secondary small" type="button" id="nextPage">Older →</button>
+      </div>
+    </section>
+
+    <!-- ---------- PLANS ---------- -->
+    <section data-section="plans" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Plans</h1>
+          <p class="sub">
+            What the app offers on its Plans tab, in this order. The Play product id must match the
+            subscription's product ID in Play Console exactly — and the price here must match the
+            price there, because Google charges its own.
+          </p>
+        </div>
+        <button type="button" id="toggleAddPlan">+ Add plan</button>
+      </div>
+
+      <div class="card" id="addPlanCard" hidden>
+        <div class="head"><h2>Add a plan</h2></div>
+        <div class="row">
+          <div>
+            <label for="new-code">Code</label>
+            <input type="text" id="new-code" placeholder="premium_quarterly">
+          </div>
+          <div>
+            <label for="new-name">Name shown in the app</label>
+            <input type="text" id="new-name" placeholder="Quarterly">
+          </div>
+        </div>
+        <div class="row" style="margin-top:.7rem">
+          <div>
+            <label for="new-days">Length (days)</label>
+            <input type="number" id="new-days" min="1" step="1" placeholder="90">
+          </div>
+          <div>
+            <label for="new-price">Price (₹)</label>
+            <input type="number" id="new-price" min="0" step="1" placeholder="500">
+          </div>
+          <div>
+            <label for="new-sort">Order</label>
+            <input type="number" id="new-sort" step="1" value="1">
+          </div>
+        </div>
+        <div class="caps">
+          <p class="caps-title">Includes</p>
+          <div class="switch">
+            <input type="checkbox" id="cap-new-canViewPhone" checked>
+            <label for="cap-new-canViewPhone" style="margin:0;color:var(--soft)">See contact numbers</label>
+          </div>
+          <div class="switch">
+            <input type="checkbox" id="cap-new-canSendInterest" checked>
+            <label for="cap-new-canSendInterest" style="margin:0;color:var(--soft)">Send interests</label>
+          </div>
+          <div class="switch">
+            <input type="checkbox" id="cap-new-canChat" checked>
+            <label for="cap-new-canChat" style="margin:0;color:var(--soft)">Message matches</label>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.7rem">
+          <div>
+            <label for="new-product">Play product id (leave empty for Razorpay only)</label>
+            <input type="text" id="new-product" placeholder="premium_quarterly">
+          </div>
+          <div>
+            <label for="new-badge">Badge (optional)</label>
+            <input type="text" id="new-badge" placeholder="Best value">
+          </div>
+          <div>
+            <label for="new-audience">Offered to</label>
+            <select id="new-audience">
+              <option value="all" selected>Everyone</option>
+              <option value="female">Women only</option>
+              <option value="male">Men only</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="addPlan" type="button">Add plan</button>
+          <button class="secondary" type="button" id="cancelAddPlan">Cancel</button>
+        </div>
+        <p class="hint">
+          The code is permanent once someone has bought it — it is what their subscription record points at.
+          Lowercase letters, numbers and underscores.
+        </p>
+      </div>
+
+      <div id="plans"></div>
+    </section>
+
+    <!-- ---------- FREE ACCESS ---------- -->
+    <section data-section="free" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Free access</h1>
+          <p class="sub">
+            What members get before they pay, set separately for women and men — how many profiles
+            they can open, and whether they can send interests or chat. Changes apply on the next
+            request; no app update.
+          </p>
+        </div>
+      </div>
+      <div id="rules"></div>
+    </section>
+
+    <!-- ---------- GOOGLE PLAY ---------- -->
+    <section data-section="play" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Google Play</h1>
+          <p class="sub">
+            Whether the server can actually reach Google to verify a purchase. Worth checking before
+            taking real money — the failure that matters here is silent, and shows up as a member who
+            paid and got nothing.
+          </p>
+        </div>
+        <button id="runPlayCheck" type="button">Run check</button>
+      </div>
+      <div class="card">
+        <div id="playHealth"><p class="hint" style="margin:0">Not run yet.</p></div>
+      </div>
+    </section>
+
+    <!-- ---------- APP GUIDE ---------- -->
+    <section data-section="guide" hidden>
+      <div class="page-head">
+        <div>
+          <h1>App guide</h1>
+          <p class="sub">
+            What "How to use the app" on the home screen shows. Edits reach every installed app
+            straight away. Fill in all three languages — a member reading Gujarati sees the English
+            text if you leave theirs blank.
+          </p>
+        </div>
+        <button type="button" id="toggleAddGuide">+ Add section</button>
+      </div>
+
+      <div class="card" id="addGuideCard" hidden>
+        <div class="head"><h2>Add a section</h2></div>
+        <div class="row">
+          <div>
+            <label for="g-new-key">Key</label>
+            <input type="text" id="g-new-key" placeholder="events">
+          </div>
+          <div>
+            <label for="g-new-icon">Icon (Ionicons name)</label>
+            <input type="text" id="g-new-icon" placeholder="calendar-outline">
+          </div>
+          <div>
+            <label for="g-new-sort">Order</label>
+            <input type="number" id="g-new-sort" value="80">
+          </div>
+        </div>
+        <div id="g-new-fields"></div>
+        <div class="actions">
+          <button id="g-add" type="button">Add section</button>
+          <button class="secondary" type="button" id="cancelAddGuide">Cancel</button>
+        </div>
+      </div>
+
+      <div id="guide"></div>
+    </section>
+
+  </main>
 </div>
 
 <script>
@@ -261,7 +519,8 @@ const msg = (text, kind) => {
   const el = $('msg');
   el.textContent = text;
   el.className = 'msg show ' + (kind || 'ok');
-  if (kind !== 'err') setTimeout(() => { el.className = 'msg'; }, 4000);
+  clearTimeout(msg.timer);
+  msg.timer = setTimeout(() => { el.className = 'msg'; }, kind === 'err' ? 7000 : 3500);
 };
 
 async function call(path, options) {
@@ -278,7 +537,85 @@ async function call(path, options) {
   return body;
 }
 
-/* ---- sign in ---- */
+const esc = (value) =>
+  String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[ch]);
+
+const when = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 6l6 6-6 6"/></svg>';
+
+/* ======================= sections & routing ======================= */
+/*
+ * One section on screen at a time, chosen by the URL hash, so the browser's
+ * back button, a refresh and a bookmark all land where you were. Each section
+ * loads the first time it is opened; saving inside one reloads just that one.
+ */
+const SECTIONS = ['overview', 'reports', 'members', 'plans', 'free', 'play', 'guide'];
+const loaded = new Set();
+const LOADERS = {
+  overview: () => loadOverview(),
+  reports: () => loadReports(),
+  members: () => loadMembers(),
+  plans: () => loadPlans(),
+  free: () => loadRules(),
+  play: async () => {},
+  guide: () => loadGuide(),
+};
+
+function current() {
+  const h = location.hash.replace('#', '');
+  return SECTIONS.includes(h) ? h : 'overview';
+}
+
+async function show(section) {
+  for (const el of document.querySelectorAll('[data-section]')) {
+    el.hidden = el.getAttribute('data-section') !== section;
+  }
+  for (const a of document.querySelectorAll('[data-nav]')) {
+    const on = a.getAttribute('data-nav') === section;
+    a.classList.toggle('on', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+
+  }
+  keepActiveInView();
+  window.scrollTo(0, 0);
+  if (!loaded.has(section)) {
+    loaded.add(section);
+    try { await LOADERS[section](); }
+    catch (err) { loaded.delete(section); msg(err.message, 'err'); }
+  }
+}
+
+window.addEventListener('hashchange', () => { if (!$('app').hidden) void show(current()); });
+
+async function enterApp() {
+  // Proves the token is an admin's before showing anything; a stale or
+  // non-admin token throws here and the caller sends you back to sign-in.
+  await call('/admin/subscription-rules');
+  $('signin').hidden = true;
+  $('app').hidden = false;
+  $('whoami').textContent = email ? 'Signed in as ' + email : 'Signed in';
+  loaded.clear();
+  void refreshReportCount();
+  await show(current());
+}
+
+function signOut() {
+  token = '';
+  sessionStorage.removeItem('cs_admin_token');
+  sessionStorage.removeItem('cs_admin_email');
+  location.hash = '';
+  location.reload();
+}
+for (const b of document.querySelectorAll('[data-signout]')) b.onclick = signOut;
+
+/* ======================= sign in ======================= */
 $('signInPassword').onclick = async () => {
   const value = $('email').value.trim();
   const password = $('password').value;
@@ -295,13 +632,14 @@ $('signInPassword').onclick = async () => {
     sessionStorage.setItem('cs_admin_token', token);
     sessionStorage.setItem('cs_admin_email', email);
     $('password').value = '';
-    await loadRules();
+    await enterApp();
   } catch (err) {
     msg(err.message, 'err');
   } finally {
     $('signInPassword').disabled = false;
   }
 };
+$('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('signInPassword').click(); });
 
 $('useCode').onclick = () => { $('stepPassword').hidden = true; $('stepEmail').hidden = false; };
 $('usePassword').onclick = () => { $('stepEmail').hidden = true; $('stepPassword').hidden = false; };
@@ -338,7 +676,7 @@ $('verify').onclick = async () => {
     token = body.data.authToken;
     sessionStorage.setItem('cs_admin_token', token);
     sessionStorage.setItem('cs_admin_email', email);
-    await loadRules();
+    await enterApp();
   } catch (err) {
     msg(err.message, 'err');
   } finally {
@@ -346,12 +684,188 @@ $('verify').onclick = async () => {
   }
 };
 
-/* ---- what a plan (or a free gender) unlocks ---- */
-const esc = (value) =>
-  String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[ch]);
+/* ======================= overview ======================= */
+async function loadOverview() {
+  const [stats, reports, plans, guide] = await Promise.all([
+    call('/admin/stats').then((b) => b.data).catch(() => null),
+    call('/admin/reports').then((b) => b.data).catch(() => []),
+    call('/admin/plans').then((b) => b.data).catch(() => []),
+    call('/admin/guide').then((b) => b.data).catch(() => []),
+  ]);
 
+  const tile = (n, l) => `<div class="tile"><div class="n">${esc(n)}</div><div class="l">${esc(l)}</div></div>`;
+  $('tiles').innerHTML = stats
+    ? [
+        tile(Number(stats.totalUsers).toLocaleString(), 'Members'),
+        tile(Number(stats.recentUsers).toLocaleString(), 'Joined in the last 7 days'),
+        tile(Number(stats.activePremium).toLocaleString(), 'Active subscribers'),
+        tile(stats.conversionRate + '%', 'Of members subscribed'),
+        // Amounts are stored at each plan's list price in rupees, before Google's cut.
+        tile('₹' + Number(stats.totalRevenue || 0).toLocaleString('en-IN'), 'Active subscriptions (list price)'),
+        tile(Number(stats.totalInterests).toLocaleString(), 'Interests sent, ever'),
+      ].join('')
+    : '<p class="hint">Could not load the numbers.</p>';
+
+  const open = reports.filter((r) => r.status === 'open').length;
+  const active = plans.filter((p) => p.isActive);
+  const buyableOnPlay = active.filter((p) => p.playProductId);
+  const hiddenGuide = guide.filter((g) => !g.is_active).length;
+
+  const item = (level, text, href, label) =>
+    `<div class="attn"><span class="dot ${level}"></span><span class="t">${text}</span>` +
+    (href ? `<a href="${href}">${label} →</a>` : '') + '</div>';
+
+  const rows = [];
+  rows.push(open
+    ? item('bad', `<b>${open}</b> open report${open === 1 ? '' : 's'} waiting for review`, '#reports', 'Review')
+    : item('ok', 'No open reports', '#reports', 'See all'));
+  rows.push(active.length
+    ? item('ok', `${active.length} plan${active.length === 1 ? '' : 's'} on sale` +
+        (plans.length > active.length ? `, ${plans.length - active.length} hidden` : ''), '#plans', 'Plans')
+    : item('bad', 'No plan is on sale — nobody can subscribe', '#plans', 'Add one'));
+  if (active.length && !buyableOnPlay.length) {
+    rows.push(item('bad', 'No active plan has a Play product id — nothing can be bought on Android', '#plans', 'Fix'));
+  }
+  rows.push(item('warn', 'Check that Google Play can verify purchases before taking real money', '#play', 'Run check'));
+  rows.push(item(guide.length ? 'ok' : 'warn',
+    `${guide.length - hiddenGuide} guide section${guide.length - hiddenGuide === 1 ? '' : 's'} shown in the app` +
+    (hiddenGuide ? `, ${hiddenGuide} hidden` : ''), '#guide', 'Edit'));
+  $('attention').innerHTML = rows.join('');
+
+  setReportCount(open);
+}
+
+$('refreshOverview').onclick = () => { loaded.delete('overview'); void show('overview'); };
+
+/* ======================= reports ======================= */
+const REASONS = {
+  underage: 'Under 18',
+  fake_profile: 'Fake profile',
+  harassment: 'Harassment',
+  inappropriate_content: 'Inappropriate content',
+  scam: 'Scam or asking for money',
+  other: 'Other',
+};
+let reportFilter = 'open';
+let reportRows = [];
+
+function setReportCount(n) {
+  $('reportsCount').textContent = n;
+  $('reportsCount').hidden = !n;
+  // The badge arriving widens "Reports" and can push the current tab out of view.
+  keepActiveInView();
+}
+
+/* On a phone the nav is a sideways strip; keep the current tab visible in it. */
+function keepActiveInView() {
+  const a = document.querySelector('.nav a.on');
+  const nav = document.querySelector('.nav');
+  if (!a || nav.scrollWidth <= nav.clientWidth) return;
+  const offset = a.getBoundingClientRect().left - nav.getBoundingClientRect().left;
+  nav.scrollLeft += offset - (nav.clientWidth - a.offsetWidth) / 2;
+}
+
+async function refreshReportCount() {
+  try {
+    const rows = (await call('/admin/reports')).data;
+    setReportCount(rows.filter((r) => r.status === 'open').length);
+  } catch { /* the badge is a convenience; the section itself reports errors */ }
+}
+
+function reportCard(r) {
+  const pill = r.status === 'open' ? 'bad' : r.status === 'actioned' ? 'ok' : 'off';
+  const buttons = r.status === 'open'
+    ? `<button class="small" type="button" data-report="${esc(r.id)}" data-to="actioned">Mark actioned</button>
+       <button class="secondary small" type="button" data-report="${esc(r.id)}" data-to="dismissed">Dismiss</button>`
+    : `<button class="secondary small" type="button" data-report="${esc(r.id)}" data-to="open">Reopen</button>`;
+  return `
+    <div class="card report">
+      <div class="head" style="margin-bottom:.3rem">
+        <span class="pill ${pill}">${esc(r.status.toUpperCase())}</span>
+        <span class="fold-meta">${esc(when(r.created_at))}</span>
+      </div>
+      <div class="why">${esc(REASONS[r.reason] || r.reason)}</div>
+      <div class="who">
+        Reported: <b>${esc(r.reported_email || r.reported_user_id || 'deleted account')}</b><br>
+        By: ${esc(r.reporter_email || 'deleted account')}
+      </div>
+      ${r.details ? `<blockquote>${esc(r.details)}</blockquote>` : ''}
+      <div class="actions">${buttons}</div>
+    </div>`;
+}
+
+function renderReports() {
+  const rows = reportFilter === 'all' ? reportRows : reportRows.filter((r) => r.status === reportFilter);
+  $('reports').innerHTML = rows.length
+    ? rows.map(reportCard).join('')
+    : `<div class="card empty">${reportFilter === 'open' ? 'Nothing waiting. Reports members file in the app appear here.' : 'None.'}</div>`;
+  for (const b of $('reports').querySelectorAll('[data-report]')) {
+    b.onclick = () => setReportStatus(b.getAttribute('data-report'), b.getAttribute('data-to'), b);
+  }
+}
+
+async function loadReports() {
+  reportRows = (await call('/admin/reports')).data;
+  setReportCount(reportRows.filter((r) => r.status === 'open').length);
+  renderReports();
+}
+
+async function setReportStatus(id, status, button) {
+  button.disabled = true;
+  try {
+    await call('/admin/reports/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ status }) });
+    msg(status === 'open' ? 'Report reopened.' : 'Report marked ' + status + '.');
+    await loadReports();
+    loaded.delete('overview');
+  } catch (err) {
+    msg(err.message, 'err');
+    button.disabled = false;
+  }
+}
+
+for (const chip of document.querySelectorAll('[data-filter]')) {
+  chip.onclick = () => {
+    reportFilter = chip.getAttribute('data-filter');
+    for (const c of document.querySelectorAll('[data-filter]')) c.classList.toggle('on', c === chip);
+    renderReports();
+  };
+}
+
+/* ======================= members ======================= */
+let memberPage = 1;
+const MEMBERS_PER_PAGE = 25;
+
+async function loadMembers() {
+  $('membersBody').innerHTML = '<tr><td colspan="8" class="empty">Loading…</td></tr>';
+  const body = (await call(`/admin/users?page=${memberPage}&limit=${MEMBERS_PER_PAGE}`)).data;
+  const users = body.users || [];
+  const { page, pages, total } = body.pagination;
+
+  $('membersBody').innerHTML = users.length
+    ? users.map((u) => {
+        const active = u.subscription_status === 'active' && u.expires_at && new Date(u.expires_at) > new Date();
+        return `<tr>
+          <td>${esc(u.full_name)}</td>
+          <td>${esc(u.email && !u.email.endsWith('@phone.local') ? u.email : '—')}</td>
+          <td class="num">${esc(u.phone || '—')}</td>
+          <td>${esc(u.gender || '—')}</td>
+          <td class="num">${esc(u.age || '—')}</td>
+          <td>${esc(u.location || '—')}</td>
+          <td>${active ? `<span class="pill ok">${esc(u.subscription_plan)}</span> <span class="fold-meta">to ${esc(when(u.expires_at))}</span>` : '<span class="fold-meta">Free</span>'}</td>
+          <td class="num">${esc(when(u.created_at))}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="8" class="empty">No members yet.</td></tr>';
+
+  $('pageInfo').textContent = total ? `Page ${page} of ${pages} · ${total.toLocaleString()} members` : '';
+  $('prevPage').disabled = page <= 1;
+  $('nextPage').disabled = page >= pages;
+}
+
+$('prevPage').onclick = () => { if (memberPage > 1) { memberPage--; void loadMembers().catch((e) => msg(e.message, 'err')); } };
+$('nextPage').onclick = () => { memberPage++; void loadMembers().catch((e) => { memberPage--; msg(e.message, 'err'); }); };
+
+/* ======================= what a plan (or a free gender) unlocks ======================= */
 const CAPABILITIES = [
   ['canViewPhone', 'See contact numbers'],
   ['canSendInterest', 'Send interests'],
@@ -379,7 +893,17 @@ function capsBlock(idPrefix, source, caption) {
   return `<div class="caps"><p class="caps-title">${caption || 'Includes'}</p>${rows}</div>`;
 }
 
-/* ---- rules ---- */
+/* Reads the three Includes checkboxes back for one card. */
+function readCaps(idPrefix) {
+  const out = {};
+  for (const [key] of CAPABILITIES) {
+    const el = $('cap-' + idPrefix + '-' + key);
+    if (el) out[key] = el.checked;
+  }
+  return out;
+}
+
+/* ======================= free access (rules) ======================= */
 function ruleCard(rule) {
   const free = rule.is_free === true;
   const name = rule.gender.charAt(0).toUpperCase() + rule.gender.slice(1);
@@ -410,27 +934,20 @@ function ruleCard(rule) {
       <p class="hint">
         These apply to every member of this gender who has not subscribed — and to all of
         them when Free is on. Once someone subscribes, their plan's switches take over.
-        Price is not set here — it belongs to each plan, below. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.
+        Price is not set here — it belongs to each plan. Updated ${rule.updated_at ? new Date(rule.updated_at).toLocaleString() : 'never'}.
       </p>
     </div>`;
 }
 
 async function loadRules() {
   const body = await call('/admin/subscription-rules');
-  $('signin').hidden = true;
-  $('rules').hidden = false;
   $('rules').innerHTML = body.data.map(ruleCard).join('');
-  $('whoami').textContent = 'Signed in as ' + email + '. Sign-in lasts until you close this tab.';
-
   for (const button of $('rules').querySelectorAll('[data-save]')) {
-    button.onclick = () => save(button.getAttribute('data-save'), button);
+    button.onclick = () => saveRule(button.getAttribute('data-save'), button);
   }
-
-  await loadPlans();
-  await loadGuide();
 }
 
-async function save(gender, button) {
+async function saveRule(gender, button) {
   const isFree = $('free-' + gender).checked;
   const limit = Number($('limit-' + gender).value);
 
@@ -440,12 +957,7 @@ async function save(gender, button) {
   try {
     await call('/admin/subscription-rules/' + gender, {
       method: 'PUT',
-      // The API takes paise; the form takes rupees, which is what you think in.
-      body: JSON.stringify({
-      isFree,
-      freeProfileLimit: limit,
-      ...readCaps('r-' + gender),
-    }),
+      body: JSON.stringify({ isFree, freeProfileLimit: limit, ...readCaps('r-' + gender) }),
     });
     msg(gender.charAt(0).toUpperCase() + gender.slice(1) + ' members updated. Live now.');
     await loadRules();
@@ -456,7 +968,7 @@ async function save(gender, button) {
   }
 }
 
-/* ---- plans ---- */
+/* ======================= plans ======================= */
 /* Who a plan is offered to. Mirrors PLAN_AUDIENCES on the server. */
 const AUDIENCES = [['all', 'Everyone'], ['female', 'Women only'], ['male', 'Men only']];
 
@@ -465,215 +977,87 @@ function audienceSelect(id, value) {
     `<option value="${v}" ${v === (value || 'all') ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
 }
 
-function planCard(plan) {
+/* Which folded cards were open, so a save that re-renders does not snap them shut. */
+function openKeys(container, attr) {
+  return new Set([...container.querySelectorAll('details[open]')].map((d) => d.getAttribute(attr)));
+}
+
+function planCard(plan, isOpen) {
   const rupees = Math.round(Number(plan.pricePaise || 0) / 100);
   const days = Number(plan.durationDays || 0);
   // Per-month makes two plans of different lengths comparable at a glance,
   // which is the whole reason for offering more than one.
   const perMonth = days > 0 ? Math.round((rupees / days) * 30) : 0;
+  const c = esc(plan.code);
 
   return `
-    <div class="card" data-code="${esc(plan.code)}">
-      <div class="head">
-        <div class="plan-head">
-          <h2>${esc(plan.name)}</h2>
-          <code>${esc(plan.code)}</code>
-          ${plan.audience && plan.audience !== 'all'
-            ? `<span class="pill">${plan.audience === 'female' ? 'WOMEN ONLY' : 'MEN ONLY'}</span>` : ''}
+    <details class="card fold" data-code="${c}" ${isOpen ? 'open' : ''}>
+      <summary><span class="fold-main">
+        <span class="fold-title">${esc(plan.name)}</span>
+        <code>${c}</code>
+        <span class="pill ${plan.isActive ? 'ok' : 'off'}">${plan.isActive ? 'ON SALE' : 'HIDDEN'}</span>
+        ${plan.audience && plan.audience !== 'all'
+          ? `<span class="pill aud">${plan.audience === 'female' ? 'WOMEN ONLY' : 'MEN ONLY'}</span>` : ''}
+        <span class="fold-meta">₹${rupees.toLocaleString('en-IN')} / ${days} days · ≈ ₹${perMonth}/mo</span>
+        </span>${CHEVRON}
+      </summary>
+      <div class="fold-body">
+        <div class="switch">
+          <input type="checkbox" id="on-${c}" ${plan.isActive ? 'checked' : ''}>
+          <label for="on-${c}" style="margin:0;color:var(--soft)">Show this plan in the app</label>
         </div>
-        <span class="pill ${plan.isActive ? 'paid' : 'off'}">
-          ${plan.isActive ? '₹' + rupees + ' / ' + days + ' DAYS' : 'HIDDEN'}
-        </span>
+
+        <div class="row">
+          <div>
+            <label for="name-${c}">Name</label>
+            <input type="text" id="name-${c}" value="${esc(plan.name)}">
+          </div>
+          <div>
+            <label for="days-${c}">Length (days)</label>
+            <input type="number" id="days-${c}" min="1" step="1" value="${days}">
+          </div>
+          <div>
+            <label for="price-p-${c}">Price (₹)</label>
+            <input type="number" id="price-p-${c}" min="0" step="1" value="${rupees}">
+          </div>
+          <div>
+            <label for="sort-${c}">Order</label>
+            <input type="number" id="sort-${c}" step="1" value="${Number(plan.sortOrder || 0)}">
+          </div>
+        </div>
+
+        ${capsBlock(plan.code, plan)}
+
+        <div class="row" style="margin-top:.7rem">
+          <div>
+            <label for="prod-${c}">Play product id</label>
+            <input type="text" id="prod-${c}" value="${esc(plan.playProductId)}" placeholder="none — Razorpay only">
+          </div>
+          <div>
+            <label for="badge-${c}">Badge</label>
+            <input type="text" id="badge-${c}" value="${esc(plan.badge)}" placeholder="none">
+          </div>
+          <div>
+            <label for="aud-${c}">Offered to</label>
+            ${audienceSelect('aud-' + c, plan.audience)}
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" data-save-plan="${c}">Save</button>
+          <button type="button" class="danger" data-drop-plan="${c}">Remove</button>
+        </div>
+        <p class="hint">Updated ${plan.updatedAt ? new Date(plan.updatedAt).toLocaleString() : 'never'}.</p>
       </div>
-
-      <div class="switch">
-        <input type="checkbox" id="on-${esc(plan.code)}" ${plan.isActive ? 'checked' : ''}>
-        <label for="on-${esc(plan.code)}" style="margin:0;color:var(--soft)">Show this plan in the app</label>
-      </div>
-
-      <div class="row">
-        <div>
-          <label for="name-${esc(plan.code)}">Name</label>
-          <input type="text" id="name-${esc(plan.code)}" value="${esc(plan.name)}">
-        </div>
-        <div>
-          <label for="days-${esc(plan.code)}">Length (days)</label>
-          <input type="number" id="days-${esc(plan.code)}" min="1" step="1" value="${days}">
-        </div>
-        <div>
-          <label for="price-p-${esc(plan.code)}">Price (₹)</label>
-          <input type="number" id="price-p-${esc(plan.code)}" min="0" step="1" value="${rupees}">
-        </div>
-        <div>
-          <label for="sort-${esc(plan.code)}">Order</label>
-          <input type="number" id="sort-${esc(plan.code)}" step="1" value="${Number(plan.sortOrder || 0)}">
-        </div>
-      </div>
-
-      ${capsBlock(plan.code, plan)}
-
-      <div class="row" style="margin-top:.7rem">
-        <div>
-          <label for="prod-${esc(plan.code)}">Play product id</label>
-          <input type="text" id="prod-${esc(plan.code)}" value="${esc(plan.playProductId)}" placeholder="none — Razorpay only">
-        </div>
-        <div>
-          <label for="badge-${esc(plan.code)}">Badge</label>
-          <input type="text" id="badge-${esc(plan.code)}" value="${esc(plan.badge)}" placeholder="none">
-        </div>
-        <div>
-          <label for="aud-${esc(plan.code)}">Offered to</label>
-          ${audienceSelect('aud-' + esc(plan.code), plan.audience)}
-        </div>
-        <div style="flex:0 0 auto;display:flex;gap:.5rem">
-          <button data-save-plan="${esc(plan.code)}">Save</button>
-          <button class="danger" data-drop-plan="${esc(plan.code)}">Remove</button>
-        </div>
-      </div>
-
-      <p class="hint">
-        <span class="per-day">≈ ₹${perMonth} / month</span> ·
-        Updated ${plan.updatedAt ? new Date(plan.updatedAt).toLocaleString() : 'never'}.
-      </p>
-    </div>`;
-}
-
-/* The three languages, in the order they appear on every card. */
-const GUIDE_LANGS = [['en', 'English'], ['hi', 'Hindi'], ['gu', 'Gujarati']];
-
-/* Title + body inputs for one language, used by both the cards and the add form. */
-function guideFields(prefix, section) {
-  return GUIDE_LANGS.map(([code, label]) => `
-    <div style="margin-top:.8rem">
-      <label for="${prefix}-title-${code}">${label} — title</label>
-      <input type="text" id="${prefix}-title-${code}" value="${esc(section ? section['title_' + code] : '')}">
-      <label for="${prefix}-body-${code}" style="margin-top:.4rem">${label} — text</label>
-      <textarea id="${prefix}-body-${code}" rows="3">${esc(section ? section['body_' + code] : '')}</textarea>
-    </div>
-  `).join('');
-}
-
-function guideCard(section) {
-  const p = 'g-' + section.key;
-  return `
-    <div class="card" data-key="${esc(section.key)}">
-      <div class="head"><h2>${esc(section.title_en)}</h2><code>${esc(section.key)}</code></div>
-      <div class="row">
-        <div>
-          <label for="${p}-icon">Icon</label>
-          <input type="text" id="${p}-icon" value="${esc(section.icon)}">
-        </div>
-        <div>
-          <label for="${p}-sort">Order</label>
-          <input type="number" id="${p}-sort" value="${Number(section.sort_order || 0)}">
-        </div>
-        <div>
-          <label for="${p}-active">Shown in the app</label>
-          <input type="checkbox" id="${p}-active" ${section.is_active ? 'checked' : ''}>
-        </div>
-      </div>
-      ${guideFields(p, section)}
-      <div class="actions">
-        <button type="button" data-save-guide="${esc(section.key)}">Save</button>
-        <button type="button" class="secondary" data-drop-guide="${esc(section.key)}">Delete</button>
-      </div>
-    </div>
-  `;
-}
-
-function readGuideForm(prefix) {
-  const out = {
-    icon: $(prefix + '-icon').value.trim(),
-    sort_order: Number($(prefix + '-sort').value),
-  };
-  for (const [code] of GUIDE_LANGS) {
-    out['title_' + code] = $(prefix + '-title-' + code).value.trim();
-    out['body_' + code] = $(prefix + '-body-' + code).value.trim();
-  }
-  // Checked here as well as on the server so the admin is told which language
-  // is missing before the round trip, rather than after.
-  const blank = GUIDE_LANGS
-    .filter(([code]) => !out['title_' + code] || !out['body_' + code])
-    .map(([, label]) => label);
-  if (blank.length) return { error: 'Fill in every language. Missing: ' + blank.join(', ') };
-  if (!Number.isInteger(out.sort_order)) return { error: 'Order must be a whole number.' };
-  return { value: out };
-}
-
-async function loadGuide() {
-  const body = await call('/admin/guide');
-  $('guideWrap').hidden = false;
-  $('guide').innerHTML = body.data.map(guideCard).join('');
-  $('g-new-fields').innerHTML = guideFields('g-new', null);
-
-  for (const button of $('guide').querySelectorAll('[data-save-guide]')) {
-    button.onclick = () => saveGuide(button.getAttribute('data-save-guide'), button);
-  }
-  for (const button of $('guide').querySelectorAll('[data-drop-guide]')) {
-    button.onclick = () => dropGuide(button.getAttribute('data-drop-guide'), button);
-  }
-  $('g-add').onclick = () => addGuide();
-}
-
-async function saveGuide(key, button) {
-  const form = readGuideForm('g-' + key);
-  if (form.error) return msg(form.error, 'err');
-
-  button.disabled = true;
-  try {
-    await call('/admin/guide/' + encodeURIComponent(key), {
-      method: 'PUT',
-      body: JSON.stringify({ ...form.value, is_active: $('g-' + key + '-active').checked }),
-    });
-    msg('Saved "' + key + '". Members see it the next time they open the guide.', 'ok');
-    await loadGuide();
-  } catch (err) {
-    msg(err.message, 'err');
-  } finally {
-    button.disabled = false;
-  }
-}
-
-async function addGuide() {
-  const key = $('g-new-key').value.trim().toLowerCase();
-  if (!/^[a-z0-9_-]{2,40}$/.test(key)) {
-    return msg('Key must be 2-40 characters: letters, numbers, - or _', 'err');
-  }
-  const form = readGuideForm('g-new');
-  if (form.error) return msg(form.error, 'err');
-
-  try {
-    await call('/admin/guide/' + encodeURIComponent(key), {
-      method: 'PUT',
-      body: JSON.stringify({ ...form.value, is_active: true }),
-    });
-    $('g-new-key').value = '';
-    $('g-new-icon').value = '';
-    msg('Added "' + key + '".', 'ok');
-    await loadGuide();
-  } catch (err) {
-    msg(err.message, 'err');
-  }
-}
-
-async function dropGuide(key, button) {
-  if (!confirm('Delete the "' + key + '" section from the guide?')) return;
-  button.disabled = true;
-  try {
-    await call('/admin/guide/' + encodeURIComponent(key), { method: 'DELETE' });
-    msg('Deleted "' + key + '".', 'ok');
-    await loadGuide();
-  } catch (err) {
-    msg(err.message, 'err');
-  } finally {
-    button.disabled = false;
-  }
+    </details>`;
 }
 
 async function loadPlans() {
+  const wasOpen = openKeys($('plans'), 'data-code');
   const body = await call('/admin/plans');
-  $('plansWrap').hidden = false;
-  $('plans').innerHTML = body.data.map(planCard).join('');
+  $('plans').innerHTML = body.data.length
+    ? body.data.map((p) => planCard(p, wasOpen.has(p.code))).join('')
+    : '<div class="card empty">No plans yet. Nobody can subscribe until you add one.</div>';
 
   for (const button of $('plans').querySelectorAll('[data-save-plan]')) {
     button.onclick = () => savePlan(button.getAttribute('data-save-plan'), button);
@@ -681,16 +1065,6 @@ async function loadPlans() {
   for (const button of $('plans').querySelectorAll('[data-drop-plan]')) {
     button.onclick = () => dropPlan(button.getAttribute('data-drop-plan'), button);
   }
-}
-
-/* Reads the three Includes checkboxes back for one card. */
-function readCaps(idPrefix) {
-  const out = {};
-  for (const [key] of CAPABILITIES) {
-    const el = $('cap-' + idPrefix + '-' + key);
-    if (el) out[key] = el.checked;
-  }
-  return out;
 }
 
 function readPlanForm(prefixes) {
@@ -734,6 +1108,7 @@ async function savePlan(code, button) {
       body: JSON.stringify(form.body),
     });
     msg(form.body.name + ' updated. Live now.');
+    loaded.delete('overview');
     await loadPlans();
   } catch (err) {
     msg(err.message, 'err');
@@ -752,6 +1127,7 @@ async function dropPlan(code, button) {
     msg(body.data.removed
       ? 'Plan removed.'
       : 'Members are subscribed on this plan, so it is hidden from the app rather than deleted.');
+    loaded.delete('overview');
     await loadPlans();
   } catch (err) {
     msg(err.message, 'err');
@@ -759,6 +1135,12 @@ async function dropPlan(code, button) {
     button.disabled = false;
   }
 }
+
+$('toggleAddPlan').onclick = () => {
+  $('addPlanCard').hidden = !$('addPlanCard').hidden;
+  if (!$('addPlanCard').hidden) $('new-code').focus();
+};
+$('cancelAddPlan').onclick = () => { $('addPlanCard').hidden = true; };
 
 $('addPlan').onclick = async () => {
   const code = $('new-code').value.trim().toLowerCase();
@@ -786,6 +1168,8 @@ $('addPlan').onclick = async () => {
     }
     for (const [key] of CAPABILITIES) $('cap-new-' + key).checked = true;
     $('new-audience').value = 'all';
+    $('addPlanCard').hidden = true;
+    loaded.delete('overview');
     await loadPlans();
   } catch (err) {
     msg(err.message, 'err');
@@ -794,7 +1178,166 @@ $('addPlan').onclick = async () => {
   }
 };
 
-/* ---- google play connection ---- */
+/* ======================= app guide ======================= */
+/* The three languages, in the order they appear on every card. */
+const GUIDE_LANGS = [['en', 'English'], ['hi', 'Hindi'], ['gu', 'Gujarati']];
+
+/* Title + body inputs for one language, used by both the cards and the add form. */
+function guideFields(prefix, section) {
+  return GUIDE_LANGS.map(([code, label]) => `
+    <div style="margin-top:.8rem">
+      <label for="${prefix}-title-${code}">${label} — title</label>
+      <input type="text" id="${prefix}-title-${code}" value="${esc(section ? section['title_' + code] : '')}">
+      <label for="${prefix}-body-${code}" style="margin-top:.4rem">${label} — text</label>
+      <textarea id="${prefix}-body-${code}" rows="3">${esc(section ? section['body_' + code] : '')}</textarea>
+    </div>
+  `).join('');
+}
+
+function guideCard(section, isOpen) {
+  const k = esc(section.key);
+  const p = 'g-' + section.key;
+  return `
+    <details class="card fold" data-key="${k}" ${isOpen ? 'open' : ''}>
+      <summary><span class="fold-main">
+        <span class="fold-meta">${Number(section.sort_order || 0)}</span>
+        <span class="fold-title">${esc(section.title_en)}</span>
+        <code>${k}</code>
+        <span class="pill ${section.is_active ? 'ok' : 'off'}">${section.is_active ? 'SHOWN' : 'HIDDEN'}</span>
+        </span>${CHEVRON}
+      </summary>
+      <div class="fold-body">
+        <div class="row">
+          <div>
+            <label for="${p}-icon">Icon</label>
+            <input type="text" id="${p}-icon" value="${esc(section.icon)}">
+          </div>
+          <div>
+            <label for="${p}-sort">Order</label>
+            <input type="number" id="${p}-sort" value="${Number(section.sort_order || 0)}">
+          </div>
+          <div>
+            <div class="switch" style="margin:0 0 .55rem">
+              <input type="checkbox" id="${p}-active" ${section.is_active ? 'checked' : ''}>
+              <label for="${p}-active" style="margin:0;color:var(--soft)">Shown in the app</label>
+            </div>
+          </div>
+        </div>
+        ${guideFields(p, section)}
+        <div class="actions">
+          <button type="button" data-save-guide="${k}">Save</button>
+          <button type="button" class="danger" data-drop-guide="${k}">Delete</button>
+        </div>
+      </div>
+    </details>`;
+}
+
+function readGuideForm(prefix) {
+  const out = {
+    icon: $(prefix + '-icon').value.trim(),
+    sort_order: Number($(prefix + '-sort').value),
+  };
+  for (const [code] of GUIDE_LANGS) {
+    out['title_' + code] = $(prefix + '-title-' + code).value.trim();
+    out['body_' + code] = $(prefix + '-body-' + code).value.trim();
+  }
+  // Checked here as well as on the server so the admin is told which language
+  // is missing before the round trip, rather than after.
+  const blank = GUIDE_LANGS
+    .filter(([code]) => !out['title_' + code] || !out['body_' + code])
+    .map(([, label]) => label);
+  if (blank.length) return { error: 'Fill in every language. Missing: ' + blank.join(', ') };
+  if (!Number.isInteger(out.sort_order)) return { error: 'Order must be a whole number.' };
+  return { value: out };
+}
+
+async function loadGuide() {
+  const wasOpen = openKeys($('guide'), 'data-key');
+  const body = await call('/admin/guide');
+  $('guide').innerHTML = body.data.length
+    ? body.data.map((g) => guideCard(g, wasOpen.has(g.key))).join('')
+    : '<div class="card empty">No guide sections yet.</div>';
+  if (!$('g-new-fields').innerHTML) $('g-new-fields').innerHTML = guideFields('g-new', null);
+
+  for (const button of $('guide').querySelectorAll('[data-save-guide]')) {
+    button.onclick = () => saveGuide(button.getAttribute('data-save-guide'), button);
+  }
+  for (const button of $('guide').querySelectorAll('[data-drop-guide]')) {
+    button.onclick = () => dropGuide(button.getAttribute('data-drop-guide'), button);
+  }
+}
+
+async function saveGuide(key, button) {
+  const form = readGuideForm('g-' + key);
+  if (form.error) return msg(form.error, 'err');
+
+  button.disabled = true;
+  try {
+    await call('/admin/guide/' + encodeURIComponent(key), {
+      method: 'PUT',
+      body: JSON.stringify({ ...form.value, is_active: $('g-' + key + '-active').checked }),
+    });
+    msg('Saved "' + key + '". Members see it the next time they open the guide.');
+    loaded.delete('overview');
+    await loadGuide();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+$('toggleAddGuide').onclick = () => {
+  if (!$('g-new-fields').innerHTML) $('g-new-fields').innerHTML = guideFields('g-new', null);
+  $('addGuideCard').hidden = !$('addGuideCard').hidden;
+  if (!$('addGuideCard').hidden) $('g-new-key').focus();
+};
+$('cancelAddGuide').onclick = () => { $('addGuideCard').hidden = true; };
+
+$('g-add').onclick = async () => {
+  const key = $('g-new-key').value.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{2,40}$/.test(key)) {
+    return msg('Key must be 2-40 characters: letters, numbers, - or _', 'err');
+  }
+  const form = readGuideForm('g-new');
+  if (form.error) return msg(form.error, 'err');
+
+  $('g-add').disabled = true;
+  try {
+    await call('/admin/guide/' + encodeURIComponent(key), {
+      method: 'PUT',
+      body: JSON.stringify({ ...form.value, is_active: true }),
+    });
+    $('g-new-key').value = '';
+    $('g-new-icon').value = '';
+    $('g-new-fields').innerHTML = guideFields('g-new', null);
+    $('addGuideCard').hidden = true;
+    msg('Added "' + key + '".');
+    loaded.delete('overview');
+    await loadGuide();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('g-add').disabled = false;
+  }
+};
+
+async function dropGuide(key, button) {
+  if (!confirm('Delete the "' + key + '" section from the guide?')) return;
+  button.disabled = true;
+  try {
+    await call('/admin/guide/' + encodeURIComponent(key), { method: 'DELETE' });
+    msg('Deleted "' + key + '".');
+    loaded.delete('overview');
+    await loadGuide();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+/* ======================= google play ======================= */
 function chk(state, what, detail) {
   const mark = state === true ? '✓' : state === 'warn' ? '!' : '✗';
   const cls = state === true ? 'ok' : state === 'warn' ? 'warn' : 'bad';
@@ -869,11 +1412,14 @@ async function runPlayCheck() {
 
 $('runPlayCheck').onclick = () => void runPlayCheck();
 
+/* ======================= start ======================= */
 /* A stored token may have expired or belong to a non-admin. */
 if (token) {
-  loadRules().catch(() => {
+  enterApp().catch(() => {
     token = '';
     sessionStorage.removeItem('cs_admin_token');
+    $('app').hidden = true;
+    $('signin').hidden = false;
   });
 }
 </script>

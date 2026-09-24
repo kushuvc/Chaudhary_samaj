@@ -84,7 +84,7 @@ describe('admin subscriptions page', () => {
     const res = await fetch(`${server.base}/admin`)
     assert.equal(res.status, 200, 'the page itself is public, like a login page')
     const html = await res.text()
-    assert.match(html, /Subscriptions/)
+    assert.match(html, /Chaudhary Samaj Admin/)
     assert.match(html, /noindex/, 'an admin screen should not be indexed')
   })
 

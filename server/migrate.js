@@ -119,6 +119,10 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(status)`,
   // Widen the OTP purposes to admit password resets. The constraint is
   // recreated rather than altered because Postgres has no ALTER CHECK.
+  // Set only when a code is entered correctly. consumed_at cannot stand in for
+  // it: requesting a fresh code also marks the old one consumed, so it says a
+  // code is spent, not that anyone proved they could read it.
+  `ALTER TABLE auth_email_otps ADD COLUMN IF NOT EXISTS verified_at TEXT`,
   `ALTER TABLE auth_email_otps DROP CONSTRAINT IF EXISTS auth_email_otps_purpose_check`,
   `ALTER TABLE auth_email_otps ADD CONSTRAINT auth_email_otps_purpose_check
      CHECK (purpose IN ('signup', 'login', 'reset'))`,

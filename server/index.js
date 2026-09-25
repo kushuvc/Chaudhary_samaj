@@ -474,6 +474,29 @@ app.post('/api/auth/signup', async (request, response) => {
       }
     }
 
+    /*
+     * The email must have passed the code check.
+     *
+     * The app asks for the emailed code before this, but checking the code and
+     * creating the account were separate requests with nothing joining them —
+     * so anything calling this route directly could register any address,
+     * including one that does not exist, without a code at all.
+     *
+     * The proof is a correctly entered signup code for this address in the
+     * last 24 hours. Recorded on the server rather than passed back by the
+     * app, so the builds already installed keep working unchanged. A day is
+     * long enough for someone to finish the signup steps later, and short
+     * enough that an old verification is not a standing pass.
+     */
+    if (createAccount && !(await emailRecentlyVerifiedForSignup(email))) {
+      response.status(403).json({
+        success: false,
+        code: 'EMAIL_NOT_VERIFIED',
+        error: 'Please verify your email address with the code we sent before creating an account.',
+      })
+      return
+    }
+
     const numericAgeInput = Number(age)
     /*
      * Refuse anyone under 18.
@@ -655,6 +678,20 @@ app.post('/api/auth/signup', async (request, response) => {
  * blocks the worker. Same rules: newest unconsumed code for the address and
  * purpose, capped attempts, expiry, and single use.
  */
+/** True if a signup code for this address was entered correctly in the last day. */
+async function emailRecentlyVerifiedForSignup(email) {
+  const rows = await pgQuery(
+    `SELECT 1 FROM auth_email_otps
+      WHERE lower(email) = lower($1)
+        AND purpose = 'signup'
+        AND verified_at IS NOT NULL
+        AND verified_at::timestamptz > NOW() - INTERVAL '24 hours'
+      LIMIT 1`,
+    [String(email || '').trim()]
+  )
+  return rows.length > 0
+}
+
 async function verifyEmailOtpAsync(email, purpose, otpCode) {
   const normalizedEmail = String(email || '').trim().toLowerCase()
   const normalizedPurpose = String(purpose || '').trim().toLowerCase()
@@ -696,8 +733,10 @@ async function verifyEmailOtpAsync(email, purpose, otpCode) {
   }
 
   // Single use: consuming it here means a replay cannot verify twice.
-  await pgQuery('UPDATE auth_email_otps SET consumed_at = $1 WHERE id = $2', [
-    new Date().toISOString(),
+  // verified_at records that this was a correct code, which signup relies on.
+  const verifiedAt = new Date().toISOString()
+  await pgQuery('UPDATE auth_email_otps SET consumed_at = $1, verified_at = $1 WHERE id = $2', [
+    verifiedAt,
     row.id,
   ])
 

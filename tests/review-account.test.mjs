@@ -40,9 +40,9 @@ describe('review account enabled', () => {
     assert.ok(!res.body.data.debugOtp, 'must not hand back a code')
 
     const rows = await server.sql(
-      'SELECT id FROM auth_email_otps WHERE lower(email) = lower($1)', [REVIEW_EMAIL]
+      `SELECT id FROM auth_email_otps WHERE lower(email) = lower($1) AND purpose = 'login'`, [REVIEW_EMAIL]
     )
-    assert.equal(rows.length, 0, 'no stored code should be created for the review account')
+    assert.equal(rows.length, 0, 'no stored login code should be created for the review account')
   })
 
   test('the fixed code signs the reviewer in', async () => {

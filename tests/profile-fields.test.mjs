@@ -1,6 +1,6 @@
 import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { startServer, signUpUser } from './helpers/harness.mjs'
+import { startServer, signUpUser, markEmailVerified } from './helpers/harness.mjs'
 
 let server
 let viewer
@@ -21,6 +21,7 @@ after(async () => { await server?.stop() })
 /** Signs up with everything the real signup flow collects. */
 async function fullSignup(overrides = {}) {
   const email = `full${Math.random().toString(36).slice(2, 9)}@example.com`
+  await markEmailVerified(server, email)
   const res = await server.request('POST', '/api/auth/signup', {
     body: {
       fullName: 'Full Profile',

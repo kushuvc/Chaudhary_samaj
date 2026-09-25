@@ -141,6 +141,14 @@ export async function signUpUser(server, overrides = {}) {
   const phone = overrides.phone || `9${Math.floor(100000000 + Math.random() * 899999999)}`
   const password = overrides.password || 'testpass123'
 
+  // Signup refuses an address whose code was never entered. Recorded straight
+  // into the database rather than through the code endpoints: going through
+  // them would spend the per-address cooldown and hourly cap that other tests
+  // are measuring, and a production-mode server never hands a code back.
+  // tests/signup-verification.test.mjs covers the real two-step flow.
+  if (!overrides.skipEmailVerification) await markEmailVerified(server, email)
+  delete overrides.skipEmailVerification
+
   const res = await server.request('POST', '/api/auth/signup', {
     body: {
       fullName: 'Test User',
@@ -171,6 +179,25 @@ export async function signUpUser(server, overrides = {}) {
 }
 
 /** Requests an OTP and returns the debug code (non-production only). */
+/** Record a correctly entered signup code for an address, as a test fixture. */
+export async function markEmailVerified(server, email) {
+  await server.sql(
+    `INSERT INTO auth_email_otps (id, email, purpose, otp_code, expires_at, created_at, consumed_at, verified_at)
+     VALUES (gen_random_uuid()::text, $1, 'signup', '000000', NOW()::text, NOW()::text, NOW()::text, NOW()::text)`,
+    [email],
+  )
+}
+
+/** Request and enter a signup code for an address, as the app does before signup. */
+export async function verifySignupEmail(server, email) {
+  const { res, code } = await getOtp(server, email, 'signup')
+  if (!code) throw new Error(`no signup code for ${email}: ${JSON.stringify(res.body)}`)
+  const verified = await server.request('POST', '/api/auth/otp/verify', {
+    body: { email, purpose: 'signup', otp: code },
+  })
+  if (verified.status !== 200) throw new Error(`signup code rejected: ${JSON.stringify(verified.body)}`)
+}
+
 export async function getOtp(server, email, purpose, extra = {}) {
   const res = await server.request('POST', '/api/auth/otp/request', {
     body: { email, purpose, ...extra },

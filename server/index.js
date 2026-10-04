@@ -65,6 +65,7 @@ import {
   isExpoPushToken, registerPushToken, removePushToken, notifyUsers,
   notifyInBackground, pushInBackground, newBroadcastId,
   welcomeNewMember, pushWelcomeIfFirstDevice, startPlanExpiryReminders, sendPlanExpiryReminders,
+  notifyProfileViewed,
 } from './push.js'
 import {
   authAccountExistsByEmailFast,
@@ -2548,6 +2549,11 @@ app.post('/api/matrimony/profiles/:id/view', async (request, response) => {
         actionType: 'view',
       }),
     ])
+
+    const [owner] = await pgQuery('SELECT user_id FROM matrimony_profiles WHERE id = $1', [request.params.id])
+    notifyProfileViewed(activeUserId, owner?.user_id).catch((err) =>
+      console.error('[notify] profile view failed:', err.message)
+    )
 
     response.json({ success: true })
   } catch (err) {

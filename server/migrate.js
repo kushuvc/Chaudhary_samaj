@@ -322,6 +322,15 @@ const migrations = [
     sent_at TEXT NOT NULL,
     PRIMARY KEY (user_id, expires_at, kind)
   )`,
+  // One "viewed your profile" notice per viewer, per owner, per day — opening
+  // a profile five times is one notice, not five.
+  `CREATE TABLE IF NOT EXISTS profile_view_notices (
+    viewer_id TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    PRIMARY KEY (viewer_id, owner_id, day)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_profile_view_notices_owner_day ON profile_view_notices(owner_id, day)`,
   // What the admin sent, to whom, and how far it got.
   `CREATE TABLE IF NOT EXISTS notification_broadcasts (
     id TEXT PRIMARY KEY,

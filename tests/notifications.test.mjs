@@ -252,3 +252,44 @@ describe('welcome and plan expiry', () => {
     assert.equal((await expiring(member)).length, 0)
   })
 })
+
+describe('profile viewed', () => {
+  const view = (viewer, profileId) =>
+    server.request('POST', `/api/matrimony/profiles/${profileId}/view`, { token: viewer.token })
+  const views = async (member) =>
+    (await list(member)).body.data.filter((n) => n.type === 'profile_viewed')
+  const settle = () => new Promise((r) => setTimeout(r, 300))
+
+  test('the owner is told, once per viewer per day', async () => {
+    const him = await signUpUser(server, { gender: 'male' })
+    const her = await signUpUser(server, { gender: 'female' })
+    const herProfile = await profileIdOf(her.userId)
+
+    await view(him, herProfile)
+    await settle()
+    await view(him, herProfile)
+    await settle()
+
+    const got = await views(her)
+    assert.equal(got.length, 1)
+    assert.equal(got[0].data.screen, 'Matrimony')
+  })
+
+  test('looking at your own profile tells no one', async () => {
+    const her = await signUpUser(server, { gender: 'female' })
+    await view(her, await profileIdOf(her.userId))
+    await settle()
+    assert.equal((await views(her)).length, 0)
+  })
+
+  test('a busy day is capped', async () => {
+    const her = await signUpUser(server, { gender: 'female' })
+    const herProfile = await profileIdOf(her.userId)
+    for (let i = 0; i < 7; i++) {
+      const viewer = await signUpUser(server, { gender: 'male' })
+      await view(viewer, herProfile)
+      await settle()
+    }
+    assert.equal((await views(her)).length, 5)
+  })
+})

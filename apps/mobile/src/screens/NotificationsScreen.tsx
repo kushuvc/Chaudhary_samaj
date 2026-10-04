@@ -22,6 +22,9 @@ const TAB_SCREENS = new Set(['Home', 'Matrimony', 'Interests', 'Messages', 'Subs
 function iconFor(type: string): keyof typeof Ionicons.glyphMap {
   if (type === 'interest_received') return 'heart-outline';
   if (type === 'interest_accepted') return 'heart';
+  if (type === 'profile_viewed') return 'eye-outline';
+  if (type === 'plan_expiring') return 'time-outline';
+  if (type === 'welcome') return 'sparkles-outline';
   return 'megaphone-outline';
 }
 

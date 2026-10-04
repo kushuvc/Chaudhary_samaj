@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import type { PressableProps, ViewStyle } from 'react-native';
 
 /**
@@ -105,9 +105,30 @@ export function PressableScale({
   const to = (value: number) =>
     Animated.spring(scale, { toValue: value, useNativeDriver: true, friction: 6, tension: 260 }).start();
 
+  /*
+   * How the button sits in its row belongs on the Pressable, not the inner
+   * view. With flex: 1 only on the inner view, the Pressable sized itself to
+   * its content and the inner view had no room to grow into — buttons that
+   * were meant to share a row equally came out as narrow, collapsed boxes.
+   */
+  const flat = (StyleSheet.flatten(style) || {}) as ViewStyle;
+  const {
+    flex, flexGrow, flexShrink, flexBasis, alignSelf, width, minWidth, maxWidth,
+    margin, marginHorizontal, marginVertical, marginTop, marginBottom, marginLeft, marginRight,
+    position, top, bottom, left, right, zIndex,
+    ...inner
+  } = flat;
+  const outer: ViewStyle = {
+    flex, flexGrow, flexShrink, flexBasis, alignSelf, width, minWidth, maxWidth,
+    margin, marginHorizontal, marginVertical, marginTop, marginBottom, marginLeft, marginRight,
+    position, top, bottom, left, right, zIndex,
+  };
+  const fills = flex !== undefined || flexGrow !== undefined || width !== undefined;
+
   return (
     <Pressable
       {...rest}
+      style={outer}
       onPressIn={(event) => {
         if (!reduced) to(scaleTo);
         rest.onPressIn?.(event);
@@ -117,7 +138,7 @@ export function PressableScale({
         rest.onPressOut?.(event);
       }}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
+      <Animated.View style={[inner, fills && { flexGrow: 1 }, { transform: [{ scale }] }]}>{children}</Animated.View>
     </Pressable>
   );
 }

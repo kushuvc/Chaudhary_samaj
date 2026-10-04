@@ -186,6 +186,12 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
     loadProfile();
   }, [loadProfile]);
 
+  // Record the view once per opening. The endpoint existed but nothing called
+  // it, so views were never counted and the owner could not be told.
+  useEffect(() => {
+    void api.markMatrimonyViewed(profileId).catch(() => {});
+  }, [profileId]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadProfile();

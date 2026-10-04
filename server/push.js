@@ -136,6 +136,42 @@ export function pushInBackground(userIds, payload) {
   pushToUsers(userIds, payload).catch((err) => console.error('[push] failed:', err.message))
 }
 
+/** Most "viewed your profile" notices a member gets in one day. */
+const MAX_VIEW_NOTICES_PER_DAY = 5
+
+/**
+ * Tells a member someone looked at their profile.
+ *
+ * Once per viewer per day, and at most a handful a day in total: a popular
+ * profile would otherwise buzz all evening. Views beyond the cap still count,
+ * they just do not notify.
+ */
+export async function notifyProfileViewed(viewerId, ownerId) {
+  if (!viewerId || !ownerId || viewerId === ownerId) return
+  const day = new Date().toISOString().slice(0, 10)
+
+  const [{ n } = { n: 0 }] = await pgQuery(
+    'SELECT COUNT(*)::int AS n FROM profile_view_notices WHERE owner_id = $1 AND day = $2',
+    [ownerId, day]
+  )
+  if (n >= MAX_VIEW_NOTICES_PER_DAY) return
+
+  const claimed = await pgQuery(
+    `INSERT INTO profile_view_notices (viewer_id, owner_id, day) VALUES ($1, $2, $3)
+     ON CONFLICT DO NOTHING RETURNING viewer_id`,
+    [viewerId, ownerId, day]
+  )
+  if (!claimed.length) return
+
+  const [viewer] = await pgQuery('SELECT full_name FROM users WHERE id = $1', [viewerId])
+  await notifyUsers([ownerId], {
+    type: 'profile_viewed',
+    title: 'Someone viewed your profile',
+    body: `${viewer?.full_name || 'A member'} viewed your profile. Take a look at theirs.`,
+    data: { screen: 'Matrimony' },
+  })
+}
+
 const WELCOME = {
   type: 'welcome',
   title: 'Welcome to Chaudhary Samaj',
@@ -230,7 +266,9 @@ export async function sendPlanExpiryReminders() {
 
 /** Checks hourly, and once shortly after start. Off under test; tests call it directly. */
 export function startPlanExpiryReminders() {
-  if (process.env.NODE_ENV === 'test') return
+  // REMINDERS=off for a development server pointed at the live database, so
+  // a laptop never sends real members their reminders.
+  if (process.env.NODE_ENV === 'test' || process.env.REMINDERS === 'off') return
   const run = () =>
     sendPlanExpiryReminders()
       .then((n) => { if (n) console.log(`[reminders] plan expiry reminders sent: ${n}`) })

@@ -263,6 +263,30 @@ const migrations = [
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_view_phone BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_send_interest BOOLEAN NOT NULL DEFAULT true`,
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_chat BOOLEAN NOT NULL DEFAULT true`,
+  // Contact numbers without a match. Unlike the three above this defaults to
+  // false: switching it on hands strangers' numbers to a plan's buyers, so it
+  // has to be a deliberate choice in the admin panel, never a side effect of a
+  // deploy.
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_view_phone_unmatched BOOLEAN NOT NULL DEFAULT false`,
+  // Lets a plan's members hide their own number. Off by default for the same
+  // reason: everyone agrees to share at signup, and hiding is what a plan sells.
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS can_hide_phone BOOLEAN NOT NULL DEFAULT false`,
+  /*
+   * Phone sharing is on unless a member turns it off.
+   *
+   * The column defaulted to false, but nothing read it, so "off" was never a
+   * choice anyone made — it was what the settings screen showed before a
+   * member touched it. Members now agree to share at signup, and the number
+   * is withheld only when they switch it off on a plan that allows that.
+   *
+   * The marker makes the reset run once: rows that exist now start unmarked
+   * and are reset, then the default flips so rows created later are marked
+   * and keep whatever the member chose.
+   */
+  `ALTER TABLE user_settings ALTER COLUMN privacy_show_phone SET DEFAULT true`,
+  `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS phone_share_seeded BOOLEAN NOT NULL DEFAULT false`,
+  `UPDATE user_settings SET privacy_show_phone = true, phone_share_seeded = true WHERE phone_share_seeded = false`,
+  `ALTER TABLE user_settings ALTER COLUMN phone_share_seeded SET DEFAULT true`,
   // Who a plan is offered to: 'all', 'female' or 'male'. Defaults to 'all' so
   // every plan that exists today stays on sale to everyone it is now.
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'all'`,

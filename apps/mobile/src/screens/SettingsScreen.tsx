@@ -125,6 +125,44 @@ export function SettingsScreen() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // Phone sharing is the server's setting, not this device's: the server is
+  // what hands numbers out. Shared until it says otherwise.
+  const [phoneShared, setPhoneShared] = useState(true);
+  const [canHidePhone, setCanHidePhone] = useState(false);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void api
+      .getPhoneSharing()
+      .then((value) => {
+        if (!active) return;
+        setPhoneShared(value.showPhone);
+        setCanHidePhone(value.canHidePhone);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const togglePhoneSharing = async (next: boolean) => {
+    if (phoneBusy) return;
+    if (!next && !canHidePhone) {
+      showAlert(t('setPhoneHideLockedTitle'), t('setPhoneHideLockedBody'));
+      return;
+    }
+    setPhoneBusy(true);
+    setPhoneShared(next);
+    try {
+      await api.setPhoneSharing(next);
+    } catch (err) {
+      setPhoneShared(!next);
+      showAlert(t('lblFailed'), (err as Error).message || t('setSaveFailed'));
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
 
   const currentLangOption = LANGUAGE_OPTIONS.find((o) => o.key === (language ?? 'en-IN'));
 
@@ -312,11 +350,23 @@ export function SettingsScreen() {
 
       <SectionCard>
         <Text style={[styles.sectionTitle, { color: palette.text }]}>{t('privacyAndSecurity')}</Text>
-        <Pressable style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]} onPress={() => togglePrivacy('showPhoneToConnections')}>
-          <Text style={[styles.rowLabel, { color: palette.text }]}>{t('showPhoneToConnections')}</Text>
+        <Pressable
+          style={[styles.row, { borderColor: palette.border, backgroundColor: palette.surface }]}
+          onPress={() => void togglePhoneSharing(!phoneShared)}
+          disabled={phoneBusy}
+        >
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={[styles.rowLabel, { color: palette.text }]}>{t('showPhoneToConnections')}</Text>
+            {!canHidePhone ? (
+              <Text style={{ fontSize: 12.5, lineHeight: 18, marginTop: 2, color: palette.muted }}>
+                {t('setPhoneHideOnPlans')}
+              </Text>
+            ) : null}
+          </View>
           <Switch
-            value={privacy.showPhoneToConnections}
-            onValueChange={() => togglePrivacy('showPhoneToConnections')}
+            value={phoneShared}
+            onValueChange={(next) => void togglePhoneSharing(next)}
+            disabled={phoneBusy}
             trackColor={{ false: palette.border, true: palette.primary }}
           />
         </Pressable>

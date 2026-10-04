@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
 import { Callout, Field, Input, PrimaryButton, StepScaffold, TextButton } from '../components/ui';
 import { api } from '../services/api';
 import { useAppLanguage } from '../context/LanguageContext';
+
+// The public site, not the API host: these pages must open the same for
+// someone who has not signed up yet.
+const TERMS_URL = 'https://www.chaudharysamaj.com/terms';
+const PRIVACY_URL = 'https://www.chaudharysamaj.com/privacy-policy';
+
+const openLegal = (url: string) => {
+  Linking.openURL(url).catch(() => {});
+};
 
 export interface BasicDetailsData {
   fullName: string;
@@ -217,11 +226,34 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
           {agreeToTerms ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
         </View>
         <Text style={styles.termsLabel}>
-          {t('suTermsAgree')}<Text style={styles.termsLink}>{t('suTermsConditions')}</Text>
+          {t('suTermsAgree')}
+          {/* A nested Text with its own onPress takes the tap, so the links
+              open the page without also toggling the box. */}
+          <Text style={styles.termsLink} onPress={() => openLegal(TERMS_URL)} accessibilityRole="link">
+            {t('suTermsConditions')}
+          </Text>
           {t('suTermsAnd')}
-          <Text style={styles.termsLink}>{t('suTermsPrivacy')}</Text>
+          <Text style={styles.termsLink} onPress={() => openLegal(PRIVACY_URL)} accessibilityRole="link">
+            {t('suTermsPrivacy')}
+          </Text>
+          {t('suTermsIncluding')}
         </Text>
       </Pressable>
+      {/*
+        * Spelled out under the tick rather than buried in a policy page: the
+        * two terms a member most needs to know before joining are that a plan
+        * is not refunded and that their number and details are seen by others.
+        */}
+      <View style={styles.termsPoints}>
+        <View style={styles.termsPoint}>
+          <Ionicons name="card-outline" size={16} color={palette.textSoft} />
+          <Text style={styles.termsPointText}>{t('suTermsNoRefund')}</Text>
+        </View>
+        <View style={styles.termsPoint}>
+          <Ionicons name="people-outline" size={16} color={palette.textSoft} />
+          <Text style={styles.termsPointText}>{t('suTermsShareData')}</Text>
+        </View>
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </StepScaffold>
@@ -270,6 +302,22 @@ function createStyles(palette: ThemePalette) {
       fontSize: 13.5,
       lineHeight: 20,
       color: palette.muted,
+    },
+    termsPoints: {
+      marginLeft: 34,
+      marginTop: -4,
+      gap: 8,
+    },
+    termsPoint: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    termsPointText: {
+      flex: 1,
+      fontSize: 13,
+      lineHeight: 19,
+      color: palette.textSoft,
     },
     termsLink: {
       color: palette.primary,

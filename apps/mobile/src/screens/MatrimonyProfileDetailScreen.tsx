@@ -254,12 +254,16 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
   };
 
   const handleShowPhoneNumber = async () => {
+    const planHasNoNumbers = () => showAlert(t('alertPremiumFeature'), t('mpUpgradePhone'));
+
     if (!capabilities.canViewPhone) {
-      showAlert(t('alertPremiumFeature'), t('mpUpgradePhone'));
+      planHasNoNumbers();
       return;
     }
 
-    if (profile?.interestStatus === 'accepted') {
+    // Some plans include numbers without a match; those skip the
+    // accepted-interest requirement here as they do on the server.
+    if (profile?.interestStatus === 'accepted' || capabilities.canViewPhoneUnmatched) {
       /*
        * The number is fetched, not read off the profile. The profile payload
        * has never carried it — the old code read `profile.phone`, always got
@@ -270,10 +274,28 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
         if (phone) {
           showAlert(t('mpPhoneNumberTitle'), phone, [{ text: t('actOk') }]);
         } else {
-          showAlert(t('mpNoNumberTitle'), t('mpNoNumberBody', { name: profile.name || t('mpThisUser') }), [{ text: t('actOk') }]);
+          showAlert(t('mpNoNumberTitle'), t('mpNoNumberBody', { name: profile?.name || t('mpThisUser') }), [{ text: t('actOk') }]);
         }
       } catch (err) {
-        showAlert(t('mpUnableShowNumber'), (err as Error).message || t('alertSomethingWrong'));
+        // Each refusal says why, so a member is not told to upgrade when the
+        // other person simply chose not to share.
+        const code = (err as { code?: string }).code;
+        if (code === 'PHONE_HIDDEN') {
+          showAlert(
+            t('mpPhoneHiddenByOwnerTitle'),
+            t('mpPhoneHiddenByOwnerBody', { name: profile?.name || t('mpThisUser') }),
+            [{ text: t('actOk') }]
+          );
+        } else if (code === 'SUBSCRIPTION_REQUIRED' || code === 'PLAN_UPGRADE_REQUIRED') {
+          planHasNoNumbers();
+        } else if (code === 'INTEREST_REQUIRED') {
+          showAlert(t('mpPhoneHiddenTitle'), t('mpPhoneHiddenBody'), [
+            { text: t('actCancel'), style: 'cancel' },
+            { text: t('actSendInterest'), onPress: handleSendInterest },
+          ]);
+        } else {
+          showAlert(t('mpUnableShowNumber'), (err as Error).message || t('alertSomethingWrong'));
+        }
       }
     } else if (profile?.interestStatus === 'sent') {
       showAlert(
@@ -339,6 +361,18 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
     if (!profile) return null;
 
     const { interestStatus } = profile;
+    const phoneOpen = capabilities.canViewPhone && capabilities.canViewPhoneUnmatched;
+    const phoneButton = (
+      <Pressable
+        style={phoneOpen ? styles.phoneButton : styles.phoneButtonDisabled}
+        onPress={handleShowPhoneNumber}
+      >
+        <Ionicons name="call-outline" size={20} color={phoneOpen ? '#FFFFFF' : palette.muted} />
+        <Text style={phoneOpen ? styles.phoneButtonText : styles.phoneButtonTextDisabled}>
+          {t('actShowNumber')}
+        </Text>
+      </Pressable>
+    );
 
     // Both have accepted - show chat button
     if (interestStatus === 'accepted') {
@@ -364,10 +398,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             <Ionicons name="time-outline" size={18} color={palette.primary} />
             <Text style={styles.pendingText}>{t('lblInterestSent')}</Text>
           </View>
-          <Pressable style={styles.phoneButtonDisabled} onPress={handleShowPhoneNumber}>
-            <Ionicons name="call-outline" size={20} color={palette.muted} />
-            <Text style={styles.phoneButtonTextDisabled}>{t('actShowNumber')}</Text>
-          </Pressable>
+          {phoneButton}
         </View>
       );
     }
@@ -409,10 +440,7 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             {actionLoading ? t('sendingInterest') : t('actSendInterest')}
           </Text>
         </Pressable>
-        <Pressable style={styles.phoneButtonDisabled} onPress={handleShowPhoneNumber}>
-          <Ionicons name="call-outline" size={20} color={palette.muted} />
-          <Text style={styles.phoneButtonTextDisabled}>{t('actShowNumber')}</Text>
-        </Pressable>
+        {phoneButton}
       </View>
     );
   };

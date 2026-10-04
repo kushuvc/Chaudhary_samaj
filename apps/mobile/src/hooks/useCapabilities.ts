@@ -19,6 +19,10 @@ export function useCapabilities(): PlanCapabilities {
     canViewPhone: true,
     canSendInterest: true,
     canChat: true,
+    // The one exception to the permissive default: it only changes which
+    // button looks active, and the server is the one that hands numbers out.
+    canViewPhoneUnmatched: false,
+    canHidePhone: false,
   });
 
   useEffect(() => {

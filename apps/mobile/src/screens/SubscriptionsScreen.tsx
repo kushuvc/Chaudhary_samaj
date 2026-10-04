@@ -36,9 +36,14 @@ type SubscriptionData = SubscriptionStatus;
 const PERKS: Array<{ key: string; capability?: keyof PlanCapabilities }> = [
   { key: 'capViewProfiles' },
   { key: 'capViewPhone', capability: 'canViewPhone' },
+  { key: 'capViewPhoneUnmatched', capability: 'canViewPhoneUnmatched' },
+  { key: 'capHidePhone', capability: 'canHidePhone' },
   { key: 'capSendInterest', capability: 'canSendInterest' },
   { key: 'capChat', capability: 'canChat' },
 ];
+
+/** Off unless a plan switches them on, so a missing flag reads as not included. */
+const OPT_IN: Array<keyof PlanCapabilities> = ['canViewPhoneUnmatched', 'canHidePhone'];
 
 const POLL_INTERVAL_MS = 3000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
@@ -233,7 +238,8 @@ export function SubscriptionsScreen() {
     PERKS.some(
       (perk) =>
         perk.capability &&
-        plan.capabilities?.[perk.capability] !== plans[0]?.capabilities?.[perk.capability]
+        Boolean(plan.capabilities?.[perk.capability] ?? !OPT_IN.includes(perk.capability)) !==
+          Boolean(plans[0]?.capabilities?.[perk.capability] ?? !OPT_IN.includes(perk.capability))
     )
   );
   /*
@@ -400,11 +406,21 @@ export function SubscriptionsScreen() {
                 })}
 
                 <View style={styles.perks}>
-                  {PERKS.map((perk) => {
+                  {PERKS.filter(
+                    // Only listed once some plan offers it; otherwise it is a
+                    // row of crosses for a feature nobody can buy.
+                    (perk) =>
+                      !perk.capability ||
+                      !OPT_IN.includes(perk.capability) ||
+                      plans.some((plan) => plan.capabilities?.[perk.capability!] === true)
+                  ).map((perk) => {
                     // No capability means every plan has it. An unknown flag
-                    // reads as included, matching the server's own default.
+                    // reads as included, matching the server's own default —
+                    // except numbers without a match, which is opt-in.
+                    const flag = perk.capability ? selectedPlan?.capabilities?.[perk.capability] : undefined;
                     const included =
-                      !perk.capability || selectedPlan?.capabilities?.[perk.capability] !== false;
+                      !perk.capability ||
+                      (OPT_IN.includes(perk.capability) ? flag === true : flag !== false);
                     return (
                       <View key={perk.key} style={styles.perkRow}>
                         <View style={[styles.perkIcon, !included && styles.perkIconOff]}>

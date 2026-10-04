@@ -22,6 +22,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useKeyboard } from '../components/ui';
 import { useCapabilities } from '../hooks/useCapabilities';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 interface Match {
   id: string;
@@ -124,10 +125,10 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
     }
   };
 
-  const loadMatches = useCallback(async () => {
+  const loadMatches = useCallback(async (fresh = false) => {
     try {
       setError(null);
-      const data = await api.getMyMatches();
+      const data = await api.getMyMatches(fresh);
       setMatches(data);
     } catch (err) {
       setError((err as Error).message);
@@ -141,6 +142,43 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
   }, [loadMatches]);
 
   const keyboard = useKeyboard();
+
+  // Interests' "Message" button lands here with the person to open.
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
+  const openProfileId: string | undefined = route.params?.openProfileId;
+  useEffect(() => {
+    if (!openProfileId || loading) return;
+    navigation.setParams({ openProfileId: undefined });
+    const target = matches.find((m) => m.profileId === openProfileId);
+    if (target) {
+      void loadMessages(target);
+    } else {
+      // A match made a moment ago may not be in the list loaded earlier.
+      void api.getMyMatches(true).then((fresh) => {
+        setMatches(fresh);
+        const match = fresh.find((m) => m.profileId === openProfileId);
+        if (match) void loadMessages(match);
+      }).catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openProfileId, loading]);
+
+  /*
+   * Back to the list. The list was loaded before the chat opened, so it still
+   * carried that chat's unread count; clear it at once and refetch past the
+   * server cache so the badge does not come back.
+   */
+  const closeChat = () => {
+    const closedId = selectedMatch?.id;
+    setView('list');
+    if (closedId) {
+      setMatches((current) =>
+        current.map((m) => (m.id === closedId ? { ...m, unreadCount: 0 } : m))
+      );
+    }
+    void loadMatches(true);
+  };
 
   /*
    * Poll while a chat is open.
@@ -160,9 +198,12 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
         if (cancelled) return;
         // Only touch state when something actually changed, so the list does
         // not re-render — and fight the scroll position — every few seconds.
+        // Read state counts as a change too, so the seen tick appears.
+        const readCount = (list: Message[]) => list.filter((m) => m.isRead).length;
         setMessages((current) =>
           current.length === data.length &&
-          current[current.length - 1]?.id === data[data.length - 1]?.id
+          current[current.length - 1]?.id === data[data.length - 1]?.id &&
+          readCount(current) === readCount(data)
             ? current
             : data
         );
@@ -190,6 +231,10 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
       setMessages(data);
       setSelectedMatch(match);
       setView('chat');
+      // Opening the chat marked it read on the server; reflect that here.
+      setMatches((current) =>
+        current.map((m) => (m.id === match.id ? { ...m, unreadCount: 0 } : m))
+      );
     } catch (err) {
       const msg = (err as Error).message || t('msgLoadFailed');
       setError(msg);
@@ -283,7 +328,17 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
         <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
           {item.content}
         </Text>
-        <Text style={styles.messageTime}>{formatTime(item.createdAt)}</Text>
+        <View style={styles.messageMeta}>
+          <Text style={[styles.messageTime, isMe && styles.myMessageTime]}>{formatTime(item.createdAt)}</Text>
+          {isMe ? (
+            <Ionicons
+              name={item.isRead ? 'checkmark-done' : 'checkmark'}
+              size={15}
+              color={item.isRead ? '#7CF5E6' : 'rgba(255,255,255,0.75)'}
+              accessibilityLabel={item.isRead ? t('msgSeen') : t('msgSent')}
+            />
+          ) : null}
+        </View>
       </View>
     );
   };
@@ -310,7 +365,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
       >
         {/* Chat Header */}
         <View style={styles.chatHeader}>
-          <Pressable onPress={() => setView('list')} style={styles.backButton}>
+          <Pressable onPress={closeChat} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={palette.text} />
           </Pressable>
           <View style={styles.chatHeaderInfo}>
@@ -350,6 +405,7 @@ export function MessagesScreen({ onBack }: MessagesScreenProps) {
             value={newMessage}
             onChangeText={setNewMessage}
             placeholder={t('msgInputPlaceholder')}
+            placeholderTextColor={palette.muted}
             multiline
           />
           <Pressable
@@ -615,11 +671,19 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
     theirMessageText: {
       color: palette.text,
     },
+    messageMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-end',
+      gap: 4,
+      marginTop: 4,
+    },
     messageTime: {
       fontSize: 11,
       color: palette.muted,
-      marginTop: 4,
-      alignSelf: 'flex-end',
+    },
+    myMessageTime: {
+      color: 'rgba(255,255,255,0.75)',
     },
     inputContainer: {
       flexDirection: 'row',

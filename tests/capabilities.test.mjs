@@ -68,6 +68,7 @@ describe('plans carry capabilities', () => {
     // plan that already existed.
     assert.deepEqual(plan.capabilities, {
       canViewPhone: true, canSendInterest: true, canChat: true,
+      canViewPhoneUnmatched: false, canHidePhone: false,
     })
   })
 
@@ -77,6 +78,7 @@ describe('plans carry capabilities', () => {
     const plan = res.body.data.find((p) => p.code === 'basic')
     assert.deepEqual(plan.capabilities, {
       canViewPhone: false, canSendInterest: true, canChat: false,
+      canViewPhoneUnmatched: false, canHidePhone: false,
     })
   })
 
@@ -95,6 +97,7 @@ describe('a member is told what their own plan allows', () => {
     const res = await server.request('GET', '/api/payments/subscription', { token: member.token })
     assert.deepEqual(res.body.data.plan.capabilities, {
       canViewPhone: false, canSendInterest: true, canChat: false,
+      canViewPhoneUnmatched: false, canHidePhone: false,
     })
   })
 })
@@ -226,6 +229,7 @@ describe('a free gender gets the capabilities set for it', () => {
     // the switches started governing non-subscribers.
     assert.deepEqual(res.body.data.plan.capabilities, {
       canViewPhone: false, canSendInterest: true, canChat: true,
+      canViewPhoneUnmatched: false, canHidePhone: false,
     })
   })
 
@@ -386,5 +390,122 @@ describe('what a member without a subscription keeps', () => {
     })
     assert.equal(res.status, 403)
     assert.equal(res.body.code, 'SUBSCRIPTION_REQUIRED')
+  })
+})
+
+describe('numbers without a match, and members hiding theirs', () => {
+  const sharing = (token) => server.request('GET', '/api/settings', { token })
+  const setSharing = (token, show) =>
+    server.request('PUT', '/api/settings', { token, body: { privacy: { showPhoneToConnections: show } } })
+
+  async function profileIdOf(userId) {
+    return (await server.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [userId]))[0].id
+  }
+
+  beforeEach(async () => {
+    await putPlan('full', {
+      name: 'Full', durationDays: 30, pricePaise: 20000, playProductId: '',
+      canViewPhone: true, canSendInterest: true, canChat: true,
+    })
+    await putPlan('open_book', {
+      name: 'Open book', durationDays: 30, pricePaise: 30000, playProductId: '',
+      canViewPhone: true, canSendInterest: true, canChat: true, canViewPhoneUnmatched: true,
+    })
+    await putPlan('private', {
+      name: 'Private', durationDays: 30, pricePaise: 30000, playProductId: '',
+      canViewPhone: true, canSendInterest: true, canChat: true, canHidePhone: true,
+    })
+  })
+
+  test('both are off on a plan that does not mention them', async () => {
+    const res = await server.request('GET', '/api/admin/plans', { token: admin.token })
+    const full = res.body.data.find((plan) => plan.code === 'full')
+    assert.equal(full.capabilities.canViewPhoneUnmatched, false)
+    assert.equal(full.capabilities.canHidePhone, false)
+  })
+
+  test('a plan with numbers-without-a-match skips the interest check', async () => {
+    const stranger = await signUpUser(server, { gender: 'male' })
+    const her = await signUpUser(server, { gender: 'female' })
+    await subscribe(stranger.userId, 'open_book')
+
+    const res = await server.request('POST', `/api/matrimony/profiles/${await profileIdOf(her.userId)}/unlock`, {
+      token: stranger.token,
+    })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.phone, her.phone)
+  })
+
+  test('sharing is on for a member who never touched the setting', async () => {
+    const her = await signUpUser(server, { gender: 'female' })
+    const res = await sharing(her.token)
+    assert.equal(res.body.data.privacy.showPhoneToConnections, true)
+    assert.equal(res.body.data.canHidePhone, false)
+  })
+
+  test('hiding is refused without a plan that includes it', async () => {
+    const her = await signUpUser(server, { gender: 'female' })
+    const res = await setSharing(her.token, false)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.code, 'PLAN_NO_HIDE_PHONE')
+    assert.equal((await sharing(her.token)).body.data.privacy.showPhoneToConnections, true)
+  })
+
+  test('a member on a hiding plan is not shared, and the refusal says why', async () => {
+    const { him, her, herProfileId } = await matchedPair()
+    await subscribe(him.userId, 'full')
+    await subscribe(her.userId, 'private')
+    assert.equal((await setSharing(her.token, false)).status, 200)
+
+    const res = await server.request('POST', `/api/matrimony/profiles/${herProfileId}/unlock`, {
+      token: him.token,
+    })
+    assert.equal(res.status, 403)
+    assert.equal(res.body.code, 'PHONE_HIDDEN')
+    assert.ok(!JSON.stringify(res.body).match(/\d{10}/), 'no phone number in the refusal')
+  })
+
+  test('a hidden number is shared again once the hiding plan is gone', async () => {
+    const { him, her, herProfileId, herPhone } = await matchedPair()
+    await subscribe(him.userId, 'full')
+    await subscribe(her.userId, 'private')
+    await setSharing(her.token, false)
+    await server.sql('DELETE FROM user_subscriptions WHERE user_id = $1', [her.userId])
+
+    const res = await server.request('POST', `/api/matrimony/profiles/${herProfileId}/unlock`, {
+      token: him.token,
+    })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.phone, herPhone)
+  })
+})
+
+describe('unread messages', () => {
+  test('reading a chat clears the unread count, even when the messages were cached', async () => {
+    const { him, her } = await matchedPair()
+    const matchId = 'm_' + him.userId.slice(0, 8)
+    await server.sql(
+      'INSERT INTO matrimony_matches (id, user1_id, user2_id, created_at) VALUES ($1, $2, $3, NOW()::text)',
+      [matchId, him.userId, her.userId]
+    )
+
+    const sent = await server.request('POST', `/api/matrimony/matches/${matchId}/messages`, {
+      token: him.token, body: { content: 'hello' },
+    })
+    assert.equal(sent.status, 200)
+
+    const before = await server.request('GET', '/api/matrimony/matches?fresh=1', { token: her.token })
+    assert.equal(before.body.data.find((m) => m.id === matchId).unreadCount, 1)
+
+    // The sender's own fetch fills the message cache. Her read used to be
+    // answered from that cache, which skipped marking anything read.
+    await server.request('GET', `/api/matrimony/matches/${matchId}/messages`, { token: him.token })
+    await server.request('GET', `/api/matrimony/matches/${matchId}/messages`, { token: her.token })
+
+    const after = await server.request('GET', '/api/matrimony/matches?fresh=1', { token: her.token })
+    assert.equal(after.body.data.find((m) => m.id === matchId).unreadCount, 0)
+
+    const seen = await server.request('GET', `/api/matrimony/matches/${matchId}/messages`, { token: him.token })
+    assert.ok(seen.body.data[0].isRead, 'the sender sees it as read')
   })
 })

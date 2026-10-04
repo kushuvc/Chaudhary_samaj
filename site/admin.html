@@ -401,6 +401,14 @@
             <input type="checkbox" id="cap-new-canChat" checked>
             <label for="cap-new-canChat" style="margin:0;color:var(--soft)">Message matches</label>
           </div>
+          <div class="switch">
+            <input type="checkbox" id="cap-new-canViewPhoneUnmatched">
+            <label for="cap-new-canViewPhoneUnmatched" style="margin:0;color:var(--soft)">See contact numbers without a match</label>
+          </div>
+          <div class="switch">
+            <input type="checkbox" id="cap-new-canHidePhone">
+            <label for="cap-new-canHidePhone" style="margin:0;color:var(--soft)">Can hide their own number from others</label>
+          </div>
         </div>
         <div class="row" style="margin-top:.7rem">
           <div>
@@ -873,15 +881,26 @@ const CAPABILITIES = [
 ];
 
 /*
+ * Plans only, and off unless ticked: it hands over the numbers of members the
+ * buyer has never matched with, so a missing value must read as off.
+ */
+const PLAN_ONLY_CAPABILITIES = [
+  ['canViewPhoneUnmatched', 'See contact numbers without a match'],
+  ['canHidePhone', 'Can hide their own number from others'],
+];
+
+/*
  * A missing flag reads as allowed, matching the server. A row written before
  * these columns existed must not appear to have everything switched off.
  */
-function capsBlock(idPrefix, source, caption) {
+function capsBlock(idPrefix, source, caption, forPlan) {
   const caps = source.capabilities || source;
-  const rows = CAPABILITIES.map(([key, label]) => {
+  const list = forPlan ? CAPABILITIES.concat(PLAN_ONLY_CAPABILITIES) : CAPABILITIES;
+  const rows = list.map(([key, label]) => {
     const snake = key.replace(/[A-Z]/g, (ch) => '_' + ch.toLowerCase());
     const raw = caps[key] !== undefined ? caps[key] : source[snake];
-    const on = raw === undefined || raw === null || raw === true;
+    const optIn = PLAN_ONLY_CAPABILITIES.some(([k]) => k === key);
+    const on = optIn ? raw === true : raw === undefined || raw === null || raw === true;
     const id = 'cap-' + idPrefix + '-' + key;
     return `
       <div class="switch">
@@ -896,7 +915,7 @@ function capsBlock(idPrefix, source, caption) {
 /* Reads the three Includes checkboxes back for one card. */
 function readCaps(idPrefix) {
   const out = {};
-  for (const [key] of CAPABILITIES) {
+  for (const [key] of CAPABILITIES.concat(PLAN_ONLY_CAPABILITIES)) {
     const el = $('cap-' + idPrefix + '-' + key);
     if (el) out[key] = el.checked;
   }
@@ -1026,7 +1045,7 @@ function planCard(plan, isOpen) {
           </div>
         </div>
 
-        ${capsBlock(plan.code, plan)}
+        ${capsBlock(plan.code, plan, 'Includes', true)}
 
         <div class="row" style="margin-top:.7rem">
           <div>
@@ -1167,6 +1186,7 @@ $('addPlan').onclick = async () => {
       $(id).value = '';
     }
     for (const [key] of CAPABILITIES) $('cap-new-' + key).checked = true;
+    for (const [key] of PLAN_ONLY_CAPABILITIES) $('cap-new-' + key).checked = false;
     $('new-audience').value = 'all';
     $('addPlanCard').hidden = true;
     loaded.delete('overview');

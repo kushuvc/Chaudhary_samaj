@@ -99,6 +99,10 @@ export interface PlanCapabilities {
   canViewPhone: boolean;
   canSendInterest: boolean;
   canChat: boolean;
+  /** Contact numbers of members not yet matched with. Off unless a plan opts in. */
+  canViewPhoneUnmatched?: boolean;
+  /** Members on this plan may stop sharing their own number. Opt-in. */
+  canHidePhone?: boolean;
 }
 
 export interface SubscriptionPlan {
@@ -448,8 +452,8 @@ export const api = {
       body: JSON.stringify({ accept })
     }),
   // Messaging APIs
-  getMyMatches: async () => {
-    const response = await request<{ data: any[] }>('/matrimony/matches');
+  getMyMatches: async (fresh = false) => {
+    const response = await request<{ data: any[] }>(`/matrimony/matches${fresh ? '?fresh=1' : ''}`);
     return response.data.map((item) => ({
       id: String(item.id || ''),
       profileId: String(item.profileId || item.profileid || item.matchedUserId || ''),
@@ -874,6 +878,22 @@ export const api = {
    * free under the current rules, and `plan` carries the live price — both are
    * set from the admin screen, so nothing about pricing is hardcoded here.
    */
+  /**
+   * Whether this member's number is shared, and whether their plan lets them
+   * stop sharing it. Lives on the server: it decides who gets the number.
+   */
+  getPhoneSharing: async (): Promise<{ showPhone: boolean; canHidePhone: boolean }> => {
+    const response = await request<{ data: any }>('/settings');
+    return {
+      showPhone: response.data?.privacy?.showPhoneToConnections !== false,
+      canHidePhone: response.data?.canHidePhone === true,
+    };
+  },
+  setPhoneSharing: (showPhone: boolean) =>
+    request<{ success: boolean }>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ privacy: { showPhoneToConnections: showPhone } }),
+    }),
   getSubscriptionStatus: async (): Promise<SubscriptionStatus> => {
     const response = await request<{ data: SubscriptionStatus }>('/payments/subscription');
     return response.data;

@@ -1973,8 +1973,13 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
  * their gender is free. Everything defaults to allowed: a capability that
  * cannot be read must not lock a paying member out of what they bought.
  */
-const ALL_CAPABILITIES = { canViewPhone: true, canSendInterest: true, canChat: true }
-const NO_CAPABILITIES = { canViewPhone: false, canSendInterest: false, canChat: false }
+/*
+ * canViewPhoneUnmatched is false even in ALL_CAPABILITIES: that set is the
+ * fallback when a plan cannot be read, and a fallback must not start handing
+ * out the numbers of people the member has never matched with.
+ */
+const ALL_CAPABILITIES = { canViewPhone: true, canSendInterest: true, canChat: true, canViewPhoneUnmatched: false, canHidePhone: false }
+const NO_CAPABILITIES = { canViewPhone: false, canSendInterest: false, canChat: false, canViewPhoneUnmatched: false, canHidePhone: false }
 
 /*
  * What someone gets without paying.
@@ -1985,7 +1990,9 @@ const NO_CAPABILITIES = { canViewPhone: false, canSendInterest: false, canChat: 
  * not quietly take the first two away from every free member, so the free tier
  * keeps exactly what it had. Change it deliberately, not as a side effect.
  */
-const FREE_TIER_CAPABILITIES = { canViewPhone: false, canSendInterest: true, canChat: true }
+const FREE_TIER_CAPABILITIES = { canViewPhone: false, canSendInterest: true, canChat: true, canViewPhoneUnmatched: false, canHidePhone: false }
+
+const optIn = (value) => value === true || value === 1 || value === 't'
 
 function capabilitiesFromRow(row) {
   const on = (value) => value === undefined || value === null || value === true || value === 1 || value === 't'
@@ -1993,6 +2000,9 @@ function capabilitiesFromRow(row) {
     canViewPhone: on(row.can_view_phone),
     canSendInterest: on(row.can_send_interest),
     canChat: on(row.can_chat),
+    // Opt-in, so a missing column (the per-gender rules have none) means off.
+    canViewPhoneUnmatched: optIn(row.can_view_phone_unmatched),
+    canHidePhone: optIn(row.can_hide_phone),
   }
 }
 
@@ -2137,7 +2147,7 @@ async function loadPlans() {
 
   const rows = await pgQuery(
     `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-            is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at
+            is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at
      FROM subscription_plans
      ORDER BY sort_order, price_paise`
   )
@@ -2258,12 +2268,29 @@ async function resolveAccess(userId) {
   const rule = await ruleForGender(gender)
 
   if (rule.isFree) {
+    /*
+     * Free for their gender, but they may still have bought a plan for what
+     * the free rule does not give — hiding their number, say. Ignoring the
+     * plan here meant paying for a feature and never receiving it, so a held
+     * plan adds to the free rule rather than being skipped.
+     */
+    const freeCaps = rule.capabilities || ALL_CAPABILITIES
+    const heldCode = await activePlanCode(userId)
+    const held = heldCode ? await planByCode(heldCode, { includeInactive: true }) : null
+    const capabilities = held?.capabilities
+      ? Object.fromEntries(
+          Object.keys({ ...freeCaps, ...held.capabilities }).map((key) => [
+            key,
+            Boolean(freeCaps[key] || held.capabilities[key]),
+          ])
+        )
+      : freeCaps
     return {
       entitled: true,
       rule,
-      capabilities: rule.capabilities || ALL_CAPABILITIES,
+      capabilities,
       reason: 'free-for-gender',
-      planCode: null,
+      planCode: heldCode || null,
     }
   }
 
@@ -2522,6 +2549,17 @@ app.post('/api/matrimony/profiles/:id/view', async (request, response) => {
   }
 })
 
+/** True when this member has switched phone sharing off on a plan that allows it. */
+async function phoneHiddenBy(userId) {
+  const [settings] = await pgQuery(
+    'SELECT privacy_show_phone FROM user_settings WHERE user_id = $1',
+    [userId]
+  )
+  if (!settings || settings.privacy_show_phone !== false) return false
+  const access = await resolveAccess(userId)
+  return Boolean(access.capabilities?.canHidePhone)
+}
+
 app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
@@ -2563,7 +2601,15 @@ app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
       [request.params.id]
     )
 
-    const [interest] = await pgQuery(
+    /*
+     * A plan the admin has marked "numbers without a match" skips the
+     * accepted-interest check; every other plan still needs both sides to
+     * have agreed. Members consent to this sharing at signup.
+     */
+    const access = await resolveAccess(activeUserId)
+    const withoutMatch = Boolean(access.capabilities?.canViewPhoneUnmatched)
+
+    const [interest] = withoutMatch ? [true] : await pgQuery(
       `SELECT status FROM matrimony_interests
        WHERE status = 'accepted'
          AND ((sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1))
@@ -2580,13 +2626,28 @@ app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
       return
     }
 
+    /*
+     * The owner's own choice, last. A number is withheld only when the owner
+     * switched sharing off *and* is on a plan that lets them — everyone agrees
+     * to share at signup, and hiding is a plan feature. If that plan lapses
+     * the number is shared again, as they agreed.
+     */
+    if (owner?.user_id && (await phoneHiddenBy(owner.user_id))) {
+      response.status(403).json({
+        success: false,
+        error: 'This member has chosen not to share their number.',
+        code: 'PHONE_HIDDEN',
+      })
+      return
+    }
+
     await Promise.all([
       updateProfileStateAsync(request.params.id, activeUserId, { is_unlocked: 1 }),
       recordProfileActionAsync({
         profileId: request.params.id,
         actorUserId: activeUserId,
         actionType: 'unlock',
-        metadata: { subscriptionGated: true },
+        metadata: { subscriptionGated: true, withoutMatch },
       }),
     ])
 
@@ -2800,7 +2861,9 @@ app.get('/api/matrimony/matches', async (request, response) => {
   }
 
   const cacheKey = `matches:${activeUserId}`
-  const cached = cacheGet(cacheKey)
+  // ?fresh=1 skips the cache: the app asks for it on leaving a chat, so the
+  // unread badge it just cleared does not come back from another worker's copy.
+  const cached = request.query.fresh ? null : cacheGet(cacheKey)
   if (cached) { response.set('X-Cache', 'HIT'); response.json(cached); return }
   response.set('X-Cache', 'MISS')
 
@@ -2908,8 +2971,6 @@ app.get('/api/matrimony/matches/:id/messages', async (request, response) => {
 
   const { id: matchId } = request.params
   const cacheKey = `messages:${matchId}`
-  const cached = cacheGet(cacheKey)
-  if (cached) { response.json(cached); return }
 
   try {
     // Verify user is part of this match
@@ -2922,18 +2983,32 @@ app.get('/api/matrimony/matches/:id/messages', async (request, response) => {
       return
     }
 
+    /*
+     * Mark read before anything can answer from the cache.
+     *
+     * This used to run after the cache check, fire-and-forget, so a fetch
+     * served from cache never marked anything and the unread badge stayed on
+     * a conversation the member had already read. Awaited now, so the sender
+     * sees the seen tick on their next poll.
+     */
+    const marked = await pgQuery(
+      'UPDATE matrimony_messages SET is_read = 1 WHERE match_id = $1 AND sender_id != $2 AND is_read = 0 RETURNING id',
+      [matchId, activeUserId]
+    )
+    if (marked.length > 0) {
+      cacheInvalidate(cacheKey)
+      cacheInvalidate(`matches:${activeUserId}`)
+    }
+
+    const cached = cacheGet(cacheKey)
+    if (cached) { response.json(cached); return }
+
     const messages = await pgQuery(`
       SELECT id, sender_id as senderId, content, created_at as createdAt, is_read as isRead
       FROM matrimony_messages
       WHERE match_id = $1
       ORDER BY created_at ASC
     `, [matchId])
-
-    // Mark messages as read (fire and forget)
-    pgQuery(
-      'UPDATE matrimony_messages SET is_read = 1 WHERE match_id = $1 AND sender_id != $2',
-      [matchId, activeUserId]
-    ).catch(() => {})
 
     const result = { success: true, data: messages.map(r => ({
       id: r.id,
@@ -2976,13 +3051,14 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
 
   try {
     const [match] = await pgQuery(
-      'SELECT id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
+      'SELECT id, user1_id, user2_id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
       [matchId, activeUserId]
     )
     if (!match) {
       response.status(404).json({ success: false, error: 'Match not found' })
       return
     }
+    const otherUserId = match.user1_id === activeUserId ? match.user2_id : match.user1_id
 
     const messageId = crypto.randomUUID()
     const createdAt = new Date().toISOString()
@@ -2995,6 +3071,8 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
     // Invalidate caches so next fetch is fresh
     cacheInvalidate(`messages:${matchId}`)
     cacheInvalidate(`matches:${activeUserId}`)
+    // The recipient's list carries the new last message and unread count.
+    cacheInvalidate(`matches:${otherUserId}`)
     response.json({ success: true, data: { id: messageId, createdAt } })
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
@@ -3632,6 +3710,17 @@ app.get('/delete-account', (_request, response) => {
       console.error('[legal] could not serve the deletion page:', error.message)
       if (!response.headersSent) {
         response.status(500).type('text/plain').send('Temporarily unavailable.')
+      }
+    }
+  })
+})
+
+app.get(['/terms', '/terms-and-conditions'], (_request, response) => {
+  response.sendFile(path.join(siteDir, 'terms.html'), (error) => {
+    if (error) {
+      console.error('[legal] could not serve the terms:', error.message)
+      if (!response.headersSent) {
+        response.status(500).type('text/plain').send('Terms are temporarily unavailable.')
       }
     }
   })
@@ -4634,6 +4723,15 @@ app.delete('/api/auth/account', async (request, response) => {
   }
 })
 
+async function canHidePhone(userId) {
+  try {
+    const access = await resolveAccess(userId)
+    return Boolean(access.capabilities?.canHidePhone)
+  } catch {
+    return false
+  }
+}
+
 app.get('/api/settings', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
@@ -4669,10 +4767,11 @@ app.get('/api/settings', async (request, response) => {
             marketingUpdates: false,
           },
           privacy: {
-            showPhoneToConnections: false,
+            showPhoneToConnections: true,
             showLocationPublicly: true,
             profileSearchable: true,
           },
+          canHidePhone: await canHidePhone(activeUserId),
         },
       })
       return
@@ -4696,6 +4795,9 @@ app.get('/api/settings', async (request, response) => {
           showLocationPublicly: row.privacy_show_location,
           profileSearchable: row.privacy_searchable,
         },
+        // Lets the app grey the switch out instead of offering a choice the
+        // server will refuse.
+        canHidePhone: await canHidePhone(activeUserId),
       },
     })
   } catch (err) {
@@ -4712,6 +4814,17 @@ app.put('/api/settings', async (request, response) => {
   }
   const { language, timezone, publicProfile, notifications = {}, privacy = {} } = request.body || {}
   const now = new Date().toISOString()
+
+  // Hiding your number is a plan feature; turning sharing back on never is.
+  if (privacy.showPhoneToConnections === false && !(await canHidePhone(activeUserId))) {
+    response.status(403).json({
+      success: false,
+      error: 'Your plan does not include hiding your phone number.',
+      code: 'PLAN_NO_HIDE_PHONE',
+    })
+    return
+  }
+
   try {
     await pgQuery(
       `INSERT INTO user_settings (
@@ -4734,7 +4847,7 @@ app.put('/api/settings', async (request, response) => {
         COALESCE($2, 'en-IN'), COALESCE($3, 'Asia/Kolkata'), COALESCE($4, true),
         COALESCE($5, true), COALESCE($6, true), COALESCE($7, true),
         COALESCE($8, true), COALESCE($9, false),
-        COALESCE($10, false), COALESCE($11, true), COALESCE($12, true),
+        COALESCE($10, true), COALESCE($11, true), COALESCE($12, true),
         $13
       )
       ON CONFLICT (user_id) DO UPDATE SET
@@ -5123,7 +5236,7 @@ app.get('/api/admin/plans', requireAdmin, async (_request, response) => {
   try {
     const rows = await pgQuery(
       `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-              is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at
+              is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at
        FROM subscription_plans
        ORDER BY sort_order, price_paise`
     )
@@ -5153,7 +5266,7 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
 
   const {
     name, durationDays, pricePaise, playProductId, badge, isActive, sortOrder,
-    canViewPhone, canSendInterest, canChat, audience,
+    canViewPhone, canSendInterest, canChat, canViewPhoneUnmatched, canHidePhone, audience,
   } = request.body || {}
 
   if (audience !== undefined && !PLAN_AUDIENCES.has(audience)) {
@@ -5193,6 +5306,8 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     ['canViewPhone', canViewPhone],
     ['canSendInterest', canSendInterest],
     ['canChat', canChat],
+    ['canViewPhoneUnmatched', canViewPhoneUnmatched],
+    ['canHidePhone', canHidePhone],
   ]) {
     if (value !== undefined && typeof value !== 'boolean') {
       response.status(400).json({ success: false, error: `${label} must be true or false` })
@@ -5208,9 +5323,9 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     const rows = await pgQuery(
       `INSERT INTO subscription_plans
          (code, name, duration_days, price_paise, play_product_id, badge,
-          is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at)
+          is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), COALESCE($8, 0),
-               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), COALESCE($12, 'all'), NOW()::text)
+               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), COALESCE($13, false), COALESCE($14, false), COALESCE($12, 'all'), NOW()::text)
        ON CONFLICT (code) DO UPDATE SET
          name = $2,
          duration_days = $3,
@@ -5222,10 +5337,12 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
          can_view_phone = COALESCE($9, subscription_plans.can_view_phone),
          can_send_interest = COALESCE($10, subscription_plans.can_send_interest),
          can_chat = COALESCE($11, subscription_plans.can_chat),
+         can_view_phone_unmatched = COALESCE($13, subscription_plans.can_view_phone_unmatched),
+         can_hide_phone = COALESCE($14, subscription_plans.can_hide_phone),
          audience = COALESCE($12, subscription_plans.audience),
          updated_at = NOW()::text
        RETURNING code, name, duration_days, price_paise, play_product_id, badge,
-                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, audience, updated_at`,
+                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at`,
       [
         code,
         name.trim(),
@@ -5239,6 +5356,8 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
         canSendInterest === undefined ? null : canSendInterest,
         canChat === undefined ? null : canChat,
         audience === undefined ? null : audience,
+        canViewPhoneUnmatched === undefined ? null : canViewPhoneUnmatched,
+        canHidePhone === undefined ? null : canHidePhone,
       ]
     )
 

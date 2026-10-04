@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
+  ActivityIndicator,
   Modal,
   Pressable,
   RefreshControl,
@@ -20,6 +21,7 @@ import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { useCapabilities } from '../hooks/useCapabilities';
+import { FadeInView, PressableScale } from '../components/Motion';
 
 type InterestTab = 'received' | 'sent';
 
@@ -77,6 +79,14 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
     loadInterests();
   }, [loadInterests]);
 
+  // A tab screen stays mounted, so without this an interest accepted or
+  // received elsewhere only showed up after a pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      void loadInterests();
+    }, [loadInterests])
+  );
+
   const onRefresh = () => {
     setRefreshing(true);
     loadInterests();
@@ -129,8 +139,8 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
     if (onMessage) {
       onMessage(interest.profileId, interest.name);
     } else {
-      // Navigate to Messages tab when used as standalone tab
-      navigation.navigate('Messages');
+      // Straight into this conversation, not just the Messages list.
+      navigation.navigate('Messages', { openProfileId: interest.profileId });
     }
   };
 
@@ -153,8 +163,11 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
     const isDeclined = interest.status === 'declined';
     const isActionLoading = actionId === interest.id;
 
+    const statusColor = isAccepted ? palette.accent : isDeclined ? palette.danger : palette.primary;
+    const statusIcon = isAccepted ? 'heart' : isDeclined ? 'close-circle' : 'time-outline';
+
     return (
-      <View key={interest.id} style={styles.card}>
+      <FadeInView key={interest.id} style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={styles.avatarPlaceholder}>
             <Ionicons name="person" size={40} color={palette.muted} />
@@ -164,60 +177,81 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
             <Text style={styles.date}>{formatDate(interest.createdAt)}</Text>
           </View>
           <View style={[styles.statusBadge, styles[`status${interest.status}`]]}>
-            <Text style={styles.statusText}>
-              {interest.status === 'pending' && t('lblPending')}
-              {interest.status === 'accepted' && t('lblMatched')}
-              {interest.status === 'declined' && t('lblDeclined')}
+            <Ionicons name={statusIcon} size={13} color={statusColor} />
+            <Text style={[styles.statusText, { color: statusColor }]}>
+              {isPending && t('lblPending')}
+              {isAccepted && t('lblMatched')}
+              {isDeclined && t('lblDeclined')}
             </Text>
           </View>
         </View>
 
+        {/*
+          * The buttons follow the interest's state: a pending one you received
+          * can be answered, a match can be messaged, and one you sent that is
+          * still pending says so instead of offering nothing.
+          */}
         <View style={styles.actionRow}>
-          <Pressable
+          <PressableScale
             style={styles.viewButton}
             onPress={() => {
               setViewingProfileId(interest.profileId);
               onViewProfile?.(interest.profileId);
             }}
+            accessibilityRole="button"
           >
             <Ionicons name="eye-outline" size={18} color={palette.primary} />
             <Text style={styles.viewButtonText}>{t('actViewProfile')}</Text>
-          </Pressable>
+          </PressableScale>
 
           {isReceived && isPending && (
             <>
-              <Pressable
+              <PressableScale
                 style={[styles.acceptButton, isActionLoading && styles.buttonDisabled]}
                 onPress={() => handleAccept(interest)}
                 disabled={isActionLoading}
+                accessibilityRole="button"
               >
-                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                <Text style={styles.acceptButtonText}>
-                  {isActionLoading ? '...' : t('actAccept')}
-                </Text>
-              </Pressable>
-              <Pressable
+                {isActionLoading ? (
+                  <ActivityIndicator size="small" color={palette.onPrimary} />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color={palette.onPrimary} />
+                    <Text style={styles.acceptButtonText}>{t('actAccept')}</Text>
+                  </>
+                )}
+              </PressableScale>
+              <PressableScale
                 style={[styles.declineButton, isActionLoading && styles.buttonDisabled]}
                 onPress={() => handleDecline(interest)}
                 disabled={isActionLoading}
+                accessibilityRole="button"
               >
                 <Ionicons name="close" size={18} color={palette.danger} />
                 <Text style={styles.declineButtonText}>{t('actDecline')}</Text>
-              </Pressable>
+              </PressableScale>
             </>
           )}
 
+          {!isReceived && isPending && (
+            <View style={styles.awaitingPill}>
+              <Ionicons name="hourglass-outline" size={16} color={palette.muted} />
+              <Text style={styles.awaitingText}>{t('inAwaitingReply')}</Text>
+            </View>
+          )}
+
           {isAccepted && (
-            <Pressable
+            <PressableScale
               style={styles.messageButton}
               onPress={() => handleMessage(interest)}
+              accessibilityRole="button"
             >
-              <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
+              <Ionicons name="chatbubble-outline" size={18} color={palette.onPrimary} />
               <Text style={styles.messageButtonText}>{t('actMessage')}</Text>
-            </Pressable>
+            </PressableScale>
           )}
         </View>
-      </View>
+      </FadeInView>
     );
   };
 
@@ -253,27 +287,29 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <View style={styles.statItem}>
+        <PressableScale style={styles.statItem} onPress={() => setActiveTab('received')}>
           <Text style={styles.statNumber}>{pendingReceived}</Text>
-          <Text style={styles.statLabel}>{t('lblReceived')}</Text>
-        </View>
+          <Text style={[styles.statLabel, activeTab === 'received' && styles.statLabelActive]}>{t('lblReceived')}</Text>
+        </PressableScale>
         <View style={styles.statDivider} />
-        <View style={styles.statItem}>
+        <PressableScale style={styles.statItem} onPress={() => setActiveTab('sent')}>
           <Text style={styles.statNumber}>{sent.length}</Text>
-          <Text style={styles.statLabel}>{t('lblSent')}</Text>
-        </View>
+          <Text style={[styles.statLabel, activeTab === 'sent' && styles.statLabelActive]}>{t('lblSent')}</Text>
+        </PressableScale>
         <View style={styles.statDivider} />
-        <View style={styles.statItem}>
+        <PressableScale style={styles.statItem} onPress={() => navigation.navigate('Messages')}>
           <Text style={styles.statNumber}>{acceptedReceived + acceptedSent}</Text>
           <Text style={styles.statLabel}>{t('lblMatches')}</Text>
-        </View>
+        </PressableScale>
       </View>
 
       {/* Tabs */}
       <View style={styles.tabRow}>
-        <Pressable
+        <PressableScale
           style={[styles.tab, activeTab === 'received' && styles.tabActive]}
           onPress={() => setActiveTab('received')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'received' }}
         >
           <Text style={[styles.tabText, activeTab === 'received' && styles.tabTextActive]}>
             {t('lblReceived')} ({received.length})
@@ -283,15 +319,17 @@ export function InterestsScreen({ onBack, onViewProfile, onMessage }: InterestsS
               <Text style={styles.badgeText}>{pendingReceived}</Text>
             </View>
           )}
-        </Pressable>
-        <Pressable
+        </PressableScale>
+        <PressableScale
           style={[styles.tab, activeTab === 'sent' && styles.tabActive]}
           onPress={() => setActiveTab('sent')}
+          accessibilityRole="tab"
+          accessibilityState={{ selected: activeTab === 'sent' }}
         >
           <Text style={[styles.tabText, activeTab === 'sent' && styles.tabTextActive]}>
             {t('lblSent')} ({sent.length})
           </Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       <ScrollView
@@ -381,6 +419,10 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
       color: palette.muted,
       marginTop: 4,
     },
+    statLabelActive: {
+      color: palette.primary,
+      fontWeight: '700',
+    },
     statDivider: {
       width: 1,
       height: 30,
@@ -411,10 +453,10 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
       color: palette.text,
     },
     tabTextActive: {
-      color: '#FFFFFF',
+      color: palette.onPrimary,
     },
     badge: {
-      backgroundColor: '#FFFFFF',
+      backgroundColor: palette.onPrimary,
       borderRadius: 10,
       minWidth: 20,
       height: 20,
@@ -464,6 +506,9 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
       marginTop: 2,
     },
     statusBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
       paddingVertical: 4,
       paddingHorizontal: 10,
       borderRadius: 12,
@@ -513,7 +558,22 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
     acceptButtonText: {
       fontSize: 14,
       fontWeight: '600',
-      color: '#FFFFFF',
+      color: palette.onPrimary,
+    },
+    awaitingPill: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 20,
+      backgroundColor: palette.surfaceSunken,
+      gap: 6,
+    },
+    awaitingText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: palette.muted,
     },
     declineButton: {
       flex: 1,
@@ -545,7 +605,7 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
     messageButtonText: {
       fontSize: 14,
       fontWeight: '600',
-      color: '#FFFFFF',
+      color: palette.onPrimary,
     },
     buttonDisabled: {
       opacity: 0.6,

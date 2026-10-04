@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { PhoneLoginScreen } from '../screens/PhoneLoginScreen';
 import { LoadingScreen } from '../screens/LoadingScreen';
@@ -377,6 +378,7 @@ export function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {(!session || isNewSignup) ? <Stack.Screen name="Auth" component={AuthFlow} /> : null}
       {(session && !isNewSignup) ? <Stack.Screen name="Main" component={MainTabs} /> : null}
+      {(session && !isNewSignup) ? <Stack.Screen name="Notifications" component={NotificationsScreen} /> : null}
     </Stack.Navigator>
   );
 }

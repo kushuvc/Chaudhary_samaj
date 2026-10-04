@@ -1,18 +1,60 @@
-import React, { Component } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { Component, useEffect } from 'react';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View, StyleSheet } from 'react-native';
-import { AuthProvider } from './src/context/AuthContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { registerForPush } from './src/services/push';
 import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
+
+const navigationRef = createNavigationContainerRef<any>();
+
+const TAB_SCREENS = new Set(['Home', 'Matrimony', 'Interests', 'Messages', 'Subscriptions', 'Profile', 'Settings']);
+
+/** Opens the screen a notification points at. */
+function openFromNotification(response: Notifications.NotificationResponse | null) {
+  const screen = response?.notification.request.content.data?.screen;
+  if (typeof screen !== 'string' || !navigationRef.isReady()) return;
+  if (TAB_SCREENS.has(screen)) navigationRef.navigate('Main', { screen });
+  else if (screen === 'Notifications') navigationRef.navigate('Notifications');
+}
+
+/**
+ * Registers this device once a member is signed in, and routes taps.
+ *
+ * The tap that launched the app arrives before navigation is ready, so it is
+ * read back with getLastNotificationResponseAsync once the session is.
+ */
+function PushBridge() {
+  const { session, isNewSignup } = useAuth();
+  const signedIn = Boolean(session) && !isNewSignup;
+
+  useEffect(() => {
+    if (!signedIn) return;
+    void registerForPush();
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(openFromNotification);
+    const timer = setTimeout(() => {
+      void Notifications.getLastNotificationResponseAsync().then(openFromNotification).catch(() => {});
+    }, 600);
+    return () => {
+      subscription.remove();
+      clearTimeout(timer);
+    };
+  }, [signedIn]);
+
+  return null;
+}
 
 function AppRoot() {
   const { resolvedTheme, palette } = useAppTheme();
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={{
         dark: resolvedTheme === 'dark',
         colors: {
@@ -27,6 +69,7 @@ function AppRoot() {
     >
       <StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} />
       <AppNavigator />
+      <PushBridge />
     </NavigationContainer>
   );
 }

@@ -62,6 +62,10 @@ import {
 } from './db.js'
 import { sendEmailOtp } from './email.js'
 import {
+  isExpoPushToken, registerPushToken, removePushToken, notifyUsers,
+  notifyInBackground, pushInBackground, newBroadcastId,
+} from './push.js'
+import {
   authAccountExistsByEmailFast,
   getBusinessListingsFast,
   getCurrentMemberPayloadFast,
@@ -2730,6 +2734,14 @@ app.post('/api/matrimony/profiles/:id/interest', async (request, response) => {
     cacheInvalidate(`interests:${activeUserId}`)
     cacheInvalidate(`interests:${receiverUserId}`)
 
+    const [sender] = await pgQuery('SELECT full_name FROM users WHERE id = $1', [activeUserId])
+    notifyInBackground([receiverUserId], {
+      type: 'interest_received',
+      title: 'New interest',
+      body: `${sender?.full_name || 'Someone'} is interested in your profile.`,
+      data: { screen: 'Interests' },
+    })
+
     response.json({ success: true, data: { interestId, status: 'pending' } })
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
@@ -2845,6 +2857,18 @@ app.put('/api/matrimony/interests/:id', async (request, response) => {
 
     cacheInvalidate(`interests:${activeUserId}`)
     cacheInvalidate(`interests:${interest.sender_id}`)
+
+    // Only acceptance is announced. Telling someone they were declined adds
+    // nothing they can act on.
+    if (accept) {
+      const [receiver] = await pgQuery('SELECT full_name FROM users WHERE id = $1', [activeUserId])
+      notifyInBackground([interest.sender_id], {
+        type: 'interest_accepted',
+        title: "It's a match!",
+        body: `${receiver?.full_name || 'Someone'} accepted your interest. You can now message each other.`,
+        data: { screen: 'Messages' },
+      })
+    }
 
     response.json({ success: true, data: { status: newStatus } })
   } catch (err) {
@@ -3060,6 +3084,14 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
     }
     const otherUserId = match.user1_id === activeUserId ? match.user2_id : match.user1_id
 
+    // Pushed only when this opens a new unread run: a burst of messages is
+    // one notification, not ten, and the rest are waiting in the chat.
+    const [{ unread } = { unread: 0 }] = await pgQuery(
+      `SELECT COUNT(*)::int AS unread FROM matrimony_messages
+       WHERE match_id = $1 AND sender_id = $2 AND is_read = 0`,
+      [matchId, activeUserId]
+    )
+
     const messageId = crypto.randomUUID()
     const createdAt = new Date().toISOString()
 
@@ -3073,6 +3105,17 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
     cacheInvalidate(`matches:${activeUserId}`)
     // The recipient's list carries the new last message and unread count.
     cacheInvalidate(`matches:${otherUserId}`)
+
+    if (unread === 0) {
+      const [sender] = await pgQuery('SELECT full_name FROM users WHERE id = $1', [activeUserId])
+      const text = content.trim()
+      pushInBackground([otherUserId], {
+        title: sender?.full_name || 'New message',
+        body: text.length > 120 ? `${text.slice(0, 117)}...` : text,
+        data: { type: 'message', screen: 'Messages', matchId },
+      })
+    }
+
     response.json({ success: true, data: { id: messageId, createdAt } })
   } catch (err) {
     response.status(500).json({ success: false, error: err.message })
@@ -4711,6 +4754,8 @@ app.delete('/api/auth/account', async (request, response) => {
       [activeUserId]
     )
     await pgQuery('DELETE FROM user_settings WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM push_tokens WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM notifications WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM matrimony_profiles WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM auth_accounts WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM users WHERE id = $1', [activeUserId])
@@ -4883,6 +4928,247 @@ app.put('/api/settings', async (request, response) => {
   } catch (err) {
     console.error('[settings] PUT error:', err.message)
     response.status(500).json({ success: false, error: 'Failed to save settings' })
+  }
+})
+
+/* ------------------------------------------------------------------ */
+/* Notifications                                                       */
+/* ------------------------------------------------------------------ */
+
+app.post('/api/push-tokens', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  const { token, platform } = request.body || {}
+  if (!isExpoPushToken(token)) {
+    response.status(400).json({ success: false, error: 'A valid Expo push token is required' })
+    return
+  }
+  try {
+    await registerPushToken(activeUserId, token, typeof platform === 'string' ? platform.slice(0, 20) : null)
+    response.json({ success: true })
+  } catch (err) {
+    console.error('[push] register failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not register this device' })
+  }
+})
+
+// Called on sign-out, so a shared phone stops receiving the last member's notifications.
+app.delete('/api/push-tokens', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  const { token } = request.body || {}
+  if (typeof token !== 'string') {
+    response.status(400).json({ success: false, error: 'token is required' })
+    return
+  }
+  try {
+    await removePushToken(activeUserId, token)
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not remove this device' })
+  }
+})
+
+app.get('/api/notifications', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  try {
+    const rows = await pgQuery(
+      `SELECT id, type, title, body, data_json, created_at, read_at
+       FROM notifications WHERE user_id = $1
+       ORDER BY created_at DESC LIMIT 100`,
+      [activeUserId]
+    )
+    const parse = (text) => { try { return JSON.parse(text || '{}') } catch { return {} } }
+    response.json({
+      success: true,
+      data: rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        title: r.title,
+        body: r.body,
+        data: parse(r.data_json),
+        createdAt: r.created_at,
+        read: Boolean(r.read_at),
+      })),
+    })
+  } catch (err) {
+    console.error('[notifications] list failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not load notifications' })
+  }
+})
+
+/** Marks the given ids read, or all of this member's when none are given. */
+app.post('/api/notifications/read', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  const { ids } = request.body || {}
+  const now = new Date().toISOString()
+  try {
+    if (Array.isArray(ids) && ids.length) {
+      await pgQuery(
+        'UPDATE notifications SET read_at = $3 WHERE user_id = $1 AND id = ANY($2) AND read_at IS NULL',
+        [activeUserId, ids.map(String), now]
+      )
+    } else {
+      await pgQuery(
+        'UPDATE notifications SET read_at = $2 WHERE user_id = $1 AND read_at IS NULL',
+        [activeUserId, now]
+      )
+    }
+    response.json({ success: true })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not update notifications' })
+  }
+})
+
+const BROADCAST_AUDIENCES = new Set(['all', 'female', 'male', 'subscribers', 'free', 'plan', 'user'])
+
+/** The member ids an admin broadcast goes to. */
+async function broadcastRecipients(audience, target) {
+  const live = `status = 'active' AND expires_at::timestamp > NOW()`
+  let rows = []
+  if (audience === 'all') {
+    rows = await pgQuery('SELECT id AS user_id FROM users')
+  } else if (audience === 'female' || audience === 'male') {
+    rows = await pgQuery(
+      'SELECT user_id FROM matrimony_profiles WHERE LOWER(TRIM(gender)) = $1',
+      [audience]
+    )
+  } else if (audience === 'subscribers') {
+    rows = await pgQuery(`SELECT DISTINCT user_id FROM user_subscriptions WHERE ${live}`)
+  } else if (audience === 'free') {
+    rows = await pgQuery(
+      `SELECT id AS user_id FROM users
+       WHERE id NOT IN (SELECT user_id FROM user_subscriptions WHERE ${live})`
+    )
+  } else if (audience === 'plan') {
+    rows = await pgQuery(
+      `SELECT DISTINCT user_id FROM user_subscriptions WHERE ${live} AND plan = $1`,
+      [String(target || '')]
+    )
+  } else if (audience === 'user') {
+    const value = String(target || '').trim()
+    rows = await pgQuery(
+      `SELECT id AS user_id FROM users
+       WHERE LOWER(email) = LOWER($1) OR phone = $1 OR phone = RIGHT($1, 10)
+       LIMIT 1`,
+      [value]
+    )
+  }
+  return rows.map((r) => r.user_id)
+}
+
+/**
+ * Send a notification from the admin dashboard.
+ *
+ * `dryRun: true` only counts the recipients, so the dashboard can say "this
+ * will reach 214 members" before anything is sent.
+ */
+app.post('/api/admin/notifications', requireAdmin, async (request, response) => {
+  const { title, body, audience, target, dryRun } = request.body || {}
+  const cleanTitle = String(title || '').trim()
+  const cleanBody = String(body || '').trim()
+
+  if (!BROADCAST_AUDIENCES.has(audience)) {
+    response.status(400).json({ success: false, error: 'Choose who to send it to' })
+    return
+  }
+  if ((audience === 'plan' || audience === 'user') && !String(target || '').trim()) {
+    response.status(400).json({
+      success: false,
+      error: audience === 'plan' ? 'Choose a plan' : 'Enter the member\'s email or phone number',
+    })
+    return
+  }
+  if (!dryRun) {
+    if (!cleanTitle || cleanTitle.length > 65) {
+      response.status(400).json({ success: false, error: 'Title is required (up to 65 characters)' })
+      return
+    }
+    if (!cleanBody || cleanBody.length > 240) {
+      response.status(400).json({ success: false, error: 'Message is required (up to 240 characters)' })
+      return
+    }
+  }
+
+  try {
+    const recipients = await broadcastRecipients(audience, target)
+    if (dryRun) {
+      response.json({ success: true, data: { recipients: recipients.length } })
+      return
+    }
+    if (!recipients.length) {
+      response.status(404).json({ success: false, error: 'No members match that audience' })
+      return
+    }
+
+    const result = await notifyUsers(recipients, {
+      type: 'announcement',
+      title: cleanTitle,
+      body: cleanBody,
+      data: { screen: 'Notifications' },
+    })
+
+    const id = newBroadcastId()
+    await pgQuery(
+      `INSERT INTO notification_broadcasts
+         (id, title, body, audience, target, sent_by, recipients, devices, delivered, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        id, cleanTitle, cleanBody, audience, target ? String(target).trim() : null,
+        resolveUserId(request), result.recipients, result.devices, result.delivered,
+        new Date().toISOString(),
+      ]
+    )
+
+    response.json({ success: true, data: { id, ...result } })
+  } catch (err) {
+    console.error('[admin/notifications] send failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not send the notification' })
+  }
+})
+
+app.get('/api/admin/notifications', requireAdmin, async (_request, response) => {
+  try {
+    const [history, devices] = await Promise.all([
+      pgQuery(
+        `SELECT id, title, body, audience, target, recipients, devices, delivered, created_at
+         FROM notification_broadcasts ORDER BY created_at DESC LIMIT 50`
+      ),
+      pgQuery('SELECT COUNT(*)::int AS devices, COUNT(DISTINCT user_id)::int AS members FROM push_tokens'),
+    ])
+    response.json({
+      success: true,
+      data: {
+        history: history.map((r) => ({
+          id: r.id,
+          title: r.title,
+          body: r.body,
+          audience: r.audience,
+          target: r.target,
+          recipients: r.recipients,
+          devices: r.devices,
+          delivered: r.delivered,
+          createdAt: r.created_at,
+        })),
+        reach: devices[0] || { devices: 0, members: 0 },
+      },
+    })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not read notifications' })
   }
 })
 

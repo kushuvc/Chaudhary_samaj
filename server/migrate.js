@@ -287,6 +287,41 @@ const migrations = [
   `ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS phone_share_seeded BOOLEAN NOT NULL DEFAULT false`,
   `UPDATE user_settings SET privacy_show_phone = true, phone_share_seeded = true WHERE phone_share_seeded = false`,
   `ALTER TABLE user_settings ALTER COLUMN phone_share_seeded SET DEFAULT true`,
+  // Notifications. One row per device a member is signed in on, keyed by the
+  // Expo push token; the token moves if another member signs in on the device.
+  `CREATE TABLE IF NOT EXISTS push_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    platform TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_push_tokens_user_id ON push_tokens(user_id)`,
+  // The in-app list: what a member was told, whether or not the push arrived.
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    data_json TEXT,
+    created_at TEXT NOT NULL,
+    read_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)`,
+  // What the admin sent, to whom, and how far it got.
+  `CREATE TABLE IF NOT EXISTS notification_broadcasts (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    audience TEXT NOT NULL,
+    target TEXT,
+    sent_by TEXT,
+    recipients INTEGER NOT NULL DEFAULT 0,
+    devices INTEGER NOT NULL DEFAULT 0,
+    delivered INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
   // Who a plan is offered to: 'all', 'female' or 'male'. Defaults to 'all' so
   // every plan that exists today stays on sale to everyone it is now.
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'all'`,

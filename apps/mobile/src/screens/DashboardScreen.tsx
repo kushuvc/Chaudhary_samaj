@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop, Ellipse } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
@@ -31,6 +31,23 @@ export function DashboardScreen() {
   const styles = React.useMemo(() => createStyles(palette), [palette]);
   const { session } = useAuth();
   const navigation = useNavigation<any>();
+  // Unread notifications for the bell, refreshed whenever Home comes back
+  // into view — including on return from the Notifications screen.
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      void api
+        .getNotifications()
+        .then((list) => {
+          if (active) setUnreadNotifications(list.filter((n) => !n.read).length);
+        })
+        .catch(() => {});
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [guideOpen, setGuideOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -146,6 +163,21 @@ export function DashboardScreen() {
             hero already had — the tab is a matrimony service and looked like
             a settings page. */}
         <HeroMotion ringsTop={insets.top + 30} />
+
+        <Pressable
+          style={[styles.bell, { top: insets.top + 22 }]}
+          onPress={() => navigation.navigate('Notifications')}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={t('notificationsTitle')}
+        >
+          <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+          {unreadNotifications > 0 ? (
+            <View style={styles.bellBadge}>
+              <Text style={styles.bellBadgeText}>{unreadNotifications > 9 ? '9+' : unreadNotifications}</Text>
+            </View>
+          ) : null}
+        </Pressable>
 
         <View style={[styles.heroContent, { paddingTop: insets.top + 28 }]}>
           <View style={styles.heroPill}>
@@ -308,6 +340,34 @@ function createStyles(palette: ThemePalette) {
     content: { paddingBottom: 32 },
     heroCard: { height: 200, marginBottom: 20, overflow: 'hidden', position: 'relative' },
     heroContent: { flex: 1, padding: 24, paddingTop: 28, justifyContent: 'flex-end' },
+    bell: {
+      position: 'absolute',
+      right: 18,
+      zIndex: 2,
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderWidth: 1,
+      borderColor: 'rgba(255,255,255,0.3)',
+    },
+    bellBadge: {
+      position: 'absolute',
+      top: -3,
+      right: -3,
+      minWidth: 18,
+      height: 18,
+      borderRadius: 9,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.danger,
+      borderWidth: 2,
+      borderColor: '#5B5BD6',
+    },
+    bellBadgeText: { color: '#FFFFFF', fontSize: 10.5, fontWeight: '800' },
     heroPill: {
       alignSelf: 'flex-start', marginBottom: 'auto',
       backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20,

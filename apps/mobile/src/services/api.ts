@@ -94,6 +94,18 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => {
  * `playProductId` is the Play Console product this maps to; a plan without one
  * sells only through the Razorpay link.
  */
+/** One entry in the in-app Notifications list. */
+export interface AppNotification {
+  id: string;
+  type: 'announcement' | 'interest_received' | 'interest_accepted' | string;
+  title: string;
+  body: string;
+  /** `screen` names the tab a tap should open. */
+  data: { screen?: string; [key: string]: unknown };
+  createdAt: string;
+  read: boolean;
+}
+
 /** What a plan unlocks. A missing flag reads as allowed, matching the server. */
 export interface PlanCapabilities {
   canViewPhone: boolean;
@@ -882,6 +894,26 @@ export const api = {
    * Whether this member's number is shared, and whether their plan lets them
    * stop sharing it. Lives on the server: it decides who gets the number.
    */
+  registerPushToken: (token: string, platform: string) =>
+    request<{ success: boolean }>('/push-tokens', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    }),
+  unregisterPushToken: (token: string) =>
+    request<{ success: boolean }>('/push-tokens', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    }),
+  getNotifications: async (): Promise<AppNotification[]> => {
+    const response = await request<{ data: AppNotification[] }>('/notifications');
+    return response.data || [];
+  },
+  /** Marks these read, or every notification when no ids are given. */
+  markNotificationsRead: (ids?: string[]) =>
+    request<{ success: boolean }>('/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify(ids?.length ? { ids } : {}),
+    }),
   getPhoneSharing: async (): Promise<{ showPhone: boolean; canHidePhone: boolean }> => {
     const response = await request<{ data: any }>('/settings');
     return {

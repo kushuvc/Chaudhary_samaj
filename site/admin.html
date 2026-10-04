@@ -272,6 +272,10 @@
       </a>
 
       <p class="nav-group">App</p>
+      <a href="#notify" data-nav="notify">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+        Notifications
+      </a>
       <a href="#guide" data-nav="guide">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5"/></svg>
         App guide
@@ -474,6 +478,63 @@
       </div>
     </section>
 
+    <!-- ---------- NOTIFICATIONS ---------- -->
+    <section data-section="notify" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Notifications</h1>
+          <p class="sub">
+            Sends a push notification to members' phones and adds it to the Notifications list in
+            the app, so members who turned notifications off still see it there.
+            <span id="notifyReach"></span>
+          </p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="head"><h2>Send a notification</h2></div>
+        <div class="row">
+          <div>
+            <label for="n-audience">Send to</label>
+            <select id="n-audience">
+              <option value="all">Everyone</option>
+              <option value="female">Women</option>
+              <option value="male">Men</option>
+              <option value="subscribers">Members with an active plan</option>
+              <option value="free">Members without a plan</option>
+              <option value="plan">Members on one plan…</option>
+              <option value="user">One member…</option>
+            </select>
+          </div>
+          <div id="n-plan-wrap" hidden>
+            <label for="n-plan">Plan</label>
+            <select id="n-plan"></select>
+          </div>
+          <div id="n-user-wrap" hidden>
+            <label for="n-user">Member's email or phone</label>
+            <input type="text" id="n-user" placeholder="member@example.com or 98xxxxxxxx">
+          </div>
+        </div>
+        <div style="margin-top:.7rem">
+          <label for="n-title">Title <span class="hint" id="n-title-count">0/65</span></label>
+          <input type="text" id="n-title" maxlength="65" placeholder="Samaj Sammelan this Sunday">
+        </div>
+        <div style="margin-top:.7rem">
+          <label for="n-body">Message <span class="hint" id="n-body-count">0/240</span></label>
+          <textarea id="n-body" rows="3" maxlength="240" placeholder="Join us at the community hall at 10 am."></textarea>
+        </div>
+        <p class="hint" id="n-count" style="margin:.6rem 0 0"></p>
+        <div class="actions">
+          <button id="n-send" type="button">Send notification</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="head"><h2>Sent</h2></div>
+        <div id="notifyHistory"><p class="hint" style="margin:0">Loading…</p></div>
+      </div>
+    </section>
+
     <!-- ---------- APP GUIDE ---------- -->
     <section data-section="guide" hidden>
       <div class="page-head">
@@ -564,7 +625,7 @@ const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fi
  * back button, a refresh and a bookmark all land where you were. Each section
  * loads the first time it is opened; saving inside one reloads just that one.
  */
-const SECTIONS = ['overview', 'reports', 'members', 'plans', 'free', 'play', 'guide'];
+const SECTIONS = ['overview', 'reports', 'members', 'plans', 'free', 'play', 'notify', 'guide'];
 const loaded = new Set();
 const LOADERS = {
   overview: () => loadOverview(),
@@ -573,6 +634,7 @@ const LOADERS = {
   plans: () => loadPlans(),
   free: () => loadRules(),
   play: async () => {},
+  notify: () => loadNotify(),
   guide: () => loadGuide(),
 };
 
@@ -872,6 +934,101 @@ async function loadMembers() {
 
 $('prevPage').onclick = () => { if (memberPage > 1) { memberPage--; void loadMembers().catch((e) => msg(e.message, 'err')); } };
 $('nextPage').onclick = () => { memberPage++; void loadMembers().catch((e) => { memberPage--; msg(e.message, 'err'); }); };
+
+
+/* ======================= notifications ======================= */
+const AUDIENCE_LABEL = {
+  all: 'Everyone', female: 'Women', male: 'Men', subscribers: 'Active plan',
+  free: 'No plan', plan: 'Plan', user: 'One member',
+};
+
+function notifyRequest(dryRun) {
+  const audience = $('n-audience').value;
+  const target = audience === 'plan' ? $('n-plan').value : audience === 'user' ? $('n-user').value.trim() : undefined;
+  return { audience, target, title: $('n-title').value.trim(), body: $('n-body').value.trim(), dryRun };
+}
+
+/* Counts who it would reach, so the send button can say so before anything goes out. */
+async function countNotifyRecipients() {
+  const req = notifyRequest(true);
+  if ((req.audience === 'plan' || req.audience === 'user') && !req.target) {
+    $('n-count').textContent = '';
+    return null;
+  }
+  try {
+    const body = await call('/admin/notifications', { method: 'POST', body: JSON.stringify(req) });
+    const n = body.data.recipients;
+    $('n-count').textContent = n === 1 ? 'This will reach 1 member.' : 'This will reach ' + n + ' members.';
+    return n;
+  } catch (err) {
+    $('n-count').textContent = err.message;
+    return null;
+  }
+}
+
+async function loadNotify() {
+  // Plan choices come from the plans themselves, so a new plan appears here too.
+  const plans = await call('/admin/plans');
+  $('n-plan').innerHTML = plans.data
+    .map((p) => '<option value="' + esc(p.code) + '">' + esc(p.name) + ' (' + esc(p.code) + ')</option>')
+    .join('');
+
+  const data = (await call('/admin/notifications')).data;
+  $('notifyReach').textContent = data.reach.members
+    ? ' ' + data.reach.members + ' member' + (data.reach.members === 1 ? ' has' : 's have') +
+      ' notifications switched on, on ' + data.reach.devices + ' device' + (data.reach.devices === 1 ? '' : 's') + '.'
+    : ' No member has notifications switched on yet — they will once the new app version is installed.';
+
+  $('notifyHistory').innerHTML = data.history.length
+    ? '<div class="table-wrap"><table><thead><tr><th>Sent</th><th>To</th><th>Notification</th><th>Members</th><th>Phones reached</th></tr></thead><tbody>' +
+      data.history.map((h) =>
+        '<tr><td>' + esc(when(h.createdAt)) + '</td>' +
+        '<td>' + esc(AUDIENCE_LABEL[h.audience] || h.audience) + (h.target ? '<br><span class="hint">' + esc(h.target) + '</span>' : '') + '</td>' +
+        '<td><b>' + esc(h.title) + '</b><br><span class="hint">' + esc(h.body) + '</span></td>' +
+        '<td>' + esc(h.recipients) + '</td>' +
+        '<td>' + esc(h.delivered) + ' of ' + esc(h.devices) + '</td></tr>'
+      ).join('') + '</tbody></table></div>'
+    : '<p class="hint" style="margin:0">Nothing sent yet.</p>';
+
+  void countNotifyRecipients();
+}
+
+$('n-audience').onchange = () => {
+  const a = $('n-audience').value;
+  $('n-plan-wrap').hidden = a !== 'plan';
+  $('n-user-wrap').hidden = a !== 'user';
+  void countNotifyRecipients();
+};
+$('n-plan').onchange = () => void countNotifyRecipients();
+$('n-user').onchange = () => void countNotifyRecipients();
+$('n-title').oninput = () => { $('n-title-count').textContent = $('n-title').value.length + '/65'; };
+$('n-body').oninput = () => { $('n-body-count').textContent = $('n-body').value.length + '/240'; };
+
+$('n-send').onclick = async () => {
+  const req = notifyRequest(false);
+  if (!req.title || !req.body) return msg('Add a title and a message.', 'err');
+  const n = await countNotifyRecipients();
+  if (n === null) return msg('Choose who to send it to.', 'err');
+  if (!n) return msg('No members match that audience.', 'err');
+  // It cannot be taken back once it is on people's phones.
+  if (!confirm('Send "' + req.title + '" to ' + n + ' member' + (n === 1 ? '' : 's') + '? This cannot be undone.')) return;
+
+  $('n-send').disabled = true;
+  try {
+    const body = await call('/admin/notifications', { method: 'POST', body: JSON.stringify(req) });
+    const d = body.data;
+    msg('Sent to ' + d.recipients + ' member' + (d.recipients === 1 ? '' : 's') + ' (' + d.delivered + ' of ' + d.devices + ' phones reached).');
+    $('n-title').value = '';
+    $('n-body').value = '';
+    $('n-title-count').textContent = '0/65';
+    $('n-body-count').textContent = '0/240';
+    await loadNotify();
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('n-send').disabled = false;
+  }
+};
 
 /* ======================= what a plan (or a free gender) unlocks ======================= */
 const CAPABILITIES = [

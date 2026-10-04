@@ -1,268 +1,191 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { EmptyState } from '../components/AppFeedback';
-import { PrimaryButton, ScreenTitle, SecondaryButton, SectionCard } from '../components/AppPrimitives';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { EmptyState, InlineError, ScreenLoader } from '../components/AppFeedback';
 import { useAppLanguage } from '../context/LanguageContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { loadJson, saveJson } from '../services/localData';
-import { radius, spacing, type } from '../theme';
-import type { MobileNotificationState, NotificationItem, NotificationType } from '../types';
+import { api, type AppNotification } from '../services/api';
+import { radius, spacing } from '../theme';
 
-const STORAGE_KEY = 'chaudhary_mobile_notifications_state';
+/*
+ * The list used to be three sample items kept on the phone — a meeting
+ * reminder, a match, a security notice — none of them real, and the screen
+ * was not reachable from anywhere. It now shows what the server recorded:
+ * announcements from the admin, and interests received or accepted.
+ */
 
-const fallbackNotifications: NotificationItem[] = [
-  {
-    id: 'ntf-1',
-    title: 'General Meeting Reminder',
-    message: 'Community general meeting starts tomorrow at 6:30 PM.',
-    type: 'announcement',
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'ntf-2',
-    title: 'New Matrimony Match',
-    message: 'You have new compatibility matches based on your filters.',
-    type: 'event',
-    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    read: false,
-  },
-  {
-    id: 'ntf-3',
-    title: 'Security Update',
-    message: 'Your account settings were updated successfully.',
-    type: 'security',
-    createdAt: new Date(Date.now() - 27 * 60 * 60 * 1000).toISOString(),
-    read: true,
-  },
-];
+const TAB_SCREENS = new Set(['Home', 'Matrimony', 'Interests', 'Messages', 'Subscriptions', 'Profile', 'Settings']);
+
+function iconFor(type: string): keyof typeof Ionicons.glyphMap {
+  if (type === 'interest_received') return 'heart-outline';
+  if (type === 'interest_accepted') return 'heart';
+  return 'megaphone-outline';
+}
 
 export function NotificationsScreen() {
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [filterType, setFilterType] = useState<'all' | NotificationType>('all');
-  const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+  const [items, setItems] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      const state = await loadJson<MobileNotificationState>(STORAGE_KEY, {
-        notifications: fallbackNotifications,
-      });
-      if (mounted) {
-        setNotifications(state.notifications);
-      }
-    };
-    void load();
-    return () => {
-      mounted = false;
-    };
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      setItems(await api.getNotifications());
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  useEffect(() => {
-    void saveJson<MobileNotificationState>(STORAGE_KEY, { notifications });
-  }, [notifications]);
-
-  const unreadCount = useMemo(
-    () => notifications.filter((item) => !item.read).length,
-    [notifications]
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
   );
 
-  const filtered = useMemo(() => {
-    return notifications.filter((item) => {
-      const matchesType = filterType === 'all' || item.type === filterType;
-      const matchesRead = !showUnreadOnly || !item.read;
-      return matchesType && matchesRead;
-    });
-  }, [filterType, notifications, showUnreadOnly]);
+  const unread = items.filter((item) => !item.read).length;
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));
+  const markAllRead = async () => {
+    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+    await api.markNotificationsRead().catch(() => {});
   };
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+  const open = (item: AppNotification) => {
+    if (!item.read) {
+      setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, read: true } : n)));
+      void api.markNotificationsRead([item.id]).catch(() => {});
+    }
+    const screen = item.data?.screen;
+    if (typeof screen === 'string' && TAB_SCREENS.has(screen)) {
+      navigation.navigate('Main', { screen });
+    }
   };
 
-  const clearRead = () => {
-    setNotifications((prev) => prev.filter((item) => !item.read));
-  };
-
-  const formatTimeAgo = (isoDate: string) => {
-    const diffMs = Date.now() - new Date(isoDate).getTime();
-    const mins = Math.max(1, Math.floor(diffMs / 60000));
+  const timeAgo = (iso: string) => {
+    const mins = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
     if (mins < 60) return `${mins}${t('minutesShort')} ${t('agoSuffix')}`;
     const hrs = Math.floor(mins / 60);
     if (hrs < 24) return `${hrs}${t('hoursShort')} ${t('agoSuffix')}`;
     return `${Math.floor(hrs / 24)}${t('daysShort')} ${t('agoSuffix')}`;
   };
 
-  const typeLabel = (item: 'all' | NotificationType) => {
-    if (item === 'all') return t('allTab');
-    if (item === 'announcement') return t('announcementType');
-    if (item === 'message') return t('messageType');
-    if (item === 'security') return t('securityType');
-    return t('eventType');
-  };
+  if (loading) return <ScreenLoader message={t('notificationsTitle')} />;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <SectionCard>
-        <ScreenTitle title={t('notificationsTitle')} subtitle={`${unreadCount} ${t('unreadNotifications')}`} />
-        <View style={styles.headerActions}>
-          <PrimaryButton label={t('markAllRead')} onPress={markAllRead} />
-          <SecondaryButton label={t('clearRead')} onPress={clearRead} />
-        </View>
-      </SectionCard>
-
-      <SectionCard>
-        <View style={styles.chipsRow}>
-          {(['all', 'announcement', 'message', 'security', 'event'] as const).map((item) => (
-            <Pressable
-              key={item}
-              onPress={() => setFilterType(item)}
-              style={[styles.chip, filterType === item ? styles.chipActive : null]}
-            >
-              <Text style={[styles.chipText, filterType === item ? styles.chipTextActive : null]}>{typeLabel(item)}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Pressable
-          style={[styles.toggleRow, showUnreadOnly ? styles.toggleRowActive : null]}
-          onPress={() => setShowUnreadOnly((prev) => !prev)}
-        >
-          <Text style={styles.toggleText}>{t('unreadOnly')}</Text>
+    <View style={styles.container}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.iconButton} hitSlop={8} accessibilityRole="button">
+          <Ionicons name="arrow-back" size={24} color={palette.text} />
         </Pressable>
-      </SectionCard>
-
-      {filtered.length === 0 ? (
-        <EmptyState
-          title={t('noNotificationsFound')}
-          subtitle={t('changeFiltersHint')}
-        />
-      ) : null}
-
-      {filtered.map((notification) => (
-        <View key={notification.id} style={[styles.itemCard, notification.read ? null : styles.unreadCard]}>
-          <View style={styles.itemHead}>
-            <Text style={styles.itemTitle}>{notification.title}</Text>
-            <Text style={styles.timeText}>{formatTimeAgo(notification.createdAt)}</Text>
-          </View>
-          <Text style={styles.typeTag}>{typeLabel(notification.type)}</Text>
-          <Text style={styles.itemMessage}>{notification.message}</Text>
-          {!notification.read ? (
-            <PrimaryButton label={t('markRead')} onPress={() => markAsRead(notification.id)} />
-          ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>{t('notificationsTitle')}</Text>
+          <Text style={styles.subtitle}>
+            {unread} {t('unreadNotifications')}
+          </Text>
         </View>
-      ))}
-    </ScrollView>
+        {unread > 0 ? (
+          <Pressable onPress={() => void markAllRead()} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.markAll}>{t('markAllRead')}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load();
+            }}
+            tintColor={palette.primary}
+          />
+        }
+      >
+        {error ? <InlineError message={error} /> : null}
+
+        {!error && items.length === 0 ? (
+          <EmptyState title={t('notifEmptyTitle')} subtitle={t('notifEmptyBody')} />
+        ) : null}
+
+        {items.map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => open(item)}
+            style={({ pressed }) => [styles.card, !item.read && styles.cardUnread, pressed && { opacity: 0.7 }]}
+            accessibilityRole="button"
+          >
+            <View style={[styles.iconWrap, !item.read && styles.iconWrapUnread]}>
+              <Ionicons name={iconFor(item.type)} size={20} color={item.read ? palette.muted : palette.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.cardHead}>
+                <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+                <Text style={styles.time}>{timeAgo(item.createdAt)}</Text>
+              </View>
+              <Text style={styles.cardBody}>{item.body}</Text>
+            </View>
+            {!item.read ? <View style={styles.dot} /> : null}
+          </Pressable>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: palette.bg,
-  },
-  content: {
-    padding: spacing.md,
-    gap: spacing.sm,
-  },
-  headerActions: {
-    marginTop: spacing.sm,
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
-  },
-  chip: {
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    backgroundColor: palette.surface,
-  },
-  chipActive: {
-    backgroundColor: palette.text,
-    borderColor: palette.text,
-  },
-  chipText: {
-    ...type.caption,
-    color: palette.textSoft,
-    textTransform: 'capitalize',
-  },
-  chipTextActive: {
-    color: palette.surface,
-  },
-  toggleRow: {
-    marginTop: spacing.sm,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-    backgroundColor: palette.surface,
-  },
-  toggleRowActive: {
-    borderColor: palette.primary,
-    backgroundColor: palette.primarySoft,
-  },
-  toggleText: {
-    ...type.body,
-    fontWeight: '600',
-    color: palette.text,
-  },
-  itemCard: {
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.border,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    gap: spacing.xs,
-  },
-  unreadCard: {
-    borderColor: palette.primary,
-    backgroundColor: palette.primarySoft,
-  },
-  itemHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  itemTitle: {
-    flex: 1,
-    ...type.body,
-    fontWeight: '700',
-    color: palette.text,
-  },
-  timeText: {
-    ...type.caption,
-  },
-  typeTag: {
-    ...type.caption,
-    color: palette.primary,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  itemMessage: {
-    ...type.body,
-    color: palette.textSoft,
-  },
+    container: { flex: 1, backgroundColor: palette.bg },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingHorizontal: spacing.md,
+      paddingBottom: spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.border,
+    },
+    iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+    title: { fontSize: 20, fontWeight: '800', color: palette.text },
+    subtitle: { fontSize: 12.5, color: palette.muted, marginTop: 1 },
+    markAll: { fontSize: 13.5, fontWeight: '700', color: palette.primary },
+    content: { padding: spacing.md, gap: spacing.sm },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: spacing.sm,
+      backgroundColor: palette.surface,
+      borderWidth: 1,
+      borderColor: palette.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    cardUnread: { borderColor: palette.primary, backgroundColor: palette.primarySoft },
+    iconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: palette.surfaceSunken,
+    },
+    iconWrapUnread: { backgroundColor: palette.surface },
+    cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xs },
+    cardTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: palette.text },
+    time: { fontSize: 12, color: palette.muted },
+    cardBody: { fontSize: 14, lineHeight: 20, color: palette.textSoft, marginTop: 3 },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: palette.primary, marginTop: 6 },
   });
 }

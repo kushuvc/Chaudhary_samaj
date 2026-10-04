@@ -38,7 +38,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#8868e8"
-      }
+      },
+      "googleServicesFile": "./google-services.json"
     },
     "scheme": "chaudharysamaj",
     "web": {
@@ -53,7 +54,14 @@
     "owner": "kushnew",
     "plugins": [
       "expo-font",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#5B5BD6",
+          "defaultChannel": "default"
+        }
+      ]
     ],
     "icon": "./assets/icon.png",
     "splash": {

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { api, setApiSession, setUnauthorizedHandler } from '../services/api';
 import { clearSession, loadSession, saveSession } from '../services/authStorage';
 import type { AuthSession, OtpPurpose, SignupPayload } from '../types';
+import { unregisterPush } from '../services/push';
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -95,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await saveSession(next);
       },
       logout: async () => {
+        // Before the session goes: detaching the device is an authenticated call.
+        await unregisterPush();
         setSession(null);
         setApiSession(null);
         setIsNewSignup(false);

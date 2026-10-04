@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1049697218090",
+    "project_id": "chaudhary-samaj-ec81e",
+    "storage_bucket": "chaudhary-samaj-ec81e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049697218090:android:504a24791a0fffeb805d53",
+        "android_client_info": {
+          "package_name": "com.chaudharysamaj.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA2lHSsNU0vAftfu7U15VFigQ9sN5vweU0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

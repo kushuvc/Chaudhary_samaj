@@ -265,6 +265,7 @@ function LabeledInput({
         editable={editable}
         style={[styles.input, multiline ? styles.textArea : null]}
         placeholder={placeholder}
+        placeholderTextColor={styles.placeholder.color}
         keyboardType={keyboardType}
         multiline={multiline}
         numberOfLines={numberOfLines}
@@ -983,6 +984,7 @@ function createStyles(palette: ThemePalette) {
   },
   sectionTitle: {
     ...type.h2,
+    color: palette.text,
     marginBottom: spacing.sm,
   },
   fieldGroup: {
@@ -996,14 +998,19 @@ function createStyles(palette: ThemePalette) {
     fontWeight: '600',
   },
   input: {
-    backgroundColor: palette.surface,
-    borderColor: palette.border,
+    // Sunken, not the card's own surface, so a field still reads as a field
+    // in dark mode, where card and input were the same colour.
+    backgroundColor: palette.surfaceSunken,
+    borderColor: palette.borderStrong,
     borderWidth: 1,
+    color: palette.text,
+    fontSize: 15,
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.sm,
     marginBottom: spacing.sm,
   },
+  placeholder: { color: palette.muted },
   textArea: {
     minHeight: 92,
     textAlignVertical: 'top',
@@ -1033,7 +1040,7 @@ function createStyles(palette: ThemePalette) {
     color: palette.primary,
   },
   readOnlyValueWrap: {
-    backgroundColor: palette.surface,
+    backgroundColor: palette.surfaceSunken,
     borderColor: palette.border,
     borderWidth: 1,
     borderRadius: radius.sm,

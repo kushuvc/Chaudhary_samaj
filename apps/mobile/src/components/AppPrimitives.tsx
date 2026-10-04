@@ -139,7 +139,7 @@ function createStyles(palette: ThemePalette) {
       justifyContent: 'center',
     },
     primaryButtonText: {
-      color: palette.surface,
+      color: palette.onPrimary,
       fontWeight: '700',
       fontSize: 13,
     },

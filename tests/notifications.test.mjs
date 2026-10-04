@@ -179,3 +179,76 @@ describe('automatic notifications', () => {
     assert.ok(now.every((n) => n.read))
   })
 })
+
+describe('welcome and plan expiry', () => {
+  async function waitFor(member, type) {
+    for (let i = 0; i < 30; i++) {
+      const items = (await list(member)).body.data
+      const hit = items.find((n) => n.type === type)
+      if (hit) return hit
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    return null
+  }
+
+  test('a new member is welcomed', async () => {
+    const member = await signUpUser(server, { gender: 'female' })
+    const welcome = await waitFor(member, 'welcome')
+    assert.ok(welcome, 'the welcome is in their list')
+    assert.equal(welcome.title, 'Welcome to Chaudhary Samaj')
+  })
+
+  async function subscription(userId, { hoursLeft, provider = 'razorpay', playState = null }) {
+    await server.sql(
+      `INSERT INTO user_subscriptions
+         (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at, provider, play_state)
+       VALUES ($1, 'premium', 100, 'p', 'o', 'active', NOW()::text,
+               (NOW() + ($2 || ' hours')::interval)::text, $3, $4)`,
+      [userId, String(hoursLeft), provider, playState]
+    )
+  }
+  const runReminders = () =>
+    server.request('POST', '/api/admin/notifications/expiry-reminders', { token: admin.token })
+  const expiring = async (member) =>
+    (await list(member)).body.data.filter((n) => n.type === 'plan_expiring')
+
+  test('a plan ending in two days gets the 3-day reminder, once', async () => {
+    const member = await signUpUser(server, { gender: 'male' })
+    await subscription(member.userId, { hoursLeft: 48 })
+    await runReminders()
+    await runReminders()
+    const got = await expiring(member)
+    assert.equal(got.length, 1)
+    assert.equal(got[0].title, 'Your plan ends in 3 days')
+    assert.equal(got[0].data.screen, 'Subscriptions')
+  })
+
+  test('a plan ending tomorrow gets only the 1-day reminder', async () => {
+    const member = await signUpUser(server, { gender: 'male' })
+    await subscription(member.userId, { hoursLeft: 20 })
+    await runReminders()
+    const got = await expiring(member)
+    assert.deepEqual(got.map((n) => n.title), ['Your plan ends tomorrow'])
+  })
+
+  test('a Play subscription that will renew is not warned', async () => {
+    const member = await signUpUser(server, { gender: 'male' })
+    await subscription(member.userId, { hoursLeft: 20, provider: 'google_play', playState: 'SUBSCRIPTION_STATE_ACTIVE' })
+    await runReminders()
+    assert.equal((await expiring(member)).length, 0)
+  })
+
+  test('a Play subscription the member cancelled is warned', async () => {
+    const member = await signUpUser(server, { gender: 'male' })
+    await subscription(member.userId, { hoursLeft: 20, provider: 'google_play', playState: 'SUBSCRIPTION_STATE_CANCELED' })
+    await runReminders()
+    assert.equal((await expiring(member)).length, 1)
+  })
+
+  test('a plan with weeks left is not warned', async () => {
+    const member = await signUpUser(server, { gender: 'male' })
+    await subscription(member.userId, { hoursLeft: 24 * 20 })
+    await runReminders()
+    assert.equal((await expiring(member)).length, 0)
+  })
+})

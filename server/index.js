@@ -64,6 +64,7 @@ import { sendEmailOtp } from './email.js'
 import {
   isExpoPushToken, registerPushToken, removePushToken, notifyUsers,
   notifyInBackground, pushInBackground, newBroadcastId,
+  welcomeNewMember, pushWelcomeIfFirstDevice, startPlanExpiryReminders, sendPlanExpiryReminders,
 } from './push.js'
 import {
   authAccountExistsByEmailFast,
@@ -665,6 +666,7 @@ app.post('/api/auth/signup', async (request, response) => {
     if (createAccount) {
       const user = { id: userId, fullName: String(fullName).trim(), email: String(email).trim().toLowerCase(), phone: phone || null, avatar: avatarUrl }
       cacheSet(`user:${userId}`, true, 300000)
+      welcomeNewMember(userId)
       response.status(201).json({ success: true, data: { user, authToken: issueAuthToken(userId) } })
     } else {
       // Validation mode - just return success without creating account
@@ -4429,8 +4431,8 @@ app.post('/api/payments/play/verify', async (request, response) => {
     await pgQuery(
       `INSERT INTO user_subscriptions
          (user_id, plan, amount, payment_id, order_id, status, started_at, expires_at,
-          play_purchase_token, play_product_id, provider)
-       VALUES ($1, $8, $9, $2, $3, 'active', $4, $5, $6, $7, 'google_play')
+          play_purchase_token, play_product_id, provider, play_state)
+       VALUES ($1, $8, $9, $2, $3, 'active', $4, $5, $6, $7, 'google_play', $10)
        ON CONFLICT (user_id) DO UPDATE SET
          plan = $8,
          amount = $9,
@@ -4441,7 +4443,8 @@ app.post('/api/payments/play/verify', async (request, response) => {
          expires_at = $5,
          play_purchase_token = $6,
          play_product_id = $7,
-         provider = 'google_play'`,
+         provider = 'google_play',
+         play_state = $10`,
       [
         activeUserId,
         purchase.orderId || purchaseToken.slice(0, 40),
@@ -4452,6 +4455,7 @@ app.post('/api/payments/play/verify', async (request, response) => {
         purchase.productId,
         bought.code,
         Math.round(bought.pricePaise / 100),
+        purchase.state || null,
       ]
     )
 
@@ -4549,9 +4553,9 @@ app.post('/api/payments/play/rtdn', async (request, response) => {
 
     await pgQuery(
       `UPDATE user_subscriptions
-       SET status = $1, expires_at = COALESCE($2, expires_at)
+       SET status = $1, expires_at = COALESCE($2, expires_at), play_state = $4
        WHERE play_purchase_token = $3`,
-      [purchase.entitled ? 'active' : 'expired', purchase.expiryTime, notification.purchaseToken]
+      [purchase.entitled ? 'active' : 'expired', purchase.expiryTime, notification.purchaseToken, purchase.state || null]
     )
   } catch (err) {
     console.error('[play] rtdn handling failed:', err.message)
@@ -4948,6 +4952,7 @@ app.post('/api/push-tokens', async (request, response) => {
   }
   try {
     await registerPushToken(activeUserId, token, typeof platform === 'string' ? platform.slice(0, 20) : null)
+    pushWelcomeIfFirstDevice(activeUserId).catch((err) => console.error('[push] welcome failed:', err.message))
     response.json({ success: true })
   } catch (err) {
     console.error('[push] register failed:', err.message)
@@ -5138,6 +5143,17 @@ app.post('/api/admin/notifications', requireAdmin, async (request, response) => 
   } catch (err) {
     console.error('[admin/notifications] send failed:', err.message)
     response.status(500).json({ success: false, error: 'Could not send the notification' })
+  }
+})
+
+/** Runs the plan expiry check now rather than waiting for the hourly one. */
+app.post('/api/admin/notifications/expiry-reminders', requireAdmin, async (_request, response) => {
+  try {
+    const sent = await sendPlanExpiryReminders()
+    response.json({ success: true, data: { sent } })
+  } catch (err) {
+    console.error('[reminders] manual run failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not run the reminders' })
   }
 })
 
@@ -5825,6 +5841,7 @@ app.use((error, request, response, next) => {
 })
 
 app.listen(port, () => {
+  startPlanExpiryReminders()
   console.log(`Matrimony backend listening on http://localhost:${port}`)
   warmUpPool()
 })

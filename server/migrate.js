@@ -309,6 +309,19 @@ const migrations = [
     read_at TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC)`,
+  // Google's own subscription state (ACTIVE, CANCELED, ...). ACTIVE means it
+  // renews by itself, so an "expiring" reminder would be wrong; CANCELED means
+  // the member turned renewal off and the plan really will end.
+  `ALTER TABLE user_subscriptions ADD COLUMN IF NOT EXISTS play_state TEXT`,
+  // One row per reminder sent, so the hourly check can run on every worker and
+  // every restart without anyone being told twice about the same expiry.
+  `CREATE TABLE IF NOT EXISTS plan_expiry_reminders (
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, expires_at, kind)
+  )`,
   // What the admin sent, to whom, and how far it got.
   `CREATE TABLE IF NOT EXISTS notification_broadcasts (
     id TEXT PRIMARY KEY,

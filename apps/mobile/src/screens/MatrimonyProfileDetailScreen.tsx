@@ -20,7 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { colors } from '../theme';
 import { api } from '../services/api';
 import type { MatrimonyProfile } from '../types';
 import { useCapabilities } from '../hooks/useCapabilities';
@@ -81,13 +80,16 @@ interface MatrimonyProfileDetailScreenProps {
   onBack: () => void;
 }
 
+// Colours come from the active theme: the fixed light palette drew values in
+// near-black on the dark card, so only the labels were readable.
 function InfoRow({ label, value }: { label: string; value: string | number | null | undefined }) {
   const { language, t } = useAppLanguage();
+  const { palette } = useAppTheme();
   const filled = value != null && String(value).trim() !== '';
   return (
-    <View style={infoRowStyle}>
-      <Text style={infoLabelStyle}>{label}</Text>
-      <Text style={infoValueStyle}>{filled ? optionLabel(String(value), language) : t('lblNotSet')}</Text>
+    <View style={[infoRowStyle, { borderBottomColor: palette.border }]}>
+      <Text style={[infoLabelStyle, { color: palette.muted }]}>{label}</Text>
+      <Text style={[infoValueStyle, { color: palette.text }]}>{filled ? optionLabel(String(value), language) : t('lblNotSet')}</Text>
     </View>
   );
 }
@@ -97,16 +99,13 @@ const infoRowStyle: import('react-native').ViewStyle = {
   justifyContent: 'space-between',
   paddingVertical: 8,
   borderBottomWidth: 1,
-  borderBottomColor: colors.border,
 };
 const infoLabelStyle: import('react-native').TextStyle = {
   fontSize: 14,
-  color: colors.muted,
   flex: 1,
 };
 const infoValueStyle: import('react-native').TextStyle = {
   fontSize: 14,
-  color: colors.text,
   fontWeight: '500',
   flex: 1,
   textAlign: 'right',

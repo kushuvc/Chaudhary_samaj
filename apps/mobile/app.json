@@ -18,7 +18,7 @@
     },
     "android": {
       "package": "com.chaudharysamaj.mobile",
-      "versionCode": 32,
+      "versionCode": 34,
       "softwareKeyboardLayoutMode": "resize",
       "intentFilters": [
         {

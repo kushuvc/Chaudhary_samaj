@@ -1887,40 +1887,6 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     return
   }
 
-  // Same paywall as the list: without a subscription, only the first
-  // the free allowance of this member's ordering is readable.
-  // Otherwise the list could be locked while the detail route handed over
-  // everything to anyone who knew an id.
-  let access
-  try {
-    access = await resolveAccess(activeUserId)
-  } catch (err) {
-    console.error('[paywall] access check failed:', err.message)
-    response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
-    return
-  }
-
-  if (!access.entitled) {
-    let allowedIds = []
-    try {
-      const all = (await getPublicProfilesFast(activeUserId, await genderOf(activeUserId))) || []
-      allowedIds = [...(await resolveFreeAllocation(activeUserId, all, access.rule.freeProfileLimit))]
-    } catch (err) {
-      console.error('[paywall] could not resolve the free allowance:', err.message)
-      response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
-      return
-    }
-
-    if (!allowedIds.includes(profile.id)) {
-      response.status(403).json({
-        success: false,
-        error: 'Subscribe to ₹200/month to view this profile.',
-        code: 'SUBSCRIPTION_REQUIRED',
-      })
-      return
-    }
-  }
-
   /*
    * Whether the caller has already sent, received or matched with this member.
    *
@@ -1955,6 +1921,44 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     // Not worth failing the whole profile over; the button falls back to
     // offering to send, and the server still refuses a duplicate.
     console.warn('[interest status] lookup failed:', err.message)
+  }
+
+  // Same paywall as the list: without a subscription, only the first
+  // the free allowance of this member's ordering is readable.
+  // Otherwise the list could be locked while the detail route handed over
+  // everything to anyone who knew an id.
+  //
+  // Members you already have an interest with (either direction, any status)
+  // are exempt: they sit in your Interests tab, and locking them there left
+  // "View Profile" on an empty "Profile not found" screen.
+  let access
+  try {
+    access = await resolveAccess(activeUserId)
+  } catch (err) {
+    console.error('[paywall] access check failed:', err.message)
+    response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+    return
+  }
+
+  if (!access.entitled && !interestStatus) {
+    let allowedIds = []
+    try {
+      const all = (await getPublicProfilesFast(activeUserId, await genderOf(activeUserId))) || []
+      allowedIds = [...(await resolveFreeAllocation(activeUserId, all, access.rule.freeProfileLimit))]
+    } catch (err) {
+      console.error('[paywall] could not resolve the free allowance:', err.message)
+      response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
+      return
+    }
+
+    if (!allowedIds.includes(profile.id)) {
+      response.status(403).json({
+        success: false,
+        error: 'Subscribe to ₹200/month to view this profile.',
+        code: 'SUBSCRIPTION_REQUIRED',
+      })
+      return
+    }
   }
 
   response.json({ success: true, data: { ...profile, interestStatus } })

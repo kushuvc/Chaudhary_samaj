@@ -275,6 +275,20 @@ describe('profile viewed', () => {
     assert.equal(got[0].data.screen, 'Matrimony')
   })
 
+  test('the notice does not name the viewer', async () => {
+    const him = await signUpUser(server, { gender: 'male' })
+    const her = await signUpUser(server, { gender: 'female' })
+    const [{ full_name }] = await server.sql('SELECT full_name FROM users WHERE id = $1', [him.userId])
+
+    await view(him, await profileIdOf(her.userId))
+    await settle()
+
+    const [got] = await views(her)
+    assert.ok(got)
+    assert.ok(!got.title.includes(full_name))
+    assert.ok(!got.body.includes(full_name))
+  })
+
   test('looking at your own profile tells no one', async () => {
     const her = await signUpUser(server, { gender: 'female' })
     await view(her, await profileIdOf(her.userId))
@@ -291,5 +305,20 @@ describe('profile viewed', () => {
       await settle()
     }
     assert.equal((await views(her)).length, 5)
+  })
+})
+
+describe('retention', () => {
+  test('notifications older than a month are not listed', async () => {
+    const member = await signUpUser(server, { gender: 'female' })
+    const old = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString()
+    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+    await server.sql(
+      `INSERT INTO notifications (id, user_id, type, title, body, created_at)
+       VALUES ($1, $3, 'test', 'old', 'old', $4), ($2, $3, 'test', 'recent', 'recent', $5)`,
+      [`old-${member.userId}`, `recent-${member.userId}`, member.userId, old, recent]
+    )
+    const titles = (await list(member)).body.data.filter((n) => n.type === 'test').map((n) => n.title)
+    assert.deepEqual(titles, ['recent'])
   })
 })

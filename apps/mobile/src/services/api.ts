@@ -1,4 +1,6 @@
 import Constants from 'expo-constants';
+import { Image } from 'react-native';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import type {
   AuthSession,
   BusinessListing,
@@ -215,6 +217,37 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return data as T;
+}
+
+/** Longest side of an uploaded photo; plenty for a phone screen. */
+const PHOTO_MAX_SIDE = 1080;
+
+function imageSize(uri: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) =>
+    Image.getSize(uri, (width, height) => resolve({ width, height }), reject)
+  );
+}
+
+/*
+ * Shrinks a picked photo before upload. Straight from the camera roll a photo
+ * is 1.5–3 MB, which would fill the free storage tier in a few hundred
+ * members; at 1080px and JPEG 0.7 it is around 150–250 KB and looks the same
+ * on a phone. If shrinking fails for any reason, the original goes up rather
+ * than the upload failing.
+ */
+async function shrinkPhoto(uri: string): Promise<string> {
+  if (uri.startsWith('blob:') || uri.startsWith('http')) return uri;
+  try {
+    const { width, height } = await imageSize(uri);
+    const resize =
+      Math.max(width, height) > PHOTO_MAX_SIDE
+        ? [{ resize: width >= height ? { width: PHOTO_MAX_SIDE } : { height: PHOTO_MAX_SIDE } }]
+        : [];
+    const result = await manipulateAsync(uri, resize, { compress: 0.7, format: SaveFormat.JPEG });
+    return result.uri;
+  } catch {
+    return uri;
+  }
 }
 
 export const api = {
@@ -739,7 +772,8 @@ export const api = {
     } as CommunityMeeting;
   },
 
-  uploadPhoto: async (localUri: string): Promise<string> => {
+  uploadPhoto: async (pickedUri: string): Promise<string> => {
+    const localUri = await shrinkPhoto(pickedUri);
     const filename = localUri.split('/').pop() || 'photo.jpg';
     const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
     const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';

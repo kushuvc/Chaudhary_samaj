@@ -331,6 +331,9 @@ const migrations = [
     PRIMARY KEY (viewer_id, owner_id, day)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_profile_view_notices_owner_day ON profile_view_notices(owner_id, day)`,
+  // View notices no longer name the viewer; scrub the ones sent before that.
+  `UPDATE notifications SET body = 'A member viewed your profile. Browse matches to find new profiles.'
+   WHERE type = 'profile_viewed' AND body <> 'A member viewed your profile. Browse matches to find new profiles.'`,
   // What the admin sent, to whom, and how far it got.
   `CREATE TABLE IF NOT EXISTS notification_broadcasts (
     id TEXT PRIMARY KEY,

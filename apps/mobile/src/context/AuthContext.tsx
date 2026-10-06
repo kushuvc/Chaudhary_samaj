@@ -17,6 +17,30 @@ interface AuthContextValue {
   completeProfileSetup: () => Promise<void>;
 }
 
+/** The account id inside a JWT (its `sub`), or '' when it cannot be read. */
+function tokenSubject(token: string): string {
+  try {
+    const part = token.split('.')[1] || '';
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return String(JSON.parse(atob(padded))?.sub || '');
+  } catch {
+    return '';
+  }
+}
+
+/*
+ * A session must know whose it is. The password-reset sign-in had no id to
+ * pass, so it stored an empty one — and chat, which tells your messages from
+ * theirs by comparing ids, put every message on the other person's side. The
+ * token always carries the id, so fill it from there when it is missing.
+ */
+function withUserId<T extends AuthSession | null>(session: T): T {
+  if (!session || session.user?.id) return session;
+  const id = tokenSubject(session.authToken);
+  return id ? ({ ...session, user: { ...session.user, id } } as T) : session;
+}
+
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -26,7 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadSession()
-      .then((stored) => {
+      .then((loaded) => {
+        const stored = withUserId(loaded);
+        if (stored !== loaded) void saveSession(stored!);
         setSession(stored);
         setApiSession(stored);
         setIsNewSignup(false);
@@ -56,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return api.requestOtp(email, purpose, phone);
       },
       verifyOtp: async (email, purpose, otp) => {
-        const next = await api.verifyOtp(email, purpose, otp);
+        const next = withUserId(await api.verifyOtp(email, purpose, otp));
         // Signup verifies the address before the account exists, so there is no
         // session yet — the signup call that follows establishes it.
         if (next) {
@@ -67,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       },
       login: async (payload) => {
-        const next = await api.login(payload);
+        const next = withUserId(await api.login(payload));
         setSession(next);
         setApiSession(next);
         setIsNewSignup(false);
@@ -77,7 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const session: AuthSession = {
           authToken: token,
           user: {
-            id: userId,
+            id: userId || tokenSubject(token),
             name: '',
             email: '',
             isVerified: true,
@@ -89,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await saveSession(session);
       },
       signup: async (payload) => {
-        const next = await api.signup(payload);
+        const next = withUserId(await api.signup(payload));
         setSession(next);
         setApiSession(next);
         setIsNewSignup(true);

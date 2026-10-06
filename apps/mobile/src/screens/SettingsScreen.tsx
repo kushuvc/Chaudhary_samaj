@@ -104,9 +104,13 @@ export function SettingsScreen() {
       `?subject=${encodeURIComponent('Chaudhary Samaj — support')}` +
       `&body=${encodeURIComponent(body)}`;
 
+    /*
+     * Straight to openURL: the system opens the default mail app, or asks
+     * which one when there is no default. canOpenURL used to gate this, but on
+     * Android 11+ it answers false for mailto unless the manifest declares a
+     * <queries> entry, so it said "no mail app" on phones that had Gmail.
+     */
     try {
-      const opened = await Linking.canOpenURL(url);
-      if (!opened) throw new Error('no mail client');
       await Linking.openURL(url);
     } catch {
       // A device with no mail app should still be told where to write.

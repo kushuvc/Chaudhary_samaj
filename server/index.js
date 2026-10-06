@@ -65,7 +65,7 @@ import {
   isExpoPushToken, registerPushToken, removePushToken, notifyUsers,
   notifyInBackground, pushInBackground, newBroadcastId,
   welcomeNewMember, pushWelcomeIfFirstDevice, startPlanExpiryReminders, sendPlanExpiryReminders,
-  notifyProfileViewed,
+  notifyProfileViewed, notificationCutoff, startNotificationPruning,
 } from './push.js'
 import {
   authAccountExistsByEmailFast,
@@ -4999,9 +4999,9 @@ app.get('/api/notifications', async (request, response) => {
   try {
     const rows = await pgQuery(
       `SELECT id, type, title, body, data_json, created_at, read_at
-       FROM notifications WHERE user_id = $1
+       FROM notifications WHERE user_id = $1 AND created_at >= $2
        ORDER BY created_at DESC LIMIT 100`,
-      [activeUserId]
+      [activeUserId, notificationCutoff()]
     )
     const parse = (text) => { try { return JSON.parse(text || '{}') } catch { return {} } }
     response.json({
@@ -5852,6 +5852,7 @@ app.use((error, request, response, next) => {
 
 app.listen(port, () => {
   startPlanExpiryReminders()
+  startNotificationPruning()
   console.log(`Matrimony backend listening on http://localhost:${port}`)
   warmUpPool()
 })

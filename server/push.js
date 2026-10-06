@@ -136,6 +136,8 @@ export function pushInBackground(userIds, payload) {
   pushToUsers(userIds, payload).catch((err) => console.error('[push] failed:', err.message))
 }
 
+export const PROFILE_VIEWED_BODY = 'A member viewed your profile. Browse matches to find new profiles.'
+
 /** Most "viewed your profile" notices a member gets in one day. */
 const MAX_VIEW_NOTICES_PER_DAY = 5
 
@@ -163,11 +165,11 @@ export async function notifyProfileViewed(viewerId, ownerId) {
   )
   if (!claimed.length) return
 
-  const [viewer] = await pgQuery('SELECT full_name FROM users WHERE id = $1', [viewerId])
+  // Anonymous on purpose: who looked stays private to the person who looked.
   await notifyUsers([ownerId], {
     type: 'profile_viewed',
     title: 'Someone viewed your profile',
-    body: `${viewer?.full_name || 'A member'} viewed your profile. Take a look at theirs.`,
+    body: PROFILE_VIEWED_BODY,
     data: { screen: 'Matrimony' },
   })
 }
@@ -275,6 +277,32 @@ export function startPlanExpiryReminders() {
       .catch((err) => console.error('[reminders] failed:', err.message))
   setTimeout(run, 60 * 1000).unref?.()
   setInterval(run, 60 * 60 * 1000).unref?.()
+}
+
+/** How long a notification stays in a member's list. */
+export const NOTIFICATION_RETENTION_DAYS = 30
+
+export function notificationCutoff(now = Date.now()) {
+  return new Date(now - NOTIFICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
+
+/** Deletes notifications (and view-notice bookkeeping) older than the retention window. */
+export async function pruneOldNotifications() {
+  const cutoff = notificationCutoff()
+  const removed = await pgQuery('DELETE FROM notifications WHERE created_at < $1 RETURNING id', [cutoff])
+  await pgQuery('DELETE FROM profile_view_notices WHERE day < $1', [cutoff.slice(0, 10)])
+  return removed.length
+}
+
+/** Prunes daily, and once shortly after start. Off under test. */
+export function startNotificationPruning() {
+  if (process.env.NODE_ENV === 'test') return
+  const run = () =>
+    pruneOldNotifications()
+      .then((n) => { if (n) console.log(`[notify] pruned old notifications: ${n}`) })
+      .catch((err) => console.error('[notify] prune failed:', err.message))
+  setTimeout(run, 2 * 60 * 1000).unref?.()
+  setInterval(run, 24 * 60 * 60 * 1000).unref?.()
 }
 
 export function newBroadcastId() {

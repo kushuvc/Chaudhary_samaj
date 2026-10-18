@@ -82,6 +82,8 @@ npx eas build --platform android --profile production --local --non-interactive 
 - Output always goes to **`~/Downloads/build-vNN.aab`** (user's preference). EAS bumps `versionCode` in `apps/mobile/app.json` automatically; then commit "Bump versionCode to NN for the local AAB build" and push.
 - `expo-doctor` warnings during the build are non-fatal. Signing comes from EAS credentials (logged in as `kushnew`).
 - Adding a native package (like `expo-camera`) needs a new AAB; JS-only changes still ship via a new AAB here (no OTA set up).
+- Release builds use **R8** (minify + resource shrinking via `expo-build-properties`). Keep the mapping file: build with `EAS_LOCAL_BUILD_SKIP_CLEANUP=1 EAS_LOCAL_BUILD_WORKINGDIR=<dir>`, copy `.../outputs/mapping/release/mapping.txt` to `~/Downloads/mapping-vNN.txt`, and upload it in Play Console with the bundle. If a library breaks under R8, add keep rules via `extraProguardRules` in app.json.
+- Orientation: the manifest is unrestricted (Play large-screen policy). `App.tsx` locks portrait at runtime on phones; `plugins/withUnlockedOrientation.js` removes library activities' portrait locks.
 
 ## Testing conventions
 

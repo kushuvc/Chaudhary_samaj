@@ -8,7 +8,8 @@ person with a phone can check.
 
 | Build | Date | Status |
 | --- | --- | --- |
-| v43 | 18 Oct 2026 | Built (`~/Downloads/build-v43.aab`). Includes Aadhaar/email verification, discount handling, DOB editing, misuse warnings. **Upload this one** — v41/v42 are superseded. |
+| v44 | 18 Oct 2026 | Built (`~/Downloads/build-v44.aab` + `mapping-v44.txt`). v43 plus Play Console fixes: R8 minify/obfuscation on, no manifest orientation locks (phones lock portrait at runtime). **Upload this one** and its mapping file (App bundle explorer → Downloads → ReTrace mapping file). |
+| v43 | 18 Oct 2026 | Aadhaar/email verification, discount handling, DOB editing, misuse warnings. Superseded by v44. |
 | v40 | 10 Oct 2026 | Last build before verification. |
 
 ### Open items before v43 goes to production
@@ -17,8 +18,9 @@ person with a phone can check.
 - [ ] Server deployed from `mobile-app-postgres` (merge to `main` first if Render deploys `main`). Check `GET /api/health`, then that `/admin` shows a Verification section.
 - [ ] Real Aadhaar QR verified on a test install (see "Aadhaar" below) — the reader has only been tested with self-signed QR codes.
 - [ ] Play Console → App content → Data safety: add name, date of birth, gender collected for identity verification (not shared, can be deleted).
-- [ ] Roll v43 to internal testing → production.
-- [ ] Later, once most members are on v43+: create the `verified-discount` offer in Play Console (see CLAUDE.md).
+- [ ] Roll v44 to internal testing → production, with `mapping-v44.txt` uploaded.
+- [ ] After upload, Play Console → Release dashboard: "DEX code optimization" and "orientation restrictions" should clear. "Deprecated edge-to-edge APIs" will remain — it comes from React Native / react-native-screens / expo-image-picker, not our code; revisit after the next Expo SDK upgrade.
+- [ ] Later, once most members are on v44+: create the `verified-discount` offer in Play Console (see CLAUDE.md).
 - [ ] Optional: lawyer review of `site/terms.html`; decide on 24-hour grievance acknowledgement.
 
 ## Automated (run before every commit)
@@ -29,6 +31,13 @@ cd apps/mobile && npx tsc --noEmit -p .
 ```
 
 ## Manual test list (on a phone, internal-testing install)
+
+### R8 / release-build smoke test (every build — minify can strip code a library needs)
+- [ ] App launches; Home, Matrimony, Plans, Profile tabs open without a crash.
+- [ ] Plans: Play prices load (on a device with Play Store signed in); purchase sheet opens.
+- [ ] Verification: camera scanner opens and shows a preview.
+- [ ] Photo upload and crop work; push notification arrives.
+- [ ] Phone: stays portrait when rotated. Tablet/foldable: rotates.
 
 ### Signup
 - [ ] Full signup in English; email code arrives; under-18 date of birth is refused.

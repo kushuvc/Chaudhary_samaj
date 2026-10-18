@@ -21,6 +21,7 @@ person with a phone can check.
 - [x] v44 uploaded (mapping file already included in the bundle, no manual upload needed).
 - [ ] Confirm v44 (not v42, which is also Active and lacks the R8/orientation fixes) is the build rolling out to production; test v44 on a real phone first (Plans prices load + purchase sheet opens under R8).
 - [ ] After upload, Play Console → Release dashboard: "DEX code optimization" and "orientation restrictions" should clear. "Deprecated edge-to-edge APIs" will remain — it comes from React Native / react-native-screens / expo-image-picker, not our code; revisit after the next Expo SDK upgrade.
+- [ ] v44 raised two more (19 Oct). "R8 optimization": optimization and optimized resource shrinking were off (template used `proguard-android.txt`) — fixed in v45 by `plugins/withR8Optimization.js`; the third point, "upgrade to Android Gradle plugin 9", waits for an Expo SDK that ships it (SDK 54 / RN 0.81 use AGP 8.11). "Bitmap image optimization" points at `U8.c$b$a` = expo-notifications' `DownloadImageKt` (fetches the image of a rich push notification) — library code, we send no push images; ignore.
 - [ ] Later, once most members are on v44+: create the `verified-discount` offer in Play Console (see CLAUDE.md).
 - [ ] Optional: lawyer review of `site/terms.html`; decide on 24-hour grievance acknowledgement.
 

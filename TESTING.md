@@ -1,0 +1,83 @@
+# Release and testing checklist
+
+Keep this up to date as features change. Tick through it before each Play
+release. Automated tests cover the server; the lists below are what only a
+person with a phone can check.
+
+## Release status (update each build)
+
+| Build | Date | Status |
+| --- | --- | --- |
+| v43 | 18 Oct 2026 | Built (`~/Downloads/build-v43.aab`). Includes Aadhaar/email verification, discount handling, DOB editing, misuse warnings. **Upload this one** — v41/v42 are superseded. |
+| v40 | 10 Oct 2026 | Last build before verification. |
+
+### Open items before v43 goes to production
+
+- [ ] `AADHAAR_FINGERPRINT_SECRET` set on Render with the exact name (64 random hex chars from `openssl rand -hex 32`), saved in a password manager.
+- [ ] Server deployed from `mobile-app-postgres` (merge to `main` first if Render deploys `main`). Check `GET /api/health`, then that `/admin` shows a Verification section.
+- [ ] Real Aadhaar QR verified on a test install (see "Aadhaar" below) — the reader has only been tested with self-signed QR codes.
+- [ ] Play Console → App content → Data safety: add name, date of birth, gender collected for identity verification (not shared, can be deleted).
+- [ ] Roll v43 to internal testing → production.
+- [ ] Later, once most members are on v43+: create the `verified-discount` offer in Play Console (see CLAUDE.md).
+- [ ] Optional: lawyer review of `site/terms.html`; decide on 24-hour grievance acknowledgement.
+
+## Automated (run before every commit)
+
+```bash
+npm test                     # expect all pass (425 as of v43)
+cd apps/mobile && npx tsc --noEmit -p .
+```
+
+## Manual test list (on a phone, internal-testing install)
+
+### Signup
+- [ ] Full signup in English; email code arrives; under-18 date of birth is refused.
+- [ ] After photos, the **Aadhaar step** appears with the guide open; "I'll do this later" skips to horoscope.
+- [ ] Same in Hindi and Gujarati: guide, warnings and buttons translated.
+- [ ] Profile for a son/daughter: guide says scan *their* Aadhaar.
+
+### Aadhaar verification (needs real cards)
+- [ ] Scan the QR on a **printed card (2019 or later)** → "Aadhaar verified" when name/DOB/gender match.
+- [ ] Scan an **e-Aadhaar PDF** shown on another screen (download at myaadhaar.uidai.gov.in; PDF password = first 4 letters of name in capitals + birth year).
+- [ ] Scan from the **mAadhaar app**.
+- [ ] If any real QR fails with "not signed by UIDAI" or "could not read": copy the `[aadhaar]` line from Render logs and fix `server/aadhaar-qr.js` (layout or certificate).
+- [ ] Profile name differs slightly (nickname) → "Under review"; appears in `/admin#verify`; Approve → badge shows; Reject with note → member sees the note and can scan again.
+- [ ] Same Aadhaar on a second account → "already linked to another account".
+- [ ] Old pre-2018 card QR → "older Aadhaar QR without a signature".
+- [ ] Camera permission denied → clear message; allow → scanner opens; Cancel closes it.
+- [ ] Consent unticked → Scan button disabled.
+
+### After verification
+- [ ] ✓ next to the name on Matrimony cards and on the profile detail; "Email verified" line shows.
+- [ ] Unverified profiles show the orange "not Aadhaar verified" warning.
+- [ ] Filters → "Verified profiles only" shows only ✓ profiles.
+- [ ] Profile tab: name and date of birth show "Locked after Aadhaar verification" and cannot be edited.
+- [ ] Home: "Please verify your profile" card disappears; the green "Stay safe" notice always shows.
+
+### Profile editing
+- [ ] Before verification: Edit → change name and date of birth with the picker → Save → age updates.
+- [ ] Choosing a date that makes the member under 18 → error, nothing saved.
+
+### Home
+- [ ] "Stay safe" notice (mentions even verified profiles can be misused).
+- [ ] Unverified: "Please verify your profile" card → opens Verification. Under review: shows "Under review".
+
+### Plans and payments
+- [ ] Plans list shows Play prices; purchase opens Google Play; after paying, access unlocks (server verified + acknowledged — check Render logs).
+- [ ] Once `verified-discount` exists: verified member sees the discounted price with the regular one struck through and pays the discount; unverified member sees "Get 50% off with Aadhaar verification" and pays full price.
+- [ ] Restore purchases works after reinstall.
+
+### Matching and messaging
+- [ ] Only the opposite gender is listed; free limit respected; locked cards prompt to subscribe.
+- [ ] Send interest → other side accepts → chat works → phone number per plan rules.
+- [ ] Report a profile → it disappears for the reporter → shows in `/admin#reports`. Block works both ways.
+
+### Account and settings
+- [ ] Language switch (en/hi/gu) and dark mode across Home, Profile, Verification, Plans.
+- [ ] Notifications arrive (interest, accepted, profile viewed, admin broadcast).
+- [ ] Delete account removes the member (and their verification record).
+
+### Admin panel (`/admin`)
+- [ ] Sign in with an admin account; Verification tab count matches the queue; Approve / Reject / Revoke work.
+- [ ] Reports, Members, Plans, Free access, Google Play health, Notifications, App guide all load.
+- [ ] App guide shows the "Get verified, and trust verified profiles" section (seeded on first deploy).

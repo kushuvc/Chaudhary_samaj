@@ -3,7 +3,7 @@
     "name": "Chaudhary Samaj",
     "slug": "chaudhary-samaj-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "light",
     "jsEngine": "hermes",
     "assetBundlePatterns": [
@@ -69,7 +69,17 @@
           "microphonePermission": false,
           "recordAudioAndroid": false
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ],
+      "./plugins/withUnlockedOrientation"
     ],
     "icon": "./assets/icon.png",
     "splash": {

@@ -2,6 +2,8 @@ import React, { Component, useEffect } from 'react';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
+import * as Device from 'expo-device';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Text, View, StyleSheet } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
@@ -11,6 +13,18 @@ import { LanguageProvider } from './src/context/LanguageContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
 
 const navigationRef = createNavigationContainerRef<any>();
+
+/*
+ * Portrait on phones, free rotation on tablets and foldables.
+ *
+ * The lock used to live in app.json, which writes screenOrientation="portrait"
+ * into the manifest. Play flags that for large screens, and Android 16 ignores
+ * it there anyway. Locking at runtime keeps phones exactly as they were while
+ * the manifest stays unrestricted.
+ */
+if (Device.deviceType === Device.DeviceType.PHONE) {
+  void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+}
 
 const TAB_SCREENS = new Set(['Home', 'Matrimony', 'Interests', 'Messages', 'Subscriptions', 'Profile', 'Settings']);
 

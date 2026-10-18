@@ -161,6 +161,10 @@ export function mapPublicProfile(row) {
     siblings: row.siblings,
     nativeCity: row.native_city,
     nativeVillage: row.native_village,
+    // The badges. Aadhaar is the one that says "a real person, matching this
+    // profile"; email only says the address was reachable.
+    idVerified: row.id_verification_status === 'verified',
+    emailVerified: Boolean(row.email_verified_at),
     photos: (() => {
       if (!row.photos) return []
       if (Array.isArray(row.photos)) return row.photos
@@ -588,12 +592,15 @@ export async function getPublicProfilesFast(currentUserId, viewerGender = null) 
       SELECT
         u.full_name,
         u.avatar_url,
+        u.email_verified_at,
         p.*,
+        v.status AS id_verification_status,
         COALESCE(s.is_shortlisted, 0) AS is_shortlisted,
         COALESCE(s.is_viewed, 0) AS is_viewed,
         COALESCE(s.is_unlocked, 0) AS is_unlocked
       FROM matrimony_profiles p
       JOIN users u ON u.id = p.user_id
+      LEFT JOIN member_verifications v ON v.user_id = p.user_id
       LEFT JOIN matrimony_profile_states s
         ON s.profile_id = p.id AND s.viewer_user_id = $1
       WHERE p.user_id != $1
@@ -643,12 +650,15 @@ export async function getMatrimonyProfileByIdFast(currentUserId, profileId) {
         u.email,
         u.phone,
         u.avatar_url,
+        u.email_verified_at,
         p.*,
+        v.status AS id_verification_status,
         COALESCE(s.is_shortlisted, 0) AS is_shortlisted,
         COALESCE(s.is_viewed, 0) AS is_viewed,
         COALESCE(s.is_unlocked, 0) AS is_unlocked
       FROM matrimony_profiles p
       JOIN users u ON u.id = p.user_id
+      LEFT JOIN member_verifications v ON v.user_id = p.user_id
       LEFT JOIN matrimony_profile_states s
         ON s.profile_id = p.id AND s.viewer_user_id = $1
       WHERE p.id = $2

@@ -26,6 +26,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FadeInView } from '../components/Motion';
+import { VerifiedBadge } from '../components/VerifiedBadge';
 
 /*
  * "More" listed exactly the same profiles as "All" — it mapped to the same
@@ -60,6 +61,8 @@ interface FilterState {
   minAge: string;
   maxAge: string;
   sortBy: SortBy;
+  /** '1' to show only Aadhaar-verified members. A string so the applied-filter count treats it like the rest. */
+  verifiedOnly: '' | '1';
 }
 
 const INITIAL_FILTERS: FilterState = {
@@ -68,6 +71,7 @@ const INITIAL_FILTERS: FilterState = {
   minAge: '',
   maxAge: '',
   sortBy: '',
+  verifiedOnly: '',
 };
 
 function FilterChip({
@@ -183,6 +187,7 @@ export function MatrimonyScreen() {
         minAge: filters.minAge,
         maxAge: filters.maxAge,
         sortBy: filters.sortBy,
+        verifiedOnly: filters.verifiedOnly,
       });
       setProfiles(response.profiles || []);
       setTotalMatches(response.total);
@@ -215,6 +220,7 @@ export function MatrimonyScreen() {
         minAge: filters.minAge,
         maxAge: filters.maxAge,
         sortBy: filters.sortBy,
+        verifiedOnly: filters.verifiedOnly,
         offset: profiles.length,
       });
       setProfiles((current) => [...current, ...(response.profiles || [])]);
@@ -477,7 +483,8 @@ export function MatrimonyScreen() {
               {/* Info Section */}
               <View style={styles.infoSection}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.newName}>{profile.name}</Text>
+                  <Text style={[styles.newName, { flex: 0, flexShrink: 1 }]}>{profile.name}</Text>
+                  {profile.idVerified ? <VerifiedBadge compact /> : null}
                 </View>
 
                 <Text style={styles.profileId}>PTL{profile.id.slice(-6)} • {t('lastSeenRecently')}</Text>
@@ -634,6 +641,18 @@ export function MatrimonyScreen() {
               * No gender filter: the server returns only the opposite gender,
               * so the control could only ever select "all of them" or "none".
               */}
+
+            {/* Verified only */}
+            <View style={styles.filterSection}>
+              <View style={styles.filterChipRow}>
+                <FilterChip
+                  label={t('verifiedOnlyFilter')}
+                  active={filters.verifiedOnly === '1'}
+                  onPress={() => setFilters((prev) => ({ ...prev, verifiedOnly: prev.verifiedOnly ? '' : '1' }))}
+                  styles={styles}
+                />
+              </View>
+            </View>
 
             {/* Education */}
             <FilterSection
@@ -999,7 +1018,7 @@ function createStyles(palette: ThemePalette) {
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 6,
     marginBottom: 4,
   },
   newName: {

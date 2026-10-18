@@ -29,6 +29,21 @@ export const GUIDE_DEFAULTS = [
     },
   },
   {
+    key: 'verified',
+    icon: 'shield-checkmark-outline',
+    sortOrder: 15,
+    title: {
+      en: 'Get verified, and trust verified profiles',
+      hi: 'सत्यापित बनें, और सत्यापित प्रोफ़ाइल पर भरोसा करें',
+      gu: 'ચકાસણી કરાવો, અને ચકાસેલ પ્રોફાઇલ પર ભરોસો કરો',
+    },
+    body: {
+      en: 'Open the Profile tab and tap Get verified. Keep your Aadhaar card, e-Aadhaar PDF (download it from myaadhaar.uidai.gov.in) or the mAadhaar app ready, tick the consent box and scan the QR code. If the name, date of birth and gender match your profile you get the ✓ Verified badge at once. If the profile is for your son or daughter, scan their Aadhaar. We never store your Aadhaar number, address or photo. When looking for a match, always prefer profiles with the ✓ badge, do not blindly trust unverified profiles, talk to the family, and never send money to anyone.',
+      hi: 'प्रोफ़ाइल टैब खोलें और सत्यापित बनें दबाएँ। अपना आधार कार्ड, ई-आधार PDF (myaadhaar.uidai.gov.in से डाउनलोड करें) या mAadhaar ऐप तैयार रखें, सहमति बॉक्स पर टिक करें और QR कोड स्कैन करें। अगर नाम, जन्मतिथि और लिंग आपकी प्रोफ़ाइल से मेल खाते हैं तो आपको तुरंत ✓ सत्यापित बैज मिलता है। अगर प्रोफ़ाइल आपके बेटे या बेटी की है, तो उनका आधार स्कैन करें। हम आपका आधार नंबर, पता या फ़ोटो कभी नहीं रखते। रिश्ता ढूँढते समय हमेशा ✓ बैज वाली प्रोफ़ाइल को प्राथमिकता दें, बिना सत्यापन वाली प्रोफ़ाइल पर आँख बंद करके भरोसा न करें, परिवार से बात करें, और किसी को भी कभी पैसे न भेजें।',
+      gu: 'પ્રોફાઇલ ટૅબ ખોલો અને ચકાસણી કરાવો દબાવો. તમારું આધાર કાર્ડ, ઈ-આધાર PDF (myaadhaar.uidai.gov.in પરથી ડાઉનલોડ કરો) અથવા mAadhaar એપ તૈયાર રાખો, સંમતિ બૉક્સ પર ટિક કરો અને QR કોડ સ્કેન કરો. જો નામ, જન્મતારીખ અને લિંગ તમારી પ્રોફાઇલ સાથે મેળ ખાય તો તમને તરત ✓ ચકાસેલ બેજ મળે છે. જો પ્રોફાઇલ તમારા દીકરા કે દીકરીની છે, તો તેમનું આધાર સ્કેન કરો. અમે તમારો આધાર નંબર, સરનામું કે ફોટો ક્યારેય રાખતા નથી. સંબંધ શોધતી વખતે હંમેશા ✓ બેજવાળી પ્રોફાઇલને પ્રાથમિકતા આપો, ચકાસણી વગરની પ્રોફાઇલ પર આંખ બંધ કરીને ભરોસો ન કરો, પરિવાર સાથે વાત કરો, અને કોઈને પણ ક્યારેય પૈસા ન મોકલો.',
+    },
+  },
+  {
     key: 'matrimony',
     icon: 'heart-outline',
     sortOrder: 20,

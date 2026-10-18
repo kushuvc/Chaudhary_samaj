@@ -61,6 +61,7 @@ import {
   warmUpPool,
 } from './db.js'
 import { sendEmailOtp } from './email.js'
+import { AadhaarQrError, aadhaarFingerprint, compareWithProfile, verifyAadhaarQr } from './aadhaar-qr.js'
 import {
   isExpoPushToken, registerPushToken, removePushToken, notifyUsers,
   notifyInBackground, pushInBackground, newBroadcastId,
@@ -560,8 +561,10 @@ app.post('/api/auth/signup', async (request, response) => {
     if (createAccount) {
       try {
         await pgQuery(
-          `INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $6)`,
+          // Signup is refused above unless the address entered a code, so the
+          // email is proved from the start.
+          `INSERT INTO users (id, email, full_name, phone, avatar_url, created_at, updated_at, email_verified_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $6, $6)`,
           [userId, String(email).trim().toLowerCase(), String(fullName).trim(), phone || null, avatarUrl, createdAt]
         )
         console.log('[signup-debug] Users table insert successful')
@@ -906,6 +909,7 @@ app.post('/api/auth/password/reset', async (request, response) => {
        ON CONFLICT (user_id) DO UPDATE SET password_hash = $2, updated_at = $3`,
       [user.id, hashPassword(password), now]
     )
+    await markEmailVerified(user.id)
 
     console.log(`[reset] password changed for ${email}`)
     // A session here saves the member signing in again straight after.
@@ -915,6 +919,22 @@ app.post('/api/auth/password/reset', async (request, response) => {
     response.status(500).json({ success: false, error: 'Could not reset the password' })
   }
 })
+
+/**
+ * Records that the account's holder just proved they read its inbox. Kept to
+ * the first time: the badge says the address was checked, not when last.
+ */
+async function markEmailVerified(userId) {
+  try {
+    await pgQuery(
+      'UPDATE users SET email_verified_at = $1 WHERE id = $2 AND email_verified_at IS NULL',
+      [new Date().toISOString(), userId]
+    )
+    invalidateFastCache('publicProfiles')
+  } catch (err) {
+    console.error('[email-verified] could not record:', err.message)
+  }
+}
 
 app.post('/api/auth/otp/verify', async (request, response) => {
   const { email, purpose, otp } = request.body || {}
@@ -949,6 +969,7 @@ app.post('/api/auth/otp/verify', async (request, response) => {
       }
 
       cacheSet(`user:${user.id}`, true, 300000)
+      if (!usingReviewAccount) await markEmailVerified(user.id)
       response.json({
         success: true,
         data: {
@@ -1670,7 +1691,9 @@ app.get('/api/matrimony/profiles', async (request, response) => {
     maxAge,
     tab,
     sortBy,
+    verifiedOnly,
   } = request.query
+  const wantVerifiedOnly = verifiedOnly === '1' || verifiedOnly === 'true'
 
   let baseProfiles = null
   try {
@@ -1702,6 +1725,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
     const matchesLanguage = !language || profile.language === language
     const matchesAgeMin = !minAge || profile.age >= Number(minAge)
     const matchesAgeMax = !maxAge || profile.age <= Number(maxAge)
+    const matchesVerified = !wantVerifiedOnly || profile.idVerified
     const matchesTab =
       !tab ||
       tab === 'all' ||
@@ -1722,6 +1746,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
       matchesLanguage &&
       matchesAgeMin &&
       matchesAgeMax &&
+      matchesVerified &&
       matchesTab
     )
   })
@@ -3431,6 +3456,20 @@ app.put('/api/matrimony/me', async (request, response) => {
     }
   }
 
+  /*
+   * Name and date of birth are what the Aadhaar check matched. Editing them
+   * after would keep the badge on details nobody checked, so once verified
+   * they are dropped, like gender, rather than refused.
+   */
+  if (await isIdVerified(activeUserId)) {
+    for (const bag of [profile, matrimony, user]) {
+      if (bag && typeof bag === 'object') {
+        delete bag.fullName
+        delete bag.dateOfBirth
+      }
+    }
+  }
+
   // Debug: log what photos look like
   let photosDebug = 'undefined'
   try {
@@ -4770,6 +4809,7 @@ app.delete('/api/auth/account', async (request, response) => {
     await pgQuery('DELETE FROM user_settings WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM push_tokens WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM notifications WHERE user_id = $1', [activeUserId])
+    await pgQuery('DELETE FROM member_verifications WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM matrimony_profiles WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM auth_accounts WHERE user_id = $1', [activeUserId])
     await pgQuery('DELETE FROM users WHERE id = $1', [activeUserId])
@@ -5222,6 +5262,259 @@ const REPORT_REASONS = [
   'scam',
   'other',
 ]
+
+/*
+ * Verification: email and Aadhaar.
+ *
+ * Email is proved by any correctly entered code (signup, login, reset) and
+ * recorded in users.email_verified_at. Aadhaar is proved by scanning the
+ * Secure QR on the member's card — see aadhaar-qr.js. Phone/SMS verification
+ * is deliberately absent: it needs TRAI DLT registration.
+ *
+ * A genuine QR whose name, date of birth and gender match the profile is
+ * verified at once. A genuine QR that does not match goes to the admin queue,
+ * because nicknames and spelling are common and a person should decide.
+ */
+const AADHAAR_FINGERPRINT_SECRET = process.env.AADHAAR_FINGERPRINT_SECRET || JWT_SECRET
+
+const aadhaarLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (request) => `user:${resolveUserId(request) || 'anonymous'}`,
+  store: new PostgresRateLimitStore({ prefix: 'aadhaar' }),
+  message: { success: false, error: 'Too many attempts. Please try again in an hour.' },
+})
+
+async function isIdVerified(userId) {
+  const rows = await pgQuery(
+    "SELECT 1 FROM member_verifications WHERE user_id = $1 AND status = 'verified' LIMIT 1",
+    [userId]
+  )
+  return rows.length > 0
+}
+
+async function verificationSummary(userId) {
+  const [userRows, idRows] = await Promise.all([
+    pgQuery('SELECT email, email_verified_at FROM users WHERE id = $1 LIMIT 1', [userId]),
+    pgQuery(
+      `SELECT status, id_name, mismatches, submitted_at, reviewed_at, review_note
+         FROM member_verifications WHERE user_id = $1 LIMIT 1`,
+      [userId]
+    ),
+  ])
+  const user = userRows[0]
+  const id = idRows[0]
+  const placeholderEmail = /@phone\.local$/i.test(user?.email || '')
+  return {
+    email: {
+      address: placeholderEmail ? null : user?.email || null,
+      verified: Boolean(user?.email_verified_at),
+      verifiedAt: user?.email_verified_at || null,
+    },
+    aadhaar: {
+      status: id?.status || 'none',
+      nameOnId: id?.id_name || null,
+      mismatches: id?.mismatches ? JSON.parse(id.mismatches) : [],
+      submittedAt: id?.submitted_at || null,
+      reviewedAt: id?.reviewed_at || null,
+      reviewNote: id?.review_note || null,
+    },
+  }
+}
+
+function invalidateVerificationCaches(userId) {
+  cacheInvalidate(`memberPayload:${userId}`)
+  invalidateFastCache('publicProfiles')
+}
+
+app.get('/api/verification', async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  try {
+    response.json({ success: true, data: await verificationSummary(activeUserId) })
+  } catch (err) {
+    console.error('[verification] summary failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not load verification status' })
+  }
+})
+
+app.post('/api/verification/aadhaar', aadhaarLimiter, async (request, response) => {
+  const activeUserId = resolveUserId(request)
+  if (!activeUserId) {
+    response.status(401).json({ success: false, error: 'Authentication required' })
+    return
+  }
+  if (request.body?.consent !== true) {
+    response.status(400).json({
+      success: false,
+      code: 'CONSENT_REQUIRED',
+      error: 'Please agree to the Aadhaar verification terms first.',
+    })
+    return
+  }
+
+  try {
+    const existing = await pgQuery('SELECT status FROM member_verifications WHERE user_id = $1', [activeUserId])
+    if (existing[0]?.status === 'verified') {
+      response.json({ success: true, data: await verificationSummary(activeUserId) })
+      return
+    }
+
+    let id
+    try {
+      id = verifyAadhaarQr(request.body?.qr)
+    } catch (err) {
+      if (err instanceof AadhaarQrError) {
+        const status = err.code === 'NOT_CONFIGURED' ? 503 : 400
+        response.status(status).json({ success: false, code: err.code, error: err.message })
+        return
+      }
+      throw err
+    }
+
+    const profileRows = await pgQuery(
+      `SELECT u.full_name, p.date_of_birth, p.gender
+         FROM users u JOIN matrimony_profiles p ON p.user_id = u.id
+        WHERE u.id = $1 LIMIT 1`,
+      [activeUserId]
+    )
+    const profile = profileRows[0]
+    if (!profile) {
+      response.status(404).json({ success: false, error: 'Please complete your profile first.' })
+      return
+    }
+
+    const fingerprint = aadhaarFingerprint(id, AADHAAR_FINGERPRINT_SECRET)
+    const taken = await pgQuery(
+      `SELECT user_id FROM member_verifications
+        WHERE fingerprint = $1 AND status IN ('verified', 'review') AND user_id <> $2 LIMIT 1`,
+      [fingerprint, activeUserId]
+    )
+    if (taken.length) {
+      console.warn(`[aadhaar] card already used by another account (user ${activeUserId})`)
+      response.status(409).json({
+        success: false,
+        code: 'AADHAAR_ALREADY_USED',
+        error: 'This Aadhaar is already linked to another account. Contact support if this is your card.',
+      })
+      return
+    }
+
+    const mismatches = compareWithProfile(id, {
+      fullName: profile.full_name,
+      dateOfBirth: profile.date_of_birth,
+      gender: profile.gender,
+    })
+    const status = mismatches.length ? 'review' : 'verified'
+    const now = new Date().toISOString()
+
+    await pgQuery(
+      `INSERT INTO member_verifications
+         (user_id, method, status, fingerprint, id_name, id_dob, id_gender, id_last4, mismatches,
+          submitted_at, reviewed_at, reviewed_by, review_note)
+       VALUES ($1, 'aadhaar_qr', $2, $3, $4, $5, $6, $7, $8, $9, NULL, NULL, NULL)
+       ON CONFLICT (user_id) DO UPDATE SET
+         method = EXCLUDED.method, status = EXCLUDED.status, fingerprint = EXCLUDED.fingerprint,
+         id_name = EXCLUDED.id_name, id_dob = EXCLUDED.id_dob, id_gender = EXCLUDED.id_gender,
+         id_last4 = EXCLUDED.id_last4, mismatches = EXCLUDED.mismatches,
+         submitted_at = EXCLUDED.submitted_at, reviewed_at = NULL, reviewed_by = NULL, review_note = NULL`,
+      [
+        activeUserId, status, fingerprint, id.name, id.dob || id.birthYear, id.gender, id.last4,
+        JSON.stringify(mismatches), now,
+      ]
+    )
+    invalidateVerificationCaches(activeUserId)
+    console.log(`[aadhaar] user ${activeUserId} -> ${status} (QR v${id.version}, key ${id.signer})`)
+
+    response.json({ success: true, data: await verificationSummary(activeUserId) })
+  } catch (err) {
+    // Two scans of one card racing past the duplicate check meet the unique index.
+    if (err?.code === '23505') {
+      response.status(409).json({
+        success: false,
+        code: 'AADHAAR_ALREADY_USED',
+        error: 'This Aadhaar is already linked to another account. Contact support if this is your card.',
+      })
+      return
+    }
+    console.error('[aadhaar] verification failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not verify right now. Please try again.' })
+  }
+})
+
+app.get('/api/admin/verifications', requireAdmin, async (request, response) => {
+  const status = ['review', 'verified', 'rejected'].includes(request.query.status)
+    ? request.query.status
+    : 'review'
+  try {
+    const rows = await pgQuery(
+      `SELECT v.user_id, v.status, v.id_name, v.id_dob, v.id_gender, v.id_last4, v.mismatches,
+              v.submitted_at, v.reviewed_at, v.review_note,
+              u.full_name, u.email, p.id AS profile_id, p.date_of_birth, p.gender, p.location
+         FROM member_verifications v
+         JOIN users u ON u.id = v.user_id
+         LEFT JOIN matrimony_profiles p ON p.user_id = v.user_id
+        WHERE v.status = $1
+        ORDER BY v.submitted_at DESC
+        LIMIT 200`,
+      [status]
+    )
+    response.json({
+      success: true,
+      data: rows.map((row) => ({
+        userId: row.user_id,
+        profileId: row.profile_id,
+        status: row.status,
+        submittedAt: row.submitted_at,
+        reviewedAt: row.reviewed_at,
+        reviewNote: row.review_note,
+        mismatches: row.mismatches ? JSON.parse(row.mismatches) : [],
+        onId: { name: row.id_name, dob: row.id_dob, gender: row.id_gender, last4: row.id_last4 },
+        onProfile: {
+          name: row.full_name,
+          email: row.email,
+          dob: row.date_of_birth,
+          gender: row.gender,
+          location: row.location,
+        },
+      })),
+    })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
+
+app.put('/api/admin/verifications/:userId', requireAdmin, async (request, response) => {
+  const decision = String(request.body?.decision || '')
+  if (!['approve', 'reject', 'revoke'].includes(decision)) {
+    response.status(400).json({ success: false, error: 'decision must be approve, reject or revoke' })
+    return
+  }
+  const note = String(request.body?.note || '').trim().slice(0, 500) || null
+  const status = decision === 'approve' ? 'verified' : 'rejected'
+  try {
+    const rows = await pgQuery(
+      `UPDATE member_verifications
+          SET status = $1, reviewed_at = $2, reviewed_by = $3, review_note = $4
+        WHERE user_id = $5
+        RETURNING user_id`,
+      [status, new Date().toISOString(), resolveUserId(request), note, request.params.userId]
+    )
+    if (!rows.length) {
+      response.status(404).json({ success: false, error: 'No verification for this member' })
+      return
+    }
+    invalidateVerificationCaches(request.params.userId)
+    response.json({ success: true, data: { userId: request.params.userId, status } })
+  } catch (err) {
+    response.status(500).json({ success: false, error: err.message })
+  }
+})
 
 app.post('/api/matrimony/profiles/:id/report', async (request, response) => {
   const activeUserId = resolveUserId(request)

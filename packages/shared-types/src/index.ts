@@ -92,6 +92,10 @@ export interface MatrimonyProfile {
   isShortlisted?: boolean;
   isViewed?: boolean;
   isUnlocked?: boolean;
+  /** Aadhaar Secure QR checked and matched to this profile. */
+  idVerified?: boolean;
+  /** The account's email address was proved with a code. */
+  emailVerified?: boolean;
   photos?: Array<{ id: string; uri?: string; url?: string; status?: string; isPrimary?: boolean }> | null;
 }
 

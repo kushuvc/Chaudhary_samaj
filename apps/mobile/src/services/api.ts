@@ -145,6 +145,21 @@ export interface SubscriptionStatus {
   expiresAt?: string;
 }
 
+export type AadhaarStatus = 'none' | 'verified' | 'review' | 'rejected';
+
+export interface VerificationSummary {
+  email: { address: string | null; verified: boolean; verifiedAt: string | null };
+  aadhaar: {
+    status: AadhaarStatus;
+    nameOnId: string | null;
+    /** Which profile fields differed from the card: name, dateOfBirth, gender. */
+    mismatches: string[];
+    submittedAt: string | null;
+    reviewedAt: string | null;
+    reviewNote: string | null;
+  };
+}
+
 export interface ApiError extends Error {
   status?: number;
   /** Machine-readable error code from the server, e.g. PHONE_ALREADY_REGISTERED. */
@@ -523,6 +538,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ content })
     }),
+  getVerification: async () => {
+    const response = await request<{ data: VerificationSummary }>('/verification');
+    return response.data;
+  },
+  /**
+   * Send the scanned Aadhaar Secure QR. The server checks UIDAI's signature
+   * and compares the signed details with the profile; the QR is not stored.
+   */
+  submitAadhaarQr: async (qr: string) => {
+    const response = await request<{ data: VerificationSummary }>('/verification/aadhaar', {
+      method: 'POST',
+      body: JSON.stringify({ qr, consent: true })
+    });
+    return response.data;
+  },
   getMyMatrimonyProfile: async () => {
     const response = await request<{ data: MatrimonyMemberPayload }>('/matrimony/me');
     return response.data;

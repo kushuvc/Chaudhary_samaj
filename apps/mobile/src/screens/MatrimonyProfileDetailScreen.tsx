@@ -21,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api } from '../services/api';
+import { VerifiedBadge } from '../components/VerifiedBadge';
 import type { MatrimonyProfile } from '../types';
 import { useCapabilities } from '../hooks/useCapabilities';
 
@@ -502,6 +503,23 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
           })()}
           <View style={styles.headerInfo}>
             <Text style={styles.name}>{profile.name}</Text>
+            {profile.idVerified || profile.emailVerified ? (
+              <View style={styles.verifyRow}>
+                {profile.idVerified ? <VerifiedBadge /> : null}
+                {profile.emailVerified ? (
+                  <View style={styles.emailVerified}>
+                    <Ionicons name="mail-outline" size={13} color={palette.muted} />
+                    <Text style={styles.emailVerifiedText}>{t('verifyEmailBadgeDetail')}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            {!profile.idVerified ? (
+              <View style={styles.cautionRow}>
+                <Ionicons name="alert-circle-outline" size={15} color={palette.warning} />
+                <Text style={styles.cautionText}>{t('unverifiedCaution')}</Text>
+              </View>
+            ) : null}
             <Text style={styles.compatibility}>{profile.compatibilityScore}% Match</Text>
           </View>
         </View>
@@ -812,6 +830,11 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
       color: palette.text,
       marginBottom: 4,
     },
+    verifyRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    emailVerified: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    emailVerifiedText: { fontSize: 12, color: palette.muted },
+    cautionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginBottom: 4 },
+    cautionText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: palette.warning },
     compatibility: {
       fontSize: 16,
       color: palette.primary,

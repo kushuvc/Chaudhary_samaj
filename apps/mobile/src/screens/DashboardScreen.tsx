@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { optionLabel } from '../constants/optionTranslations';
-import { api } from '../services/api';
+import { api, type AadhaarStatus } from '../services/api';
 import { MatrimonyProfileDetailScreen } from './MatrimonyProfileDetailScreen';
 import { AppGuideScreen } from './AppGuideScreen';
 import { HeroMotion } from '../components/MatrimonyArt';
@@ -60,6 +60,16 @@ export function DashboardScreen() {
   const [receivedInterests, setReceivedInterests] = useState(0);
   const [acceptedInterests, setAcceptedInterests] = useState(0);
   const [myProfile, setMyProfile] = useState<any>(null);
+  // null until known, so the "please verify" card never flashes for someone already verified.
+  const [idStatus, setIdStatus] = useState<AadhaarStatus | null>(null);
+
+  // On focus rather than with the rest, so coming back from the Verification
+  // screen hides the card without a pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      api.getVerification().then((v) => setIdStatus(v.aadhaar.status)).catch(() => {});
+    }, [])
+  );
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -188,6 +198,41 @@ export function DashboardScreen() {
           <Text style={styles.heroSub}>{t('dashboardFindMatches')}</Text>
         </View>
       </View>
+
+      {/* Safety notice. Always shown, first thing under the hero: the badge
+          only helps if members know to look for it. */}
+      <View style={styles.safetyBanner} accessibilityRole="summary">
+        <Ionicons name="shield-checkmark" size={24} color={palette.success} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.safetyTitle}>{t('safetyBannerTitle')}</Text>
+          <Text style={styles.safetyBody}>{t('safetyBannerBody')}</Text>
+        </View>
+      </View>
+
+      {/* Members who skipped the signup step, or were not approved, are asked
+          again here; the card goes once they are verified. */}
+      {idStatus && idStatus !== 'verified' ? (
+        <PressableScale style={styles.incompleteBanner} onPress={() => navigation.navigate('Verification')}>
+          <View style={styles.incompleteBannerLeft}>
+            <Ionicons
+              name={idStatus === 'review' ? 'time-outline' : 'shield-outline'}
+              size={32}
+              color={idStatus === 'review' ? palette.warning : palette.primary}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.incompleteBannerTitle}>
+                {idStatus === 'review' ? t('verifyAadhaarReview') : t('verifyHomeTitle')}
+              </Text>
+              <Text style={styles.incompleteBannerSub}>{t('verifyGetVerifiedBody')}</Text>
+            </View>
+          </View>
+          {idStatus === 'review' ? null : (
+            <Pulse style={styles.incompleteBannerBadge}>
+              <Text style={styles.incompleteBannerBadgeText}>→</Text>
+            </Pulse>
+          )}
+        </PressableScale>
+      ) : null}
 
       {/* A first-time member lands here with seven tabs and no idea what any of
           them do. One row, directly under the hero, before the stats. */}
@@ -399,6 +444,14 @@ function createStyles(palette: ThemePalette) {
     },
     guideTitle: { fontSize: 15.5, fontWeight: '700', color: palette.text },
     guideSub: { fontSize: 13, color: palette.muted, marginTop: 1 },
+    safetyBanner: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+      backgroundColor: palette.successSoft, borderRadius: 14, padding: 14,
+      marginHorizontal: 16, marginBottom: 12,
+      borderWidth: 1, borderColor: palette.success,
+    },
+    safetyTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
+    safetyBody: { fontSize: 13.5, lineHeight: 19, color: palette.textSoft, marginTop: 2 },
     errorBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
       backgroundColor: palette.warningSoft, borderRadius: 10, padding: 12,

@@ -425,6 +425,47 @@ const migrations = [
     sort_order INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT
   )`,
+  // When the account's email was last proved to belong to its holder: a
+  // correctly entered signup, login or reset code. Phone-only accounts carry a
+  // placeholder address and never get one.
+  `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TEXT`,
+  // Accounts made since signup started requiring a code already proved their
+  // address; carry that over. Only verified_at counts — consumed_at is also
+  // set when a fresh code replaces an unused one.
+  `UPDATE users u SET email_verified_at = o.first_verified
+     FROM (
+       SELECT lower(email) AS email, min(verified_at) AS first_verified
+       FROM auth_email_otps
+       WHERE verified_at IS NOT NULL
+       GROUP BY lower(email)
+     ) o
+    WHERE lower(u.email) = o.email AND u.email_verified_at IS NULL`,
+  // Aadhaar verification, one row per member.
+  //
+  // Holds the result and the few signed details an admin needs to decide a
+  // mismatch — never the Aadhaar number (only its last four digits are ever
+  // seen), the address, the photo or the QR itself. `fingerprint` is an HMAC
+  // of the card holder's details so one card cannot verify two accounts.
+  `CREATE TABLE IF NOT EXISTS member_verifications (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    method TEXT NOT NULL DEFAULT 'aadhaar_qr',
+    status TEXT NOT NULL CHECK (status IN ('verified', 'review', 'rejected')),
+    fingerprint TEXT NOT NULL,
+    id_name TEXT,
+    id_dob TEXT,
+    id_gender TEXT,
+    id_last4 TEXT,
+    mismatches TEXT,
+    submitted_at TEXT NOT NULL,
+    reviewed_at TEXT,
+    reviewed_by TEXT,
+    review_note TEXT
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS member_verifications_fingerprint_key
+     ON member_verifications (fingerprint)
+     WHERE status IN ('verified', 'review')`,
+  `CREATE INDEX IF NOT EXISTS member_verifications_status_idx
+     ON member_verifications (status, submitted_at)`,
   /*
    * Row-Level Security on every table in `public`.
    *

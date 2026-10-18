@@ -252,6 +252,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V4h11l-1 4h6l-2 7h-8l1-4H4"/></svg>
         Reports <span class="count" id="reportsCount" hidden>0</span>
       </a>
+      <a href="#verify" data-nav="verify">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.5l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10v-6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+        Verification <span class="count" id="verifyCount" hidden>0</span>
+      </a>
       <a href="#members" data-nav="members">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2 .6 3.2 2.3 3.6 5.2"/></svg>
         Members
@@ -325,6 +329,26 @@
         <button class="chip" data-filter="all" type="button">All</button>
       </div>
       <div id="reports"></div>
+    </section>
+
+    <!-- ---------- VERIFICATION ---------- -->
+    <section data-section="verify" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Verification</h1>
+          <p class="sub">
+            Members whose Aadhaar QR is genuine (UIDAI signature checked) but whose name, date of birth or
+            gender differ from their profile. Approve if it is clearly the same person (nickname, spelling);
+            reject otherwise. Matching scans are verified automatically and never appear here.
+          </p>
+        </div>
+      </div>
+      <div class="filters">
+        <button class="chip on" data-vfilter="review" type="button">To review</button>
+        <button class="chip" data-vfilter="verified" type="button">Verified</button>
+        <button class="chip" data-vfilter="rejected" type="button">Rejected</button>
+      </div>
+      <div id="verifications"></div>
     </section>
 
     <!-- ---------- MEMBERS ---------- -->
@@ -625,11 +649,12 @@ const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fi
  * back button, a refresh and a bookmark all land where you were. Each section
  * loads the first time it is opened; saving inside one reloads just that one.
  */
-const SECTIONS = ['overview', 'reports', 'members', 'plans', 'free', 'play', 'notify', 'guide'];
+const SECTIONS = ['overview', 'reports', 'verify', 'members', 'plans', 'free', 'play', 'notify', 'guide'];
 const loaded = new Set();
 const LOADERS = {
   overview: () => loadOverview(),
   reports: () => loadReports(),
+  verify: () => loadVerifications(),
   members: () => loadMembers(),
   plans: () => loadPlans(),
   free: () => loadRules(),
@@ -673,6 +698,7 @@ async function enterApp() {
   $('whoami').textContent = email ? 'Signed in as ' + email : 'Signed in';
   loaded.clear();
   void refreshReportCount();
+  void refreshVerifyCount();
   await show(current());
 }
 
@@ -898,6 +924,96 @@ for (const chip of document.querySelectorAll('[data-filter]')) {
     reportFilter = chip.getAttribute('data-filter');
     for (const c of document.querySelectorAll('[data-filter]')) c.classList.toggle('on', c === chip);
     renderReports();
+  };
+}
+
+/* ======================= verification ======================= */
+let verifyFilter = 'review';
+
+function setVerifyCount(n) {
+  $('verifyCount').textContent = n;
+  $('verifyCount').hidden = !n;
+  keepActiveInView();
+}
+
+async function refreshVerifyCount() {
+  try {
+    setVerifyCount((await call('/admin/verifications?status=review')).data.length);
+  } catch { /* the badge is a convenience */ }
+}
+
+function verifyRow(label, onId, onProfile, differs) {
+  return `<tr${differs ? ' style="background:var(--errbg)"' : ''}>
+    <td>${esc(label)}</td><td><b>${esc(onId || '—')}</b></td><td>${esc(onProfile || '—')}</td></tr>`;
+}
+
+function verifyCard(v) {
+  const m = new Set(v.mismatches);
+  const pill = v.status === 'verified' ? 'ok' : v.status === 'review' ? 'bad' : 'off';
+  const buttons = v.status === 'review'
+    ? `<button class="small" type="button" data-verify="${esc(v.userId)}" data-decision="approve">Approve</button>
+       <button class="secondary small" type="button" data-verify="${esc(v.userId)}" data-decision="reject">Reject</button>`
+    : v.status === 'verified'
+      ? `<button class="secondary small" type="button" data-verify="${esc(v.userId)}" data-decision="revoke">Revoke</button>`
+      : `<button class="small" type="button" data-verify="${esc(v.userId)}" data-decision="approve">Approve</button>`;
+  return `
+    <div class="card report">
+      <div class="head" style="margin-bottom:.3rem">
+        <span class="pill ${pill}">${esc(v.status.toUpperCase())}</span>
+        <span class="fold-meta">${esc(when(v.submittedAt))}</span>
+      </div>
+      <div class="who">${esc(v.onProfile.email || v.userId)} · Aadhaar ending ${esc(v.onId.last4 || '????')}</div>
+      <table style="width:100%;margin:.5rem 0">
+        <thead><tr><th></th><th>On Aadhaar (signed)</th><th>On profile</th></tr></thead>
+        <tbody>
+          ${verifyRow('Name', v.onId.name, v.onProfile.name, m.has('name'))}
+          ${verifyRow('Date of birth', v.onId.dob, v.onProfile.dob, m.has('dateOfBirth'))}
+          ${verifyRow('Gender', v.onId.gender, v.onProfile.gender, m.has('gender'))}
+        </tbody>
+      </table>
+      ${v.reviewNote ? `<blockquote>${esc(v.reviewNote)}</blockquote>` : ''}
+      <div class="actions">
+        <input type="text" placeholder="Note (optional, shown to the member if rejected)" data-note="${esc(v.userId)}" style="flex:1;min-width:12rem">
+        ${buttons}
+      </div>
+    </div>`;
+}
+
+async function loadVerifications() {
+  $('verifications').innerHTML = '<div class="card empty">Loading…</div>';
+  const rows = (await call('/admin/verifications?status=' + verifyFilter)).data;
+  if (verifyFilter === 'review') setVerifyCount(rows.length);
+  $('verifications').innerHTML = rows.length
+    ? rows.map(verifyCard).join('')
+    : `<div class="card empty">${verifyFilter === 'review' ? 'Nothing to review.' : 'None.'}</div>`;
+  for (const b of $('verifications').querySelectorAll('[data-verify]')) {
+    b.onclick = () => decideVerification(b.getAttribute('data-verify'), b.getAttribute('data-decision'), b);
+  }
+}
+
+async function decideVerification(userId, decision, button) {
+  if (decision === 'revoke' && !confirm('Remove this member\'s Verified badge?')) return;
+  const noteInput = document.querySelector(`[data-note="${CSS.escape(userId)}"]`);
+  button.disabled = true;
+  try {
+    await call('/admin/verifications/' + encodeURIComponent(userId), {
+      method: 'PUT',
+      body: JSON.stringify({ decision, note: noteInput ? noteInput.value : '' }),
+    });
+    msg(decision === 'approve' ? 'Verified.' : decision === 'reject' ? 'Rejected.' : 'Badge removed.');
+    await loadVerifications();
+    void refreshVerifyCount();
+  } catch (err) {
+    msg(err.message, 'err');
+    button.disabled = false;
+  }
+}
+
+for (const chip of document.querySelectorAll('[data-vfilter]')) {
+  chip.onclick = () => {
+    verifyFilter = chip.getAttribute('data-vfilter');
+    for (const c of document.querySelectorAll('[data-vfilter]')) c.classList.toggle('on', c === chip);
+    void loadVerifications().catch((err) => msg(err.message, 'err'));
   };
 }
 

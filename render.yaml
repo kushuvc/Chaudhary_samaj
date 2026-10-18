@@ -59,6 +59,10 @@ services:
         sync: false
       - key: MSG91_SENDERID
         sync: false
+      # Aadhaar verification duplicate check. Set once before the first member
+      # verifies and never change it (falls back to JWT_SECRET if unset).
+      - key: AADHAAR_FINGERPRINT_SECRET
+        sync: false
       # Email OTP. Prefer BREVO_API_KEY: Render's free tier blocks outbound
       # SMTP on ports 25/465/587, so the SMTP vars below cannot connect here
       # and are kept only for local/other-host use.

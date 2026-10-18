@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { VerificationScreen } from '../screens/VerificationScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { PhoneLoginScreen } from '../screens/PhoneLoginScreen';
 import { LoadingScreen } from '../screens/LoadingScreen';
@@ -29,6 +30,7 @@ import { SignupHoroscopeScreen, type HoroscopeData } from '../screens/SignupHoro
 import { SignupStarDetailsScreen, type StarDetailsData } from '../screens/SignupStarDetailsScreen';
 import { SignupManagePhotosScreen, type Photo } from '../screens/SignupManagePhotosScreen';
 import { SignupBasicDetailsScreen, type BasicDetailsData } from '../screens/SignupBasicDetailsScreen';
+import { SignupVerifyScreen } from '../screens/SignupVerifyScreen';
 import { useAppTheme } from '../context/ThemeContext';
 import { AnimatedTabBar } from '../components/AnimatedTabBar';
 import { useAppLanguage } from '../context/LanguageContext';
@@ -72,6 +74,7 @@ function AuthFlow() {
     | 'signup-professional'
     | 'signup-additional'
     | 'signup-photos'
+    | 'signup-verify'
     | 'signup-horoscope'
     | 'signup-star'
     | 'signup-eating-habits'
@@ -293,15 +296,22 @@ function AuthFlow() {
             if (photos.length > 0) {
               await saveProfilePatch({ profile: { photos } });
             }
-            setAuthMode('signup-horoscope');
+            setAuthMode('signup-verify');
           }}
+        />
+      );
+    case 'signup-verify':
+      return (
+        <SignupVerifyScreen
+          onBack={() => setAuthMode('signup-photos')}
+          onNext={() => setAuthMode('signup-horoscope')}
         />
       );
     case 'signup-horoscope':
       return (
         <SignupHoroscopeScreen
           dateOfBirth={isoDateOfBirth}
-          onBack={() => setAuthMode('signup-photos')}
+          onBack={() => setAuthMode('signup-verify')}
           onNext={async (data) => {
             patch({ horoscope: data });
             await saveProfilePatch({
@@ -379,6 +389,7 @@ export function AppNavigator() {
       {(!session || isNewSignup) ? <Stack.Screen name="Auth" component={AuthFlow} /> : null}
       {(session && !isNewSignup) ? <Stack.Screen name="Main" component={MainTabs} /> : null}
       {(session && !isNewSignup) ? <Stack.Screen name="Notifications" component={NotificationsScreen} /> : null}
+      {(session && !isNewSignup) ? <Stack.Screen name="Verification" component={VerificationScreen} /> : null}
     </Stack.Navigator>
   );
 }

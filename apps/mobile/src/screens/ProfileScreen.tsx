@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { InlineError, ScreenLoader } from '../components/AppFeedback';
 import { PhotoManager } from '../components/PhotoManager';
 import type { Photo } from './SignupManagePhotosScreen';
@@ -26,7 +27,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
-import { api } from '../services/api';
+import { api, type AadhaarStatus } from '../services/api';
+import { VerifiedBadge } from '../components/VerifiedBadge';
 import { radius, spacing, type } from '../theme';
 import type { MatrimonyMemberPayload, MatrimonyMemberProfile, MatrimonyMemberSettings } from '../types';
 
@@ -286,6 +288,16 @@ export function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigation = useNavigation<any>();
+  // Reloaded on focus so returning from the Verification screen shows the result.
+  const [idStatus, setIdStatus] = useState<AadhaarStatus>('none');
+  useFocusEffect(
+    React.useCallback(() => {
+      api.getVerification().then((v) => setIdStatus(v.aadhaar.status)).catch(() => {});
+    }, [])
+  );
+  // The server drops name changes once Aadhaar matched it; the app says so.
+  const nameLocked = idStatus === 'verified';
   const [isEditing, setIsEditing] = useState(false);
   // What the profile looked like when Edit was tapped, so Cancel can put it back.
   const snapshot = useRef<{ profile: typeof profile; matrimony: typeof matrimony } | null>(null);
@@ -525,6 +537,31 @@ export function ProfileScreen() {
 
       {error ? <InlineError message={error} /> : null}
 
+      <Pressable
+        style={styles.verifyCard}
+        onPress={() => navigation.navigate('Verification')}
+        accessibilityRole="button"
+      >
+        <Ionicons
+          name={nameLocked ? 'shield-checkmark' : 'shield-outline'}
+          size={24}
+          color={nameLocked ? palette.success : palette.primary}
+        />
+        <View style={{ flex: 1 }}>
+          {nameLocked ? (
+            <VerifiedBadge />
+          ) : (
+            <>
+              <Text style={styles.cardTitle}>
+                {idStatus === 'review' ? t('verifyAadhaarReview') : t('verifyGetVerified')}
+              </Text>
+              <Text style={styles.editBannerText}>{t('verifyGetVerifiedBody')}</Text>
+            </>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={palette.muted} />
+      </Pressable>
+
       <SectionCard>
         <Text style={styles.cardTitle}>{t('profileCompletion')} {completionScore}%</Text>
         <View style={styles.progressTrack}>
@@ -535,10 +572,10 @@ export function ProfileScreen() {
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('basicInformation')}</Text>
         <LabeledInput
-          label={t('fullNameLabel')}
+          label={nameLocked ? `${t('fullNameLabel')} · ${t('verifyLockedField')}` : t('fullNameLabel')}
           value={profile.fullName}
           onChangeText={(value) => setProfile((prev) => ({ ...prev, fullName: value }))}
-          editable={isEditing}
+          editable={isEditing && !nameLocked}
           placeholder={t('fullNamePlaceholder')}
           styles={styles}
         />
@@ -977,6 +1014,17 @@ function createStyles(palette: ThemePalette) {
     paddingVertical: spacing.sm + 2,
   },
   editBannerText: { flex: 1, fontSize: 13.5, lineHeight: 19, color: palette.text },
+  verifyCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
   cardTitle: {
     ...type.body,
     fontWeight: '700',

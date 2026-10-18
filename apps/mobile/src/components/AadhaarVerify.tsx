@@ -159,6 +159,10 @@ export function AadhaarVerify({
             <Ionicons name="lock-closed-outline" size={16} color={palette.muted} />
             <Text style={styles.privacyText}>{t('verifyAadhaarPrivacy')}</Text>
           </View>
+          <View style={styles.legal}>
+            <Ionicons name="warning-outline" size={16} color={palette.danger} />
+            <Text style={styles.legalText}>{t('verifyAadhaarLegalWarning')}</Text>
+          </View>
           <Checkbox label={t('verifyAadhaarConsent')} checked={consent} onPress={() => setConsent((v) => !v)} />
           <PrimaryButton
             label={status === 'rejected' ? t('verifyAadhaarTryAgain') : t('verifyAadhaarScan')}
@@ -250,6 +254,14 @@ function createStyles(palette: ThemePalette) {
       padding: spacing.sm,
     },
     privacyText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: palette.muted },
+    legal: {
+      flexDirection: 'row',
+      gap: spacing.xs,
+      backgroundColor: palette.dangerSoft,
+      borderRadius: radius.sm,
+      padding: spacing.sm,
+    },
+    legalText: { flex: 1, fontSize: 12.5, lineHeight: 18, color: palette.text },
     statusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
     statusTitle: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
     cameraPage: { flex: 1, backgroundColor: '#000000' },

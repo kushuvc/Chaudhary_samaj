@@ -29,6 +29,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { api, type AadhaarStatus } from '../services/api';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { DateInput } from '../components/DateInput';
 import { radius, spacing, type } from '../theme';
 import type { MatrimonyMemberPayload, MatrimonyMemberProfile, MatrimonyMemberSettings } from '../types';
 
@@ -296,7 +297,8 @@ export function ProfileScreen() {
       api.getVerification().then((v) => setIdStatus(v.aadhaar.status)).catch(() => {});
     }, [])
   );
-  // The server drops name changes once Aadhaar matched it; the app says so.
+  // The server drops name and date-of-birth changes once Aadhaar matched
+  // them; until then both can be edited. The app says which.
   const nameLocked = idStatus === 'verified';
   const [isEditing, setIsEditing] = useState(false);
   // What the profile looked like when Edit was tapped, so Cancel can put it back.
@@ -772,11 +774,32 @@ export function ProfileScreen() {
       {/* Matrimony Details from Signup */}
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('secMatrimonyDetails')}</Text>
+        {/*
+          * Age is worked out from the date of birth, here and on the server.
+          * It used to be a free text box the server never read, so typing a
+          * new age appeared to save and then snapped back.
+          */}
+        {isEditing && !nameLocked ? (
+          <DateInput
+            label={t('fldDob')}
+            value={dobOnly(profile.dateOfBirth)}
+            onChange={(value) => setProfile((prev) => ({ ...prev, dateOfBirth: value }))}
+          />
+        ) : (
+          <LabeledInput
+            label={nameLocked ? `${t('fldDob')} · ${t('verifyLockedField')}` : t('fldDob')}
+            value={dobOnly(profile.dateOfBirth) ? formatDob(dobOnly(profile.dateOfBirth)) : ''}
+            onChangeText={() => {}}
+            editable={false}
+            placeholder={t('lblNotSet')}
+            styles={styles}
+          />
+        )}
         <LabeledInput
           label={t('fldAge')}
-          value={matrimony.age || ''}
-          onChangeText={(value) => setMatrimony((prev) => ({ ...prev, age: value }))}
-          editable={isEditing}
+          value={ageFromDob(profile.dateOfBirth) ?? matrimony.age ?? ''}
+          onChangeText={() => {}}
+          editable={false}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
@@ -1126,4 +1149,27 @@ function createStyles(palette: ThemePalette) {
     marginTop: spacing.xs,
   },
   });
+}
+
+/** The YYYY-MM-DD part of a stored date of birth, or '' when there is none. */
+function dobOnly(value: string | null | undefined): string {
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(String(value || ''));
+  return match ? match[0] : '';
+}
+
+function formatDob(iso: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+/** Whole years since the date of birth, the same way the server counts them. */
+function ageFromDob(value: string | null | undefined): string | undefined {
+  const iso = dobOnly(value);
+  if (!iso) return undefined;
+  const years = Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24 * 365.25));
+  return Number.isFinite(years) && years > 0 ? String(years) : undefined;
 }

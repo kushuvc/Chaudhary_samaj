@@ -234,3 +234,55 @@ describe('UIDAI certificates', () => {
     assert.throws(() => verifyAadhaarQr(makeQr(), keys), (err) => err.code === 'BAD_SIGNATURE')
   })
 })
+
+describe('changing the date of birth on the profile', () => {
+  const yearsAgo = (n) => {
+    const d = new Date()
+    d.setFullYear(d.getFullYear() - n)
+    d.setDate(d.getDate() - 10)
+    return d.toISOString().slice(0, 10)
+  }
+  const row = async (userId) =>
+    (await server.sql(
+      `SELECT u.full_name, p.date_of_birth, p.age FROM users u JOIN matrimony_profiles p ON p.user_id = u.id
+        WHERE u.id = $1`,
+      [userId]
+    ))[0]
+
+  test('before verification, name and date of birth change, and the age follows', async () => {
+    const me = await signUpUser(server, { dateOfBirth: yearsAgo(30) })
+    const res = await server.request('PUT', '/api/matrimony/me', {
+      token: me.token,
+      body: { user: { fullName: 'Renamed Person' }, profile: { dateOfBirth: yearsAgo(27) } },
+    })
+    assert.equal(res.status, 200)
+    const after = await row(me.userId)
+    assert.equal(after.full_name, 'Renamed Person')
+    assert.equal(String(after.date_of_birth).slice(0, 10), yearsAgo(27))
+    assert.equal(Number(after.age), 27)
+  })
+
+  test('a date making the member under 18 is refused and nothing changes', async () => {
+    const me = await signUpUser(server, { dateOfBirth: yearsAgo(30) })
+    const res = await server.request('PUT', '/api/matrimony/me', {
+      token: me.token,
+      body: { profile: { dateOfBirth: yearsAgo(15), bio: 'should not save' } },
+    })
+    assert.equal(res.status, 403)
+    assert.equal(res.body.code, 'UNDER_AGE')
+    const after = await row(me.userId)
+    assert.equal(String(after.date_of_birth).slice(0, 10), yearsAgo(30))
+    assert.equal(Number(after.age), 30)
+  })
+
+  test('sending back the stored date unchanged is not re-checked', async () => {
+    const me = await signUpUser(server, { dateOfBirth: yearsAgo(30) })
+    // An old account whose stored date predates the age gate.
+    await server.sql('UPDATE matrimony_profiles SET date_of_birth = $1 WHERE user_id = $2', [yearsAgo(16), me.userId])
+    const res = await server.request('PUT', '/api/matrimony/me', {
+      token: me.token,
+      body: { profile: { dateOfBirth: yearsAgo(16), bio: 'still saves' } },
+    })
+    assert.equal(res.status, 200)
+  })
+})

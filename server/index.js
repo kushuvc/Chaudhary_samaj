@@ -3470,6 +3470,35 @@ app.put('/api/matrimony/me', async (request, response) => {
     }
   }
 
+  /*
+   * A changed date of birth goes through the same age gate as signup. It used
+   * to be written whatever it was, with the age left stale whenever the new
+   * date fell outside 18–120, so a member could make themselves a minor on the
+   * date while the card still showed an adult age.
+   */
+  // Only a changed date is checked: the app sends the stored one back on
+  // every save, and an old account with a bad date must still save the rest.
+  const newDob = [profile, matrimony].map((bag) => bag?.dateOfBirth).find((v) => v)
+  const [storedDob] = newDob
+    ? await pgQuery('SELECT date_of_birth FROM matrimony_profiles WHERE user_id = $1', [activeUserId])
+    : []
+  if (newDob && String(newDob).slice(0, 10) !== String(storedDob?.date_of_birth || '').slice(0, 10)) {
+    const born = new Date(newDob)
+    const years = (Date.now() - born.getTime()) / (1000 * 60 * 60 * 24 * 365.25)
+    if (Number.isNaN(born.getTime()) || years > 120) {
+      response.status(400).json({ success: false, error: 'Please enter a valid date of birth' })
+      return
+    }
+    if (years < 18) {
+      response.status(403).json({
+        success: false,
+        code: 'UNDER_AGE',
+        error: 'You must be at least 18 years old.',
+      })
+      return
+    }
+  }
+
   // Debug: log what photos look like
   let photosDebug = 'undefined'
   try {

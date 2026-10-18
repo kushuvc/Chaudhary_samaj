@@ -284,6 +284,8 @@ export async function getSubscriptionFromPlay(purchaseToken) {
     state,
     productId: lineItem?.productId || null,
     expiryTime: lineItem?.expiryTime || null,
+    // Which Play offer was bought, if any — the verified-member discount is one.
+    offerId: lineItem?.offerDetails?.offerId || null,
     // Present only until the purchase is acknowledged.
     acknowledgementState: payload.acknowledgementState,
     // Identifies the buyer's Play account across reinstalls and re-purchases.

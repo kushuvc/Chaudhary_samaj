@@ -12,12 +12,12 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { GradientFill, PrimaryButton } from '../components/ui';
 import { MatrimonyArt } from '../components/MatrimonyArt';
-import { api } from '../services/api';
+import { api, type AadhaarStatus } from '../services/api';
 import { usePlayBilling } from '../services/playBilling';
 import { radius, shadow, spacing } from '../theme';
 
@@ -118,6 +118,24 @@ export function SubscriptionsScreen() {
   const play = usePlayBilling(playProductIds, () => {
     void loadSubscription();
   });
+
+  /*
+   * Aadhaar-verified members get the "verified-discount" Play offer. Checked
+   * on focus so a member who verifies and comes back sees the price drop.
+   */
+  const navigation = useNavigation<any>();
+  const [idStatus, setIdStatus] = useState<AadhaarStatus | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      api.getVerification().then((v) => setIdStatus(v.aadhaar.status)).catch(() => {});
+    }, [])
+  );
+  const idVerified = idStatus === 'verified';
+  // Only mentioned once Play Console actually has the offer.
+  const bestDealPercent = Math.max(
+    0,
+    ...Object.values(play.products).map((product) => product.verifiedPercentOff ?? 0)
+  );
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -257,6 +275,7 @@ export function SubscriptionsScreen() {
     ? play.products[selectedPlan.playProductId]
     : undefined;
   const selectedPrice =
+    (idVerified ? selectedPlayProduct?.verifiedPrice : undefined) ??
     selectedPlayProduct?.displayPrice ??
     (selectedPlan ? `₹${Math.round(selectedPlan.pricePaise / 100)}` : '');
   const daysLeft = isActive && subscription?.expiresAt
@@ -340,6 +359,23 @@ export function SubscriptionsScreen() {
               </View>
             ) : null}
 
+            {!idVerified && idStatus && bestDealPercent > 0 ? (
+              <Pressable
+                style={styles.dealCard}
+                onPress={() => navigation.navigate('Verification')}
+                accessibilityRole="button"
+              >
+                <Ionicons name="shield-checkmark" size={26} color={palette.success} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dealTitle}>{t('planVerifyForDiscountTitle', { percent: bestDealPercent })}</Text>
+                  <Text style={styles.dealBody}>
+                    {idStatus === 'review' ? t('planVerifyReviewDiscount') : t('planVerifyForDiscountBody')}
+                  </Text>
+                </View>
+                {idStatus === 'review' ? null : <Ionicons name="chevron-forward" size={18} color={palette.muted} />}
+              </Pressable>
+            ) : null}
+
             {plans.length === 0 ? (
               <View style={styles.planCard}>
                 <Text style={styles.emptyPlans}>{t('planNoneAvailable')}</Text>
@@ -396,11 +432,23 @@ export function SubscriptionsScreen() {
                           {plan.durationDays > 30 ? ` · ${t('planPerMonthApprox', { amount: perMonth })}` : ''}
                         </Text>
                         {!buyable ? <Text style={styles.planUnavailable}>{t('planNotOnPlay')}</Text> : null}
+                        {idVerified && playProduct?.verifiedPrice ? (
+                          <Text style={styles.dealNote}>
+                            {t('planVerifiedDeal', { count: playProduct.verifiedCycles ?? 1 })}
+                          </Text>
+                        ) : null}
                       </View>
 
-                      <Text style={styles.planOptionPrice}>
-                        {playProduct?.displayPrice || `₹${rupees}`}
-                      </Text>
+                      {idVerified && playProduct?.verifiedPrice ? (
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.planOptionPrice}>{playProduct.verifiedPrice}</Text>
+                          <Text style={styles.planOldPrice}>{playProduct.displayPrice}</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.planOptionPrice}>
+                          {playProduct?.displayPrice || `₹${rupees}`}
+                        </Text>
+                      )}
                     </Pressable>
                   );
                 })}
@@ -456,7 +504,7 @@ export function SubscriptionsScreen() {
                           : t('planSubscribeFor', { price: selectedPrice })
                       }
                       onPress={() => {
-                        if (selectedPlan?.playProductId) void play.buy(selectedPlan.playProductId);
+                        if (selectedPlan?.playProductId) void play.buy(selectedPlan.playProductId, idVerified);
                       }}
                       disabled={play.purchasing || play.loading || !selectedPlan?.playProductId}
                     />
@@ -708,6 +756,20 @@ function createStyles(palette: ThemePalette) {
     planOptionBody: { flex: 1 },
     planOptionTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
     planOptionPrice: { fontSize: 19, fontWeight: '800', color: palette.text, letterSpacing: -0.4 },
+    planOldPrice: { fontSize: 13, color: palette.muted, textDecorationLine: 'line-through' },
+    dealNote: { fontSize: 12.5, fontWeight: '700', color: palette.success, marginTop: 3 },
+    dealCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: palette.successSoft,
+      borderWidth: 1,
+      borderColor: palette.success,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    dealTitle: { fontSize: 15, fontWeight: '800', color: palette.text },
+    dealBody: { fontSize: 13, lineHeight: 18, color: palette.textSoft, marginTop: 2 },
     planRadio: {
       width: 20,
       height: 20,

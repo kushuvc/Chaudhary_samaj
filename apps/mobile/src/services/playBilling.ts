@@ -20,11 +20,32 @@ import { api } from './api';
  */
 export const PREMIUM_PRODUCT_ID = 'premium_monthly';
 
+/**
+ * The Play offer for Aadhaar-verified members, created in Play Console on each
+ * plan's base plan with "Developer determined" eligibility. Play hands such an
+ * offer to every client, so it is this app that decides who may use it. The
+ * server checks the same id on purchase.
+ */
+export const VERIFIED_OFFER_ID = 'verified-discount';
+
 /** What Play knows about one subscription product. */
 export interface PlayProduct {
   sku: string;
   displayPrice?: string;
   title?: string;
+  /** Price during the verified-member offer, when Play Console has one. */
+  verifiedPrice?: string;
+  /** How many billing periods that price lasts. */
+  verifiedCycles?: number;
+  /** Whole-number discount against the regular price, e.g. 50. */
+  verifiedPercentOff?: number;
+}
+
+interface OfferEntry {
+  offerToken: string;
+  verified: boolean;
+  /** Pricing phases; a plain base plan has exactly one. */
+  phases: Array<{ formattedPrice: string; priceAmountMicros: string; billingCycleCount: number }>;
 }
 
 interface PlayBillingState {
@@ -65,7 +86,7 @@ export function usePlayBilling(productIds: string[], onEntitled: () => void) {
    * fetchProducts. Holding it in a ref keeps `buy` stable while still seeing
    * the value fetched after mount.
    */
-  const offersRef = useRef<Record<string, Array<{ sku: string; offerToken: string }>>>({});
+  const offersRef = useRef<Record<string, OfferEntry[]>>({});
   const onEntitledRef = useRef(onEntitled);
   onEntitledRef.current = onEntitled;
 
@@ -159,7 +180,7 @@ export function usePlayBilling(productIds: string[], onEntitled: () => void) {
         const products = await fetchProducts({ skus, type: 'subs' });
         if (!mounted.current) return;
 
-        const offers: Record<string, Array<{ sku: string; offerToken: string }>> = {};
+        const offers: Record<string, OfferEntry[]> = {};
         const catalogue: Record<string, PlayProduct> = {};
 
         for (const entry of products ?? []) {
@@ -168,17 +189,46 @@ export function usePlayBilling(productIds: string[], onEntitled: () => void) {
             productId?: string;
             displayPrice?: string;
             title?: string;
-            subscriptionOffers?: Array<{ offerTokenAndroid?: string | null }>;
+            subscriptionOffers?: Array<{
+              id?: string | null;
+              offerTokenAndroid?: string | null;
+              offerTagsAndroid?: string[] | null;
+              pricingPhasesAndroid?: { pricingPhaseList?: OfferEntry['phases'] } | null;
+            }>;
           };
           // expo-iap has used both names across versions; take whichever is set.
           const sku = product.id || product.productId;
           if (!sku) continue;
 
-          catalogue[sku] = { sku, displayPrice: product.displayPrice, title: product.title };
-          offers[sku] = (product.subscriptionOffers ?? [])
-            .map((offer) => offer?.offerTokenAndroid)
-            .filter((token): token is string => Boolean(token))
-            .map((offerToken) => ({ sku, offerToken }));
+          const entries: OfferEntry[] = (product.subscriptionOffers ?? [])
+            .filter((offer) => Boolean(offer?.offerTokenAndroid))
+            .map((offer) => ({
+              offerToken: offer.offerTokenAndroid as string,
+              verified: offer.id === VERIFIED_OFFER_ID || Boolean(offer.offerTagsAndroid?.includes(VERIFIED_OFFER_ID)),
+              phases: offer.pricingPhasesAndroid?.pricingPhaseList ?? [],
+            }));
+          offers[sku] = entries;
+
+          const deal = entries.find((entry) => entry.verified);
+          const regular = regularOffer(entries);
+          const dealPhase = deal?.phases[0];
+          const regularMicros = Number(regular?.phases[regular.phases.length - 1]?.priceAmountMicros);
+          const dealMicros = Number(dealPhase?.priceAmountMicros);
+          catalogue[sku] = {
+            sku,
+            displayPrice: product.displayPrice,
+            title: product.title,
+            ...(dealPhase && deal && deal.phases.length > 1
+              ? {
+                  verifiedPrice: dealPhase.formattedPrice,
+                  verifiedCycles: dealPhase.billingCycleCount,
+                  verifiedPercentOff:
+                    regularMicros > 0 && dealMicros >= 0
+                      ? Math.round((1 - dealMicros / regularMicros) * 100)
+                      : undefined,
+                }
+              : {}),
+          };
         }
 
         offersRef.current = offers;
@@ -278,7 +328,13 @@ export function usePlayBilling(productIds: string[], onEntitled: () => void) {
     }
   }, []);
 
-  const buy = useCallback(async (sku: string) => {
+  /**
+   * `useVerifiedOffer` is the caller saying the member is Aadhaar-verified.
+   * Exactly one offer token goes to Play: passing every token, as this used
+   * to, leaves Play's choice to whichever offer happens to come first — which
+   * would hand the verified discount to anyone once it exists.
+   */
+  const buy = useCallback(async (sku: string, useVerifiedOffer = false) => {
     setState((prev) => ({ ...prev, purchasing: true, error: null }));
     try {
       // Resolves when Play accepts the request; the actual result arrives on
@@ -289,10 +345,13 @@ export function usePlayBilling(productIds: string[], onEntitled: () => void) {
       // Billing v5+ refuses to open the purchase sheet without it, and leaving
       // it out fails at the payment step rather than at startup — the worst
       // place to find out.
-      const subscriptionOffers = offersRef.current[sku] ?? [];
-      if (!subscriptionOffers.length) {
+      const entries = offersRef.current[sku] ?? [];
+      const chosen =
+        (useVerifiedOffer ? entries.find((entry) => entry.verified) : undefined) ?? regularOffer(entries);
+      if (!chosen) {
         throw new Error('This plan is not available to purchase yet. Please try again shortly.');
       }
+      const subscriptionOffers = [{ sku, offerToken: chosen.offerToken }];
 
       await requestPurchase({
         request: { google: { skus: [sku], subscriptionOffers } },
@@ -308,4 +367,13 @@ export function usePlayBilling(productIds: string[], onEntitled: () => void) {
   }, []);
 
   return { ...state, buy, restore };
+}
+
+/**
+ * The plain base-plan offer: the one that is not the verified discount,
+ * preferring a single price phase (no intro pricing) when there are several.
+ */
+function regularOffer(entries: OfferEntry[]): OfferEntry | undefined {
+  const others = entries.filter((entry) => !entry.verified);
+  return others.find((entry) => entry.phases.length === 1) ?? others[0];
 }

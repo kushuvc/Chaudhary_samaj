@@ -4470,6 +4470,16 @@ app.post('/api/payments/play/verify', async (request, response) => {
      * paid — but is recorded against the fallback rather than dropped.
      */
     const bought = (await planByPlayProductId(purchase.productId)) || FALLBACK_PLAN
+
+    /*
+     * The verified-member discount is a Play offer the app only offers to
+     * Aadhaar-verified members. A purchase of it by anyone else means an
+     * older or modified app picked it up. They paid, so access is still
+     * granted; the log is how it gets noticed.
+     */
+    if (purchase.offerId === VERIFIED_DISCOUNT_OFFER_ID && !(await isIdVerified(activeUserId))) {
+      console.warn(`[play] verified-member offer bought by unverified user ${activeUserId} (order ${purchase.orderId})`)
+    }
     const startedAt = new Date().toISOString()
     // Google's own expiry is the truth for a Play purchase; the plan duration
     // is only a stand-in when the lookup came back without one.
@@ -5275,6 +5285,10 @@ const REPORT_REASONS = [
  * verified at once. A genuine QR that does not match goes to the admin queue,
  * because nicknames and spelling are common and a person should decide.
  */
+// The offer id to create in Play Console for the verified-member discount.
+// The app looks for the same id; keep the two in step.
+const VERIFIED_DISCOUNT_OFFER_ID = 'verified-discount'
+
 const AADHAAR_FINGERPRINT_SECRET = process.env.AADHAAR_FINGERPRINT_SECRET || JWT_SECRET
 
 const aadhaarLimiter = rateLimit({

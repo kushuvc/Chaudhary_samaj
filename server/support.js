@@ -1,9 +1,10 @@
 /*
  * Support tickets for mail sent to support@chaudharysamaj.com.
  *
- * Namecheap forwards support@ to an address on reply.chaudharysamaj.com, whose
- * MX points at Brevo; Brevo parses each mail and POSTs it to
- * /api/support/inbound. A new conversation becomes ticket CS-1001, CS-1002…
+ * Namecheap forwards support@ to the operator's Gmail, where a free Apps
+ * Script (support/gmail-forwarder.gs) posts each new support mail to
+ * /api/support/inbound every few minutes, in the shape Brevo's inbound parser
+ * uses (MessageId, From, Subject, RawTextBody, Headers). A new conversation becomes ticket CS-1001, CS-1002…
  * and gets an automatic acknowledgement; anything carrying "#CS-<n>" in the
  * subject (our replies do) is added to that ticket instead. Admins answer from
  * the Support tab, and the answer goes out from support@.
@@ -54,9 +55,26 @@ export function isOwnAddress(address) {
   return OWN_DOMAINS.includes(domain)
 }
 
+/**
+ * Drops the quoted earlier mail from a reply ("On … wrote:" and the lines
+ * after it, "> " lines, Outlook's "Original Message"), so the ticket shows
+ * what the member actually wrote this time.
+ */
+export function stripQuoted(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n')
+  const out = []
+  for (const line of lines) {
+    if (/^\s*On .{4,200}wrote:\s*$/i.test(line) || /^-{2,}\s*Original Message\s*-{2,}/i.test(line) || /^\s*From:\s.+@/i.test(line) && out.length) break
+    if (/^\s*>/.test(line)) continue
+    out.push(line)
+  }
+  return out.join('\n').trim()
+}
+
 function messageText(item) {
   const text =
     item.ExtractedMarkdownMessage ||
+    stripQuoted(item.RawTextBody) ||
     item.RawTextBody ||
     String(item.RawHtmlBody || '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ')
   return String(text || '').replace(/\r/g, '').trim().slice(0, MAX_BODY) || '(empty message)'
@@ -65,24 +83,26 @@ function messageText(item) {
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 const now = () => new Date().toISOString()
 
+const helpUrl = (lang) => `${process.env.SUPPORT_HELP_URL || 'https://www.chaudharysamaj.com/help'}?lang=${lang}`
+
 const ACK = {
   en: {
     subject: (n) => `[#${n}] We have received your message`,
     body: (n, name) =>
       `Namaste${name ? ' ' + name : ''},\n\nThank you for writing to Chaudhary Samaj. Your ticket number is ${n}. ` +
-      `We will reply within 48 hours.\n\nTo add anything, just reply to this email and keep "#${n}" in the subject.\n\n— Chaudhary Samaj Support`,
+      `We will reply within 48 hours.\n\nMost questions are already answered in our app guide and common questions:\n${helpUrl('en')}\n\nTo add anything, just reply to this email and keep "#${n}" in the subject.\n\n— Chaudhary Samaj Support`,
   },
   hi: {
     subject: (n) => `[#${n}] आपका संदेश हमें मिल गया है`,
     body: (n, name) =>
       `नमस्ते${name ? ' ' + name : ''},\n\nचौधरी समाज को लिखने के लिए धन्यवाद। आपका टिकट नंबर ${n} है। ` +
-      `हम 48 घंटों के भीतर जवाब देंगे।\n\nकुछ और जोड़ना हो तो इसी ईमेल का जवाब दें और विषय में "#${n}" रहने दें।\n\n— चौधरी समाज सहायता`,
+      `हम 48 घंटों के भीतर जवाब देंगे।\n\nज़्यादातर सवालों के जवाब हमारी ऐप गाइड और आम सवालों में पहले से हैं:\n${helpUrl('hi')}\n\nकुछ और जोड़ना हो तो इसी ईमेल का जवाब दें और विषय में "#${n}" रहने दें।\n\n— चौधरी समाज सहायता`,
   },
   gu: {
     subject: (n) => `[#${n}] તમારો સંદેશ અમને મળી ગયો છે`,
     body: (n, name) =>
       `નમસ્તે${name ? ' ' + name : ''},\n\nચૌધરી સમાજને લખવા બદલ આભાર. તમારો ટિકિટ નંબર ${n} છે. ` +
-      `અમે 48 કલાકમાં જવાબ આપીશું.\n\nકંઈ ઉમેરવું હોય તો આ જ ઈમેલનો જવાબ આપો અને વિષયમાં "#${n}" રહેવા દો.\n\n— ચૌધરી સમાજ સહાય`,
+      `અમે 48 કલાકમાં જવાબ આપીશું.\n\nમોટા ભાગના પ્રશ્નોના જવાબ અમારી એપ ગાઇડ અને સામાન્ય પ્રશ્નોમાં પહેલેથી છે:\n${helpUrl('gu')}\n\nકંઈ ઉમેરવું હોય તો આ જ ઈમેલનો જવાબ આપો અને વિષયમાં "#${n}" રહેવા દો.\n\n— ચૌધરી સમાજ સહાય`,
   },
 }
 
@@ -103,8 +123,11 @@ export function acknowledgement(label, name, lang) {
   }
 }
 
+// Links stay clickable: the help link is the point of the acknowledgement.
 const toHtml = (text) =>
-  `<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.5; color: #1f2937; max-width: 600px;">${esc(text).replace(/\n/g, '<br>')}</div>`
+  `<div style="font-family: Arial, sans-serif; font-size: 15px; line-height: 1.5; color: #1f2937; max-width: 600px;">${esc(text)
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color: #791611;">$1</a>')
+    .replace(/\n/g, '<br>')}</div>`
 
 const replyTo = () => process.env.SUPPORT_REPLY_TO || 'support@chaudharysamaj.com'
 
@@ -263,27 +286,4 @@ export async function setTicketStatus(id, status) {
     [id, status, now()]
   )
   return rows[0] || null
-}
-
-/**
- * One-time Brevo setup from the admin panel: registers the inbound webhook for
- * the reply subdomain, pointing at this server with the secret token.
- */
-export async function registerInboundWebhook({ publicBaseUrl, token, domain }) {
-  const key = process.env.BREVO_API_KEY
-  if (!key) throw new Error('BREVO_API_KEY is not set')
-  const res = await fetch('https://api.brevo.com/v3/webhooks', {
-    method: 'POST',
-    headers: { 'api-key': key, 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      type: 'inbound',
-      events: ['inboundEmailProcessed'],
-      domain,
-      url: `${publicBaseUrl}/api/support/inbound?token=${encodeURIComponent(token)}`,
-      description: 'Chaudhary Samaj support tickets',
-    }),
-  })
-  const text = await res.text()
-  if (!res.ok) throw new Error(`Brevo ${res.status}: ${text.slice(0, 300)}`)
-  return JSON.parse(text || '{}')
 }

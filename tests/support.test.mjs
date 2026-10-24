@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { startServer, signUpUser } from './helpers/harness.mjs'
-import { ticketNumberFromSubject, isAutomatedMail, acknowledgement, isOwnAddress } from '../server/support.js'
+import { ticketNumberFromSubject, isAutomatedMail, acknowledgement, isOwnAddress, stripQuoted } from '../server/support.js'
 
 const TOKEN = 'support-test-token-123'
 let server
@@ -49,6 +49,18 @@ describe('support helpers', () => {
     assert.match(all, /ticket number is CS-1001/)
     assert.match(all, /टिकट नंबर CS-1001/)
     assert.match(all, /ટિકિટ નંબર CS-1001/)
+  })
+
+  test("the acknowledgement links the help page in the member's language", () => {
+    assert.match(acknowledgement('CS-1001', 'Asha', 'hi').text, /\/help\?lang=hi/)
+    const all = acknowledgement('CS-1001', null, null).text
+    for (const l of ['en', 'hi', 'gu']) assert.match(all, new RegExp(`/help\\?lang=${l}`))
+  })
+
+  test('quoted earlier mail is dropped from a reply', () => {
+    const text = 'Still locked, please check.\n\nOn Sat, 24 Oct 2026 at 5:21 PM Chaudhary Samaj <support@chaudharysamaj.com> wrote:\n> Namaste, please restart the app.'
+    assert.equal(stripQuoted(text), 'Still locked, please check.')
+    assert.equal(stripQuoted('> only quote'), '')
   })
 
   test('own addresses are ours', () => {
@@ -127,6 +139,42 @@ describe('inbound mail webhook', () => {
     await inbound([mail({ From: { Address: member.email } })])
     const [t] = await ticketsFor(member.email.toLowerCase())
     assert.equal(t.user_id, member.userId)
+  })
+})
+
+describe('help page and Gmail script', () => {
+  test('/help shows common questions and the guide in the chosen language', async () => {
+    const res = await fetch(server.base + '/help?lang=gu')
+    assert.equal(res.status, 200)
+    const html = await res.text()
+    assert.match(html, /સામાન્ય પ્રશ્નો/)
+    assert.match(html, /ખરીદી પુનઃસ્થાપિત કરો/)
+    assert.match(html, /<html lang="gu">/)
+    const en = await (await fetch(server.base + '/help?lang=xx')).text()
+    assert.match(en, /Common questions/)
+  })
+
+  test('the Gmail script is served for the admin panel and holds no token', async () => {
+    const res = await fetch(server.base + '/support/gmail-forwarder.gs')
+    assert.equal(res.status, 200)
+    const text = await res.text()
+    assert.match(text, /function forwardSupportMail/)
+    assert.match(text, /PASTE_SUPPORT_INBOUND_TOKEN_HERE/)
+    assert.doesNotMatch(text, new RegExp(TOKEN))
+  })
+
+  test('mail posted in the Gmail script shape becomes a ticket without the quoted part', async () => {
+    const res = await inbound([{
+      MessageId: '<gmail-1@mail.gmail.com>',
+      From: { Address: 'gmailer@example.com', Name: 'Gmail User' },
+      Subject: 'Plan question',
+      RawTextBody: 'Is the yearly plan cheaper?\n\nOn Mon, 1 Jan 2026 someone wrote:\n> old text',
+      Headers: { 'Auto-Submitted': '', Precedence: '' },
+    }])
+    assert.equal(res.body.data[0].action, 'created')
+    const [t] = await ticketsFor('gmailer@example.com')
+    const [first] = await messagesOf(t.id)
+    assert.equal(first.body, 'Is the yearly plan cheaper?')
   })
 })
 

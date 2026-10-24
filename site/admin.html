@@ -376,10 +376,13 @@
       <div class="card" style="margin-top:1rem">
         <div class="head"><h2>Setup</h2></div>
         <p class="hint" style="margin-top:0">
-          One-time, after the DNS records and Render variables are in place (see TESTING.md): connect Brevo so
-          incoming mail reaches this page.
+          One time, in the Gmail that support@ forwards to: open <a href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a>
+          → New project, replace everything with the script below, put your <code>SUPPORT_INBOUND_TOKEN</code> (from Render)
+          in place of <code>PASTE_SUPPORT_INBOUND_TOKEN_HERE</code>, save, choose <b>setup</b> and press Run, and allow access.
+          It then checks every 5 minutes for free.
         </p>
-        <button class="secondary small" type="button" id="connectSupport">Connect Brevo inbound mail</button>
+        <button class="secondary small" type="button" id="copySupportScript">Copy script</button>
+        <textarea id="supportScript" rows="6" readonly style="margin-top:.6rem;font-family:ui-monospace,Menlo,monospace;font-size:.78rem"></textarea>
       </div>
     </section>
 
@@ -1158,15 +1161,12 @@ for (const chip of document.querySelectorAll('[data-sfilter]')) {
   };
 }
 $('refreshSupport').onclick = () => loadSupport().catch((e) => msg(e.message, 'err'));
-$('connectSupport').onclick = async () => {
-  if (!confirm('Register the inbound-mail webhook with Brevo now?')) return;
-  try {
-    await call('/admin/support/connect', { method: 'POST' });
-    msg('Brevo is connected. Send a test mail to support@chaudharysamaj.com.');
-  } catch (err) {
-    msg(err.message, 'err');
-  }
+$('copySupportScript').onclick = async () => {
+  try { await navigator.clipboard.writeText($('supportScript').value); msg('Script copied.'); }
+  catch { $('supportScript').select(); msg('Select all and copy the script below.'); }
 };
+// The script is served next to this page so it always matches the server.
+fetch('/support/gmail-forwarder.gs').then((r) => (r.ok ? r.text() : '')).then((t) => { $('supportScript').value = t; });
 
 /* ======================= verification ======================= */
 let verifyFilter = 'review';

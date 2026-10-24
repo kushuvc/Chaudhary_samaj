@@ -71,8 +71,9 @@ import {
 import { startKeepAlive } from './keep-alive.js'
 import { runAdminAlerts, startAdminAlerts } from './admin-alerts.js'
 import {
-  handleInboundMail, listTickets, getTicket, replyToTicket, setTicketStatus, registerInboundWebhook,
+  handleInboundMail, listTickets, getTicket, replyToTicket, setTicketStatus,
 } from './support.js'
+import { renderHelpPage } from './help-page.js'
 import {
   authAccountExistsByEmailFast,
   getBusinessListingsFast,
@@ -3875,6 +3876,25 @@ app.get('/child-safety', (_request, response) => {
   })
 })
 
+/*
+ * Public help: the in-app guide plus common questions, in the language asked
+ * for (?lang=en|hi|gu). The support auto-reply links here.
+ */
+// The Gmail Apps Script the admin panel offers to copy (contains no secrets).
+app.get('/support/gmail-forwarder.gs', (_request, response) => {
+  response.type('text/plain').sendFile(path.join(siteDir, '..', 'support', 'gmail-forwarder.gs'))
+})
+
+app.get('/help', async (request, response) => {
+  try {
+    const guide = (await loadGuideSections()).filter((row) => row.is_active)
+    response.type('html').send(renderHelpPage(request.query.lang, guide))
+  } catch (err) {
+    console.error('[help] could not render:', err.message)
+    response.type('html').send(renderHelpPage(request.query.lang, []))
+  }
+})
+
 app.get('/delete-account', (_request, response) => {
   response.sendFile(path.join(siteDir, 'delete-account.html'), (error) => {
     if (error) {
@@ -6271,9 +6291,9 @@ app.get('/api/admin/users', requireAdmin, async (request, response) => {
 /* ------------------------------------------------------------------ */
 
 /*
- * Brevo does not sign inbound webhook calls, so the URL carries a secret
- * token (SUPPORT_INBOUND_TOKEN) the way the Play RTDN hook does. Without the
- * variable the hook is closed rather than open to anyone.
+ * The Gmail Apps Script (support/gmail-forwarder.gs) posts support mail here.
+ * The URL carries a secret token (SUPPORT_INBOUND_TOKEN) the way the Play
+ * RTDN hook does; without the variable the hook is closed to everyone.
  */
 function isValidSupportToken(provided) {
   const expected = process.env.SUPPORT_INBOUND_TOKEN || ''
@@ -6358,22 +6378,6 @@ app.put('/api/admin/support/tickets/:id', requireAdmin, async (request, response
     response.json({ success: true, data: updated })
   } catch (err) {
     response.status(500).json({ success: false, error: 'Could not update the ticket' })
-  }
-})
-
-/** One-time: tells Brevo to post mail for the reply subdomain to this server. */
-app.post('/api/admin/support/connect', requireAdmin, async (_request, response) => {
-  const token = process.env.SUPPORT_INBOUND_TOKEN || ''
-  const base = String(process.env.PUBLIC_API_BASE_URL || '').replace(/\/$/, '')
-  const domain = process.env.SUPPORT_INBOUND_DOMAIN || 'reply.chaudharysamaj.com'
-  if (!token || !base) {
-    response.status(400).json({ success: false, error: 'Set SUPPORT_INBOUND_TOKEN and PUBLIC_API_BASE_URL on Render first' })
-    return
-  }
-  try {
-    response.json({ success: true, data: await registerInboundWebhook({ publicBaseUrl: base, token, domain }) })
-  } catch (err) {
-    response.status(502).json({ success: false, error: err.message })
   }
 })
 

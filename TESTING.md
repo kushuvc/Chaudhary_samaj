@@ -16,11 +16,10 @@ person with a phone can check.
 | v40 | 10 Oct 2026 | Last build before verification. |
 
 ### Support ticket setup (one time)
-- [ ] Render: `SUPPORT_INBOUND_TOKEN` = output of `openssl rand -hex 24`; `PUBLIC_API_BASE_URL` set. Redeploy.
-- [ ] Namecheap → Advanced DNS → Mail Settings: MX for host `reply` → `inbound1.sendinblue.com` (10) and `inbound2.sendinblue.com` (20). If this needs "Custom MX", first re-add the five `@` MX records `eforward1–3.registrar-servers.com` (10), `eforward4` (15), `eforward5` (20) so support@ forwarding keeps working; test it at once, and switch back to "Email Forwarding" if it breaks.
-- [ ] Namecheap → Email forwarding: add a second rule `support` → `support@reply.chaudharysamaj.com` (keep the Gmail one).
-- [ ] Admin → Support → "Connect Brevo inbound mail".
-- [ ] Mail support@ from a personal address: a ticket appears, the auto-reply with CS-number arrives, replying from the admin panel reaches the sender, and their answer lands in the same ticket.
+- [ ] Render: `SUPPORT_INBOUND_TOKEN` = output of `openssl rand -hex 24`. Redeploy.
+- [ ] In the Gmail that support@ forwards to: script.google.com → New project → paste the script from Admin → Support → Copy script, put the token in, save, run `setup`, allow access.
+- [ ] Mail support@ from another address: within 5 minutes a ticket appears, the auto-reply (with CS-number and the /help link) arrives, a reply from the admin panel reaches the sender, and their answer lands in the same ticket.
+- [ ] `/help?lang=gu` (and hi, en) shows common questions and the app guide.
 
 ### Open items before v43 goes to production
 

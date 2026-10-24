@@ -79,8 +79,7 @@
           }
         }
       ],
-      "./plugins/withUnlockedOrientation",
-      "./plugins/withR8Optimization"
+      "./plugins/withUnlockedOrientation"
     ],
     "icon": "./assets/icon.png",
     "splash": {

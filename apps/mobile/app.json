@@ -37,7 +37,7 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#8868e8"
+        "backgroundColor": "#791611"
       },
       "googleServicesFile": "./google-services.json"
     },
@@ -86,7 +86,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#8868e8"
+      "backgroundColor": "#791611"
     }
   }
 }

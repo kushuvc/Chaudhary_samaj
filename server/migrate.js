@@ -489,6 +489,34 @@ const migrations = [
     key TEXT PRIMARY KEY,
     sent_at TEXT NOT NULL
   )`,
+  // Support tickets from mail to support@ (via Brevo inbound parsing) and the
+  // messages in each thread. number is what members see: CS-1001, CS-1002…
+  `CREATE SEQUENCE IF NOT EXISTS support_ticket_number_seq START 1001`,
+  `CREATE TABLE IF NOT EXISTS support_tickets (
+    id TEXT PRIMARY KEY,
+    number INTEGER NOT NULL UNIQUE DEFAULT nextval('support_ticket_number_seq'),
+    email TEXT NOT NULL,
+    name TEXT,
+    user_id TEXT,
+    subject TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'waiting', 'closed')),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS support_tickets_status_idx ON support_tickets (status, updated_at)`,
+  `CREATE INDEX IF NOT EXISTS support_tickets_email_idx ON support_tickets (lower(email))`,
+  `CREATE TABLE IF NOT EXISTS support_messages (
+    id TEXT PRIMARY KEY,
+    ticket_id TEXT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+    direction TEXT NOT NULL CHECK (direction IN ('in', 'out', 'auto')),
+    from_email TEXT,
+    body TEXT NOT NULL,
+    message_id TEXT,
+    sent BOOLEAN NOT NULL DEFAULT true,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS support_messages_ticket_idx ON support_messages (ticket_id, created_at)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS support_messages_message_id_key ON support_messages (message_id) WHERE message_id IS NOT NULL AND direction = 'in'`,
   /*
    * Row-Level Security on every table in `public`.
    *

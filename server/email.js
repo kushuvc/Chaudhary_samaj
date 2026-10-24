@@ -120,8 +120,8 @@ function buildSmtpErrorDetails(error) {
  *
  * Throws on failure; the caller handles fallback.
  */
-async function sendViaBrevoApi({ to, subject, html }) {
-  const sender = parseFromAddress(smtpFrom)
+async function sendViaBrevoApi({ to, subject, html, text, from, replyTo, headers }) {
+  const sender = parseFromAddress(from || smtpFrom)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS)
 
@@ -140,6 +140,9 @@ async function sendViaBrevoApi({ to, subject, html }) {
         to: [{ email: to }],
         subject,
         htmlContent: html,
+        ...(text ? { textContent: text } : {}),
+        ...(replyTo ? { replyTo: { email: replyTo } } : {}),
+        ...(headers ? { headers } : {}),
       }),
       signal: controller.signal,
     })
@@ -154,7 +157,12 @@ async function sendViaBrevoApi({ to, subject, html }) {
   }
 
   if (response.ok) {
-    return
+    // Brevo answers {"messageId":"<…>"}; support replies keep it for threading.
+    try {
+      return JSON.parse(body)?.messageId || null
+    } catch {
+      return null
+    }
   }
 
   let parsed = null
@@ -204,6 +212,29 @@ export async function sendAdminEmail({ to, subject, html }) {
   } catch (error) {
     console.error(`[ADMIN MAIL] failed to=${to}:`, error.message)
     return false
+  }
+}
+
+/**
+ * Mail from the support address (ticket auto-replies and admin replies).
+ * Replies come back to `replyTo`, which forwards into the ticket inbox.
+ * Resolves to Brevo's message id, or null when nothing was sent (no key, or
+ * Brevo refused) so the caller can record that.
+ */
+export async function sendSupportEmail({ to, subject, html, text, replyTo, headers }) {
+  if (!brevoApiKey) {
+    console.log(`[SUPPORT MAIL DEV] to=${to} subject=${subject}`)
+    return null
+  }
+  try {
+    const id = await sendViaBrevoApi({
+      to, subject, html, text, replyTo, headers,
+      from: process.env.SUPPORT_FROM || 'Chaudhary Samaj Support <support@chaudharysamaj.com>',
+    })
+    return id || 'sent'
+  } catch (error) {
+    console.error(`[SUPPORT MAIL] failed to=${to}:`, error.message)
+    return null
   }
 }
 

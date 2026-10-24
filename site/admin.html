@@ -154,6 +154,16 @@
   .report blockquote{margin:.4rem 0 0;padding:.5rem .75rem;border-left:3px solid var(--line);color:var(--soft);
     font-size:.92rem;background:var(--bg);border-radius:0 6px 6px 0;white-space:pre-wrap}
 
+  /* ---------- support ---------- */
+  .ticket{cursor:pointer}
+  .ticket .snippet{color:var(--soft);font-size:.9rem;margin-top:.3rem;white-space:pre-wrap;max-height:3.2em;overflow:hidden}
+  .tmsg{border:1px solid var(--line);border-radius:10px;padding:.7rem .85rem;margin:.6rem 0;background:var(--card)}
+  .tmsg.in{border-left:4px solid var(--brand)}
+  .tmsg.out{border-left:4px solid var(--ok);background:var(--bg)}
+  .tmsg.auto{border-left:4px solid var(--line);background:var(--bg);opacity:.85}
+  .tmsg .meta{font-size:.78rem;color:var(--muted);margin-bottom:.35rem}
+  .tmsg .body{white-space:pre-wrap;word-break:break-word;font-size:.93rem}
+
   /* ---------- members ---------- */
   .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}
   table{border-collapse:collapse;width:100%;font-size:.88rem}
@@ -252,6 +262,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V4h11l-1 4h6l-2 7h-8l1-4H4"/></svg>
         Reports <span class="count" id="reportsCount" hidden>0</span>
       </a>
+      <a href="#support" data-nav="support">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12.5h5"/></svg>
+        Support <span class="count" id="supportCount" hidden>0</span>
+      </a>
       <a href="#verify" data-nav="verify">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.5l8 3v6c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10v-6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
         Verification <span class="count" id="verifyCount" hidden>0</span>
@@ -337,6 +351,36 @@
         <button class="chip" data-filter="all" type="button">All</button>
       </div>
       <div id="reports"></div>
+    </section>
+
+    <!-- ---------- SUPPORT ---------- -->
+    <section data-section="support" hidden>
+      <div class="page-head">
+        <div>
+          <h1>Support</h1>
+          <p class="sub">
+            Mail to support@chaudharysamaj.com becomes a ticket here, and the sender gets an automatic reply with
+            the ticket number. Your reply goes out from support@; their answer comes back into the same ticket.
+          </p>
+        </div>
+        <button class="secondary small" type="button" id="refreshSupport">Refresh</button>
+      </div>
+      <div class="filters" id="supportFilters">
+        <button class="chip on" data-sfilter="open" type="button">Open</button>
+        <button class="chip" data-sfilter="waiting" type="button">Waiting for member</button>
+        <button class="chip" data-sfilter="closed" type="button">Closed</button>
+        <button class="chip" data-sfilter="all" type="button">All</button>
+      </div>
+      <div id="supportList"></div>
+      <div id="supportThread" hidden></div>
+      <div class="card" style="margin-top:1rem">
+        <div class="head"><h2>Setup</h2></div>
+        <p class="hint" style="margin-top:0">
+          One-time, after the DNS records and Render variables are in place (see TESTING.md): connect Brevo so
+          incoming mail reaches this page.
+        </p>
+        <button class="secondary small" type="button" id="connectSupport">Connect Brevo inbound mail</button>
+      </div>
     </section>
 
     <!-- ---------- VERIFICATION ---------- -->
@@ -657,11 +701,12 @@ const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="16" height="16" fi
  * back button, a refresh and a bookmark all land where you were. Each section
  * loads the first time it is opened; saving inside one reloads just that one.
  */
-const SECTIONS = ['overview', 'reports', 'verify', 'members', 'plans', 'free', 'play', 'notify', 'guide'];
+const SECTIONS = ['overview', 'reports', 'support', 'verify', 'members', 'plans', 'free', 'play', 'notify', 'guide'];
 const loaded = new Set();
 const LOADERS = {
   overview: () => loadOverview(),
   reports: () => loadReports(),
+  support: () => loadSupport(),
   verify: () => loadVerifications(),
   members: () => loadMembers(),
   plans: () => loadPlans(),
@@ -707,6 +752,7 @@ async function enterApp() {
   loaded.clear();
   void refreshReportCount();
   void refreshVerifyCount();
+  void refreshSupportCount();
   await show(current());
 }
 
@@ -1005,6 +1051,122 @@ for (const chip of document.querySelectorAll('[data-filter]')) {
     renderReports();
   };
 }
+
+/* ======================= support ======================= */
+let supportFilter = 'open';
+const SUPPORT_STATUS = { open: 'OPEN', waiting: 'WAITING', closed: 'CLOSED' };
+
+function setSupportCount(n) {
+  $('supportCount').textContent = n;
+  $('supportCount').hidden = !n;
+  keepActiveInView();
+}
+
+async function refreshSupportCount() {
+  try {
+    setSupportCount((await call('/admin/support/tickets?status=open')).data.length);
+  } catch { /* the badge is a convenience */ }
+}
+
+async function loadSupport() {
+  $('supportThread').hidden = true;
+  $('supportList').hidden = false;
+  const rows = (await call('/admin/support/tickets?status=' + (supportFilter === 'all' ? '' : supportFilter))).data;
+  if (supportFilter === 'open') setSupportCount(rows.length);
+  $('supportList').innerHTML = rows.length
+    ? rows.map((t) => {
+        const pill = t.status === 'open' ? 'bad' : t.status === 'waiting' ? 'warn' : 'off';
+        return `<div class="card ticket" data-ticket="${esc(t.id)}">
+          <div class="head" style="margin-bottom:.2rem">
+            <span><span class="pill ${pill}">${SUPPORT_STATUS[t.status]}</span> <b>CS-${esc(t.number)}</b> · ${esc(t.subject)}</span>
+            <span class="fold-meta">${esc(when(t.updated_at))}</span>
+          </div>
+          <div class="fold-meta">${esc(t.name || '')} &lt;${esc(t.email)}&gt;${t.user_id ? ' · member' : ''} · ${esc(t.messages)} message${t.messages === 1 ? '' : 's'}</div>
+          ${t.last_in ? `<div class="snippet">${esc(t.last_in)}</div>` : ''}
+        </div>`;
+      }).join('')
+    : `<div class="card empty">${supportFilter === 'open' ? 'No open tickets.' : 'None.'}</div>`;
+  for (const card of $('supportList').querySelectorAll('[data-ticket]')) {
+    card.onclick = () => openTicket(card.getAttribute('data-ticket')).catch((e) => msg(e.message, 'err'));
+  }
+}
+
+async function openTicket(id) {
+  const { ticket, messages, member } = (await call('/admin/support/tickets/' + encodeURIComponent(id))).data;
+  const label = { in: 'From ' + ticket.email, out: 'You replied', auto: 'Automatic reply' };
+  $('supportList').hidden = true;
+  $('supportThread').hidden = false;
+  $('supportThread').innerHTML = `
+    <div class="card">
+      <div class="head">
+        <h2>${esc(ticket.label)} · ${esc(ticket.subject)}</h2>
+        <button class="secondary small" type="button" id="backToTickets">← All tickets</button>
+      </div>
+      <div class="fold-meta">${esc(ticket.name || '')} &lt;${esc(ticket.email)}&gt; · status ${SUPPORT_STATUS[ticket.status]}</div>
+      ${member
+        ? `<p class="hint" style="margin:.5rem 0 0">Member: <b>${esc(member.full_name)}</b>${member.phone ? ' · ' + esc(member.phone) : ''}
+            · joined ${esc(when(member.created_at))} · plan ${member.plan ? '<b>' + esc(member.plan) + '</b>' : 'free'}
+            ${member.reports_against ? ` · <span class="pill bad">${esc(member.reports_against)} report${member.reports_against === 1 ? '' : 's'}</span>` : ''}</p>`
+        : '<p class="hint" style="margin:.5rem 0 0">Not a member account (no sign-up with this email).</p>'}
+      ${messages.map((m) => `<div class="tmsg ${m.direction}">
+          <div class="meta">${esc(label[m.direction])} · ${esc(new Date(m.created_at).toLocaleString())}${m.sent ? '' : ' · <b>not sent</b>'}</div>
+          <div class="body">${esc(m.body)}</div></div>`).join('')}
+      <label for="supportReply" style="margin-top:.8rem">Your reply (sent from support@chaudharysamaj.com)</label>
+      <textarea id="supportReply" rows="5" placeholder="Namaste, …"></textarea>
+      <div class="actions" style="margin-top:.6rem">
+        <button class="small" type="button" id="sendReply">Send reply</button>
+        <button class="secondary small" type="button" id="sendClose">Send and close</button>
+        ${ticket.status === 'closed'
+          ? '<button class="secondary small" type="button" id="reopenTicket">Reopen</button>'
+          : '<button class="secondary small" type="button" id="closeTicket">Close without reply</button>'}
+      </div>
+    </div>`;
+  $('backToTickets').onclick = () => loadSupport().catch((e) => msg(e.message, 'err'));
+  const send = async (close, button) => {
+    const message = $('supportReply').value.trim();
+    if (!message) { msg('Write a reply first.', 'err'); return; }
+    button.disabled = true;
+    try {
+      await call('/admin/support/tickets/' + encodeURIComponent(id) + '/reply', {
+        method: 'POST', body: JSON.stringify({ message, close }),
+      });
+      msg(close ? 'Reply sent and ticket closed.' : 'Reply sent.');
+      await openTicket(id);
+      void refreshSupportCount();
+    } catch (err) {
+      msg(err.message, 'err');
+      button.disabled = false;
+    }
+  };
+  $('sendReply').onclick = () => send(false, $('sendReply'));
+  $('sendClose').onclick = () => send(true, $('sendClose'));
+  const setStatus = async (status) => {
+    await call('/admin/support/tickets/' + encodeURIComponent(id), { method: 'PUT', body: JSON.stringify({ status }) });
+    msg(status === 'closed' ? 'Ticket closed.' : 'Ticket reopened.');
+    void refreshSupportCount();
+    await openTicket(id);
+  };
+  if ($('closeTicket')) $('closeTicket').onclick = () => setStatus('closed').catch((e) => msg(e.message, 'err'));
+  if ($('reopenTicket')) $('reopenTicket').onclick = () => setStatus('open').catch((e) => msg(e.message, 'err'));
+}
+
+for (const chip of document.querySelectorAll('[data-sfilter]')) {
+  chip.onclick = () => {
+    supportFilter = chip.getAttribute('data-sfilter');
+    for (const c of document.querySelectorAll('[data-sfilter]')) c.classList.toggle('on', c === chip);
+    loadSupport().catch((e) => msg(e.message, 'err'));
+  };
+}
+$('refreshSupport').onclick = () => loadSupport().catch((e) => msg(e.message, 'err'));
+$('connectSupport').onclick = async () => {
+  if (!confirm('Register the inbound-mail webhook with Brevo now?')) return;
+  try {
+    await call('/admin/support/connect', { method: 'POST' });
+    msg('Brevo is connected. Send a test mail to support@chaudharysamaj.com.');
+  } catch (err) {
+    msg(err.message, 'err');
+  }
+};
 
 /* ======================= verification ======================= */
 let verifyFilter = 'review';

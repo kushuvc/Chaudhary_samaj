@@ -15,6 +15,13 @@ person with a phone can check.
 | v43 | 18 Oct 2026 | Aadhaar/email verification, discount handling, DOB editing, misuse warnings. Superseded by v44. |
 | v40 | 10 Oct 2026 | Last build before verification. |
 
+### Support ticket setup (one time)
+- [ ] Render: `SUPPORT_INBOUND_TOKEN` = output of `openssl rand -hex 24`; `PUBLIC_API_BASE_URL` set. Redeploy.
+- [ ] Namecheap → Advanced DNS → Mail Settings: MX for host `reply` → `inbound1.sendinblue.com` (10) and `inbound2.sendinblue.com` (20). If this needs "Custom MX", first re-add the five `@` MX records `eforward1–3.registrar-servers.com` (10), `eforward4` (15), `eforward5` (20) so support@ forwarding keeps working; test it at once, and switch back to "Email Forwarding" if it breaks.
+- [ ] Namecheap → Email forwarding: add a second rule `support` → `support@reply.chaudharysamaj.com` (keep the Gmail one).
+- [ ] Admin → Support → "Connect Brevo inbound mail".
+- [ ] Mail support@ from a personal address: a ticket appears, the auto-reply with CS-number arrives, replying from the admin panel reaches the sender, and their answer lands in the same ticket.
+
 ### Open items before v43 goes to production
 
 - [ ] `AADHAAR_FINGERPRINT_SECRET` set on Render with the exact name (64 random hex chars from `openssl rand -hex 32`), saved in a password manager.

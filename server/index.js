@@ -71,6 +71,9 @@ import {
 import { startKeepAlive } from './keep-alive.js'
 import { runAdminAlerts, startAdminAlerts } from './admin-alerts.js'
 import {
+  handleInboundMail, listTickets, getTicket, replyToTicket, setTicketStatus, registerInboundWebhook,
+} from './support.js'
+import {
   authAccountExistsByEmailFast,
   getBusinessListingsFast,
   getCurrentMemberPayloadFast,
@@ -186,6 +189,9 @@ app.use(
     credentials: true,
   })
 )
+// Parsed support mail can carry a long HTML body; give that one route more room
+// than the 2 MB everything else gets. The first parser to run wins.
+app.use('/api/support/inbound', express.json({ limit: '10mb' }))
 app.use(express.json({ limit: '2mb' }))
 
 // Rate limiters
@@ -6257,6 +6263,117 @@ app.get('/api/admin/users', requireAdmin, async (request, response) => {
   } catch (err) {
     console.error('[admin/users] error:', err.message)
     response.status(500).json({ success: false, error: 'Failed to fetch users' })
+  }
+})
+
+/* ------------------------------------------------------------------ */
+/* Support tickets (mail to support@ via Brevo inbound parsing)        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Brevo does not sign inbound webhook calls, so the URL carries a secret
+ * token (SUPPORT_INBOUND_TOKEN) the way the Play RTDN hook does. Without the
+ * variable the hook is closed rather than open to anyone.
+ */
+function isValidSupportToken(provided) {
+  const expected = process.env.SUPPORT_INBOUND_TOKEN || ''
+  if (!expected) return false
+  const a = Buffer.from(String(provided || ''))
+  const b = Buffer.from(expected)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+
+app.post('/api/support/inbound', async (request, response) => {
+  if (!isValidSupportToken(request.query.token)) {
+    response.status(403).json({ success: false, error: 'Forbidden' })
+    return
+  }
+  const items = Array.isArray(request.body?.items) ? request.body.items : []
+  const results = []
+  for (const item of items) {
+    try {
+      results.push(await handleInboundMail(item))
+    } catch (err) {
+      // One bad mail must not make Brevo retry the whole batch forever.
+      console.error('[support] inbound mail failed:', err.message)
+      results.push({ action: 'error' })
+    }
+  }
+  response.json({ success: true, data: results })
+})
+
+app.get('/api/admin/support/tickets', requireAdmin, async (request, response) => {
+  try {
+    response.json({ success: true, data: await listTickets(String(request.query.status || '')) })
+  } catch (err) {
+    console.error('[support] list failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not load tickets' })
+  }
+})
+
+app.get('/api/admin/support/tickets/:id', requireAdmin, async (request, response) => {
+  try {
+    const found = await getTicket(request.params.id)
+    if (!found) {
+      response.status(404).json({ success: false, error: 'Ticket not found' })
+      return
+    }
+    response.json({ success: true, data: found })
+  } catch (err) {
+    console.error('[support] read failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not load the ticket' })
+  }
+})
+
+app.post('/api/admin/support/tickets/:id/reply', requireAdmin, async (request, response) => {
+  const message = String(request.body?.message || '').trim()
+  if (!message) {
+    response.status(400).json({ success: false, error: 'Write a reply first' })
+    return
+  }
+  try {
+    const result = await replyToTicket(request.params.id, message, { close: Boolean(request.body?.close) })
+    if (!result) {
+      response.status(404).json({ success: false, error: 'Ticket not found' })
+      return
+    }
+    if (!result.sent) {
+      response.status(502).json({ success: false, error: 'The email could not be sent. It is saved on the ticket; try again.' })
+      return
+    }
+    response.json({ success: true, data: result })
+  } catch (err) {
+    console.error('[support] reply failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not send the reply' })
+  }
+})
+
+app.put('/api/admin/support/tickets/:id', requireAdmin, async (request, response) => {
+  try {
+    const updated = await setTicketStatus(request.params.id, String(request.body?.status || ''))
+    if (!updated) {
+      response.status(400).json({ success: false, error: 'Status must be open, waiting or closed' })
+      return
+    }
+    response.json({ success: true, data: updated })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not update the ticket' })
+  }
+})
+
+/** One-time: tells Brevo to post mail for the reply subdomain to this server. */
+app.post('/api/admin/support/connect', requireAdmin, async (_request, response) => {
+  const token = process.env.SUPPORT_INBOUND_TOKEN || ''
+  const base = String(process.env.PUBLIC_API_BASE_URL || '').replace(/\/$/, '')
+  const domain = process.env.SUPPORT_INBOUND_DOMAIN || 'reply.chaudharysamaj.com'
+  if (!token || !base) {
+    response.status(400).json({ success: false, error: 'Set SUPPORT_INBOUND_TOKEN and PUBLIC_API_BASE_URL on Render first' })
+    return
+  }
+  try {
+    response.json({ success: true, data: await registerInboundWebhook({ publicBaseUrl: base, token, domain }) })
+  } catch (err) {
+    response.status(502).json({ success: false, error: err.message })
   }
 })
 

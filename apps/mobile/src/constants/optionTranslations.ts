@@ -163,6 +163,7 @@ registerOptionTranslations({
   'Government Employee': ['सरकारी कर्मचारी', 'સરકારી કર્મચારી'],
   'Defence Services': ['रक्षा सेवाएँ', 'સંરક્ષણ સેવાઓ'],
   'Lawyer': ['वकील', 'વકીલ'],
+  'Housewife': ['गृहिणी', 'ગૃહિણી'],
   'Accountant': ['लेखाकार', 'હિસાબનીશ'],
   'Architect': ['वास्तुकार', 'સ્થપતિ'],
   'Designer': ['डिज़ाइनर', 'ડિઝાઇનર'],

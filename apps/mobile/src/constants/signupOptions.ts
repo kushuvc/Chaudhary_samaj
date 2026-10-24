@@ -111,6 +111,10 @@ export const OCCUPATIONS = [
   'Student', 'Not Working', 'Other',
 ];
 
+// The mother's list leads with Housewife, the most common answer there. The
+// member's own and the father's lists stay as they are.
+export const MOTHER_OCCUPATIONS = ['Housewife', ...OCCUPATIONS];
+
 export const INCOME_CURRENCIES = [
   { id: 'INR', label: '₹ INR - Indian Rupee' },
   { id: 'USD', label: '$ USD - US Dollar' },

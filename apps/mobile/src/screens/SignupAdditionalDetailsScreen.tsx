@@ -11,7 +11,7 @@ import {
   StepScaffold,
 } from '../components/ui';
 import { useAppTheme } from '../context/ThemeContext';
-import { FAMILY_STATUSES, FAMILY_TYPES, FAMILY_WEALTH, OCCUPATIONS } from '../constants/signupOptions';
+import { FAMILY_STATUSES, FAMILY_TYPES, FAMILY_WEALTH, MOTHER_OCCUPATIONS, OCCUPATIONS } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 import { useAppLanguage } from '../context/LanguageContext';
 
@@ -153,7 +153,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
           value={motherOccupation}
           placeholder={t('suSelectOccupation')}
           title={t('suMotherSOccupation')}
-          options={OCCUPATIONS.map((item) => ({ id: item, label: item }))}
+          options={MOTHER_OCCUPATIONS.map((item) => ({ id: item, label: item }))}
           onChange={setMotherOccupation}
         />
       </Field>

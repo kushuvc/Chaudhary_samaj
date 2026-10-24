@@ -8,7 +8,7 @@ person with a phone can check.
 
 | Build | Date | Status |
 | --- | --- | --- |
-| v48 | — | **Not built yet.** Urgent fix: R8 optimization removed (v45–v47 broke the photo picker in release builds; checked on the emulator that a release build without it opens the picker and uploads). Plus support tickets/help page (server) since v47. |
+| v48 | — | **Not built yet.** Urgent fix: R8 optimization removed (v45–v47 broke the photo picker in release builds; checked on the emulator that a release build without it opens the picker and uploads). Signup catches misspelt emails (gamil.com → gmail.com). Plus support tickets/help page (server) since v47. |
 | v47 | 24 Oct 2026 | Built (`~/Downloads/build-v47.aab` + `mapping-v47.txt`). **Upload this one** (v46 was never uploaded). Since v45: new logo icon + splash, large-text fixes (Language/Welcome scroll, nav-bar insets on Login, profile detail, report sheet, Settings pop-ups, Filters header), Housewife in mother's occupation. Run the Large text and R8 smoke tests on a phone. |
 | v46 | 24 Oct 2026 | Built (`~/Downloads/build-v46.aab` + `mapping-v46.txt`). v45 plus the new Chaudhary Matrimony logo as the home-screen icon (adaptive, maroon `#791611` background) and splash. Superseded by v47 before upload. |
 | v45 | 19 Oct 2026 | Built (`~/Downloads/build-v45.aab` + `mapping-v45.txt`). v44 plus full R8 optimization and optimized resource shrinking (Play "R8 optimization" warning). **Upload this one**; run the R8 smoke test on a phone (Plans/billing, camera scanner, photo upload were not reachable on the emulator without signing in). |
@@ -62,6 +62,7 @@ Android Settings → Display → Font size **largest** and Display size **larges
 
 ### Signup
 - [ ] Full signup in English; email code arrives; under-18 date of birth is refused.
+- [ ] Email `name@gamil.com` shows "Did you mean name@gmail.com?" in red, Continue stays disabled, tapping "Use name@gmail.com" fixes it.
 - [ ] After photos, the **Aadhaar step** appears with the guide open; "I'll do this later" skips to horoscope.
 - [ ] Same in Hindi and Gujarati: guide, warnings and buttons translated.
 - [ ] Profile for a son/daughter: guide says scan *their* Aadhaar.

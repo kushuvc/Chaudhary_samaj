@@ -5,6 +5,7 @@ import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
 import { Callout, Field, Input, PrimaryButton, StepScaffold, TextButton } from '../components/ui';
 import { api } from '../services/api';
 import { useAppLanguage } from '../context/LanguageContext';
+import { suggestEmail } from '../utils/emailTypo';
 
 // The public site, not the API host: these pages must open the same for
 // someone who has not signed up yet.
@@ -56,8 +57,10 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
   const [mockOtpHint, setMockOtpHint] = useState('');
 
   const passwordValid = password.length >= PASSWORD_MIN && password.length <= PASSWORD_MAX;
+  // "gamil.com" is well formed, but the code would go nowhere: stop here.
+  const emailSuggestion = suggestEmail(email);
   const detailsValid =
-    fullName.trim().length > 0 && isValidEmail(email) && passwordValid && phone.length === 10 && agreeToTerms;
+    fullName.trim().length > 0 && isValidEmail(email) && !emailSuggestion && passwordValid && phone.length === 10 && agreeToTerms;
 
   const handleSendOtp = async () => {
     if (!detailsValid || sending) {
@@ -182,16 +185,23 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
         <Input value={fullName} onChangeText={setFullName} placeholder={t('suYourName')} autoCapitalize="words" />
       </Field>
 
-      <Field label={t('suEmailAddress')} hint={t('suUsedForAccountRecoveryAndNotifications')}>
+      <Field
+        label={t('suEmailAddress')}
+        hint={t('suUsedForAccountRecoveryAndNotifications')}
+        error={emailSuggestion ? t('suEmailTypo', { suggestion: emailSuggestion }) : null}
+      >
         <Input
           value={email}
           onChangeText={setEmail}
           placeholder="you@gmail.com"
           keyboardType="email-address"
           autoCapitalize="none"
-          invalid={email.length > 0 && !isValidEmail(email)}
+          invalid={(email.length > 0 && !isValidEmail(email)) || Boolean(emailSuggestion)}
         />
       </Field>
+      {emailSuggestion ? (
+        <TextButton label={t('suEmailTypoFix', { suggestion: emailSuggestion })} onPress={() => setEmail(emailSuggestion)} />
+      ) : null}
 
       <Field
         label={t('suCreatePassword')}

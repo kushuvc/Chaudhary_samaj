@@ -75,6 +75,7 @@ import {
   blockTicketSender, listBlockedSenders, unblockSender,
 } from './support.js'
 import { renderHelpPage } from './help-page.js'
+import { suggestEmail } from './email-typo.js'
 import {
   authAccountExistsByEmailFast,
   getBusinessListingsFast,
@@ -264,6 +265,18 @@ async function phoneAlreadyRegistered(rawPhone) {
     [normalizedPhone]
   )
   return rows.length > 0
+}
+
+/**
+ * A misspelt provider ("gamil.com") passes the format check, but the code
+ * goes nowhere and the member is stuck. Refused at signup with the likely
+ * address; login and reset are left alone so an older account still works.
+ */
+function emailTypoError(email) {
+  const suggestion = suggestEmail(email)
+  return suggestion
+    ? { success: false, code: 'EMAIL_TYPO', suggestion, error: `Please check your email address. Did you mean ${suggestion}?` }
+    : null
 }
 
 const REMOVED_MEMBER_ERROR = {
@@ -493,6 +506,11 @@ app.post('/api/auth/signup', async (request, response) => {
   try {
     // Only check for existing email when actually creating the account
     if (createAccount) {
+      const typo = emailTypoError(email)
+      if (typo) {
+        response.status(400).json(typo)
+        return
+      }
       if (await isRemovedMember({ email, phone })) {
         response.status(403).json(REMOVED_MEMBER_ERROR)
         return
@@ -1063,6 +1081,14 @@ app.post('/api/auth/otp/request', async (request, response) => {
   if (normalizedPurpose === 'login' && !doesAccountExist) {
     response.status(404).json({ success: false, error: 'Account not found for this email' })
     return
+  }
+
+  if (normalizedPurpose === 'signup') {
+    const typo = emailTypoError(normalizedEmail)
+    if (typo) {
+      response.status(400).json(typo)
+      return
+    }
   }
 
   if (normalizedPurpose === 'signup' && doesAccountExist) {

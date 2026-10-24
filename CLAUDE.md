@@ -36,6 +36,7 @@ Release checklist and manual test list: [TESTING.md](TESTING.md).
 
 - **Tabs:** Home, Matrimony, Interests, Messages, Plans, Profile, Settings. Root stack also has Notifications and Verification screens.
 - **Signup** (`navigation/AppNavigator.tsx` AuthFlow): profile type → basic details (email code required) → personal → religious → location → professional → additional (account is created here) → photos → **Aadhaar verify (skippable)** → horoscope → star → eating habits → interests.
+- **Email typos:** signup refuses a misspelt provider (`gamil.com`, `gmail.con`, `yaho.com`…) with "Did you mean …@gmail.com?" and a one-tap fix — app `src/utils/emailTypo.ts`, server `server/email-typo.js` (`EMAIL_TYPO`, signup only; login untouched). Keep the two copies in step; `tests/email-typo.test.mjs` compares them.
 - **Login:** email + password, or emailed code. Phone login exists but returns 503 in production (no SMS provider — see Decisions).
 - **Listing:** server returns only the opposite gender, hides blocked members both ways. Free members see a limited number of profiles (`subscription_rules` per gender: free/paid, price, free_profile_limit; women free by default). Locked profiles arrive as `{ id, isLocked }` only.
 - **Pricing (live, 24 Oct 2026):** both genders get 2 free profiles (`subscription_rules`: `is_free=false`, `free_profile_limit=2`); active plans Monthly ₹199, Quarterly ₹500, Yearly ₹1,500. Free members never download other members' photos beyond those 2 (locked profiles carry no photo), so photo bandwidth scales with paying members.

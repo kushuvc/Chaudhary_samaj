@@ -69,6 +69,7 @@ import {
   notifyProfileViewed, notificationCutoff, startNotificationPruning,
 } from './push.js'
 import { startKeepAlive } from './keep-alive.js'
+import { runAdminAlerts, startAdminAlerts } from './admin-alerts.js'
 import {
   authAccountExistsByEmailFast,
   getBusinessListingsFast,
@@ -6246,6 +6247,19 @@ app.get('/api/admin/users', requireAdmin, async (request, response) => {
 })
 
 /**
+ * Runs the milestone / capacity check now and emails a summary even if nothing
+ * is due, so the admin can see the alerts reach their inbox.
+ */
+app.post('/api/admin/alerts/check', requireAdmin, async (_request, response) => {
+  try {
+    response.json({ success: true, data: await runAdminAlerts({ force: true }) })
+  } catch (err) {
+    console.error('[admin-alerts] manual check failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not run the check' })
+  }
+})
+
+/**
  * Removes a member completely: account, profile, photos, chats and
  * verification are deleted, open reports about them are closed as actioned,
  * and their email, phone and Aadhaar go on the removed list so they cannot
@@ -6370,6 +6384,7 @@ app.listen(port, () => {
   startPlanExpiryReminders()
   startNotificationPruning()
   startKeepAlive()
+  startAdminAlerts()
   console.log(`Matrimony backend listening on http://localhost:${port}`)
   warmUpPool()
 })

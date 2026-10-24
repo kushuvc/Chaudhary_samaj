@@ -21,6 +21,7 @@ Release checklist and manual test list: [TESTING.md](TESTING.md).
 | `server/aadhaar-qr.js` | Aadhaar Secure QR decode + UIDAI signature check + name/DOB/gender matching. |
 | `server/certs/aadhaar/` | UIDAI public certificates (from uidai.gov.in "Data and Downloads"). |
 | `server/play-billing.js` | Google Play subscription verification (subscriptionsv2) and acknowledgement. |
+| `server/admin-alerts.js` | Hourly check that emails admins (Brevo) once per milestone: members 25/50/100/250…, paying 5/10/15/25…, database or photo storage 70%/90% of `DB_LIMIT_MB`/`STORAGE_LIMIT_MB` (default free plan 500/1024; set 8192/102400 after Supabase Pro). Sent keys in `admin_alerts_sent`; recipients = `ADMIN_ALERT_EMAIL` or all admins. Overview → "Email me a summary now". `ADMIN_ALERTS=off` disables. Photo egress is not measurable here. |
 | `server/push.js`, `email.js`, `sms.js` | Expo push, Brevo email OTP, MSG91 SMS (unconfigured on purpose). |
 | `server/guide-defaults.js` | In-app guide sections, seeded once into `app_guide_sections`. |
 | `server/db.js` | Legacy SQLite fallback paths; production uses Postgres (`pgQuery`). |

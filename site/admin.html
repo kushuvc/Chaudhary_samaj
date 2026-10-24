@@ -309,6 +309,14 @@
         <div class="head"><h2>Needs attention</h2></div>
         <div id="attention"><p class="hint" style="margin:0">Loading…</p></div>
       </div>
+      <div class="card">
+        <div class="head"><h2>Email updates</h2></div>
+        <p class="hint" style="margin-top:0">
+          You get an email when members reach 25, 50, 100, 250, 500, 1,000 and on; when paying members reach
+          5, 10, 15, 25, 50 and on; and when the database or photo storage is 70% or 90% full. Checked every hour.
+        </p>
+        <button class="secondary small" type="button" id="emailSummary">Email me a summary now</button>
+      </div>
     </section>
 
     <!-- ---------- REPORTS ---------- -->
@@ -832,6 +840,21 @@ async function loadOverview() {
 }
 
 $('refreshOverview').onclick = () => { loaded.delete('overview'); void show('overview'); };
+
+$('emailSummary').onclick = async () => {
+  const button = $('emailSummary');
+  button.disabled = true;
+  try {
+    const res = (await call('/admin/alerts/check', { method: 'POST' })).data;
+    msg(res.sent
+      ? 'Summary emailed to ' + res.recipients + ' admin' + (res.recipients === 1 ? '' : 's') + '.'
+      : 'Could not send the email. Check BREVO_API_KEY on Render.', res.sent ? undefined : 'err');
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    button.disabled = false;
+  }
+};
 
 /* ======================= reports ======================= */
 const REASONS = {

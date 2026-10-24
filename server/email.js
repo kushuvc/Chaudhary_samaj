@@ -188,6 +188,25 @@ function isBrevoRecipientError(error) {
   )
 }
 
+/**
+ * A plain message to the operator (milestones, capacity warnings). Only goes
+ * out through Brevo; with no key configured it is logged instead, so a laptop
+ * never mails anyone. Resolves to whether it was actually sent.
+ */
+export async function sendAdminEmail({ to, subject, html }) {
+  if (!brevoApiKey) {
+    console.log(`[ADMIN MAIL DEV] to=${to} subject=${subject}`)
+    return false
+  }
+  try {
+    await sendViaBrevoApi({ to, subject, html })
+    return true
+  } catch (error) {
+    console.error(`[ADMIN MAIL] failed to=${to}:`, error.message)
+    return false
+  }
+}
+
 export async function sendEmailOtp({ to, otpCode, purpose, expiresInMinutes = 5 }) {
   const useApi = Boolean(brevoApiKey)
   const transporter = useApi ? null : buildTransporter()

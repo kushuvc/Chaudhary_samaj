@@ -483,6 +483,12 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS removed_members_email_idx ON removed_members (lower(email))`,
   `CREATE INDEX IF NOT EXISTS removed_members_phone_idx ON removed_members (phone)`,
   `CREATE INDEX IF NOT EXISTS removed_members_fingerprint_idx ON removed_members (aadhaar_fingerprint)`,
+  // Which operator alerts (member milestones, capacity warnings) have been
+  // emailed, so each goes out once.
+  `CREATE TABLE IF NOT EXISTS admin_alerts_sent (
+    key TEXT PRIMARY KEY,
+    sent_at TEXT NOT NULL
+  )`,
   /*
    * Row-Level Security on every table in `public`.
    *

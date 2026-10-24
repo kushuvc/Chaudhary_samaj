@@ -100,6 +100,7 @@ Android Settings → Display → Font size **largest** and Display size **larges
 
 ### Admin panel (`/admin`)
 - [ ] Sign in with an admin account; Verification tab count matches the queue; Approve / Reject / Revoke work.
+- [ ] Overview → "Email me a summary now": the summary email (members, paying, database, storage) arrives at the admin address.
 - [ ] Reports: a member with several reports shows "N reports"; **Remove member** asks for a reason and REMOVE, then the reports move to Actioned marked REMOVED and the member is gone from Members. Signing up again with that email shows the "account was removed" message.
 - [ ] Reports, Members, Plans, Free access, Google Play health, Notifications, App guide all load.
 - [ ] App guide shows the "Get verified, and trust verified profiles" section (seeded on first deploy).

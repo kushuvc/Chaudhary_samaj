@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
@@ -26,7 +26,18 @@ export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) 
   const styles = useMemo(() => createStyles(palette), [palette]);
 
   return (
-    <View style={styles.screen}>
+    /*
+     * Scrolls only when the content is taller than the screen. With the
+     * phone's font size or display size turned up, the fixed layout ran off the
+     * bottom and "Create your profile" sat under the navigation bar with no way
+     * to reach it. flexGrow keeps the normal-size layout exactly as it was.
+     */
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.scrollContent}
+      bounces={false}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.hero}>
         <GradientFill colors={palette.gradient} />
         <View style={[styles.heroInner, { paddingTop: insets.top + 44 }]}>
@@ -62,7 +73,7 @@ export function WelcomeScreen({ onCreateProfile, onLogin }: WelcomeScreenProps) 
           </Pressable>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -71,6 +82,9 @@ function createStyles(palette: ThemePalette) {
     screen: {
       flex: 1,
       backgroundColor: palette.bg,
+    },
+    scrollContent: {
+      flexGrow: 1,
     },
     hero: {
       flex: 1,

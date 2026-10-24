@@ -43,6 +43,14 @@ cd apps/mobile && npx tsc --noEmit -p .
 - [ ] Photo upload and crop work; push notification arrives.
 - [ ] Phone: stays portrait when rotated. Tablet/foldable: rotates.
 
+### Large text (every build that touches layout)
+Android Settings → Display → Font size **largest** and Display size **largest**, 3-button navigation. Old members use this; buttons used to end up under the navigation bar.
+- [ ] Language screen: Gujarati and Continue reachable (scroll). Welcome: Create your profile and Log in reachable.
+- [ ] Login: "Create a profile" scrolls clear of the navigation bar. Signup steps: bottom button visible.
+- [ ] Profile detail: last section clears the bar; Report sheet scrolls and Cancel / Send report stay visible.
+- [ ] Settings: language picker shows Gujarati fully; Delete Account buttons above the bar. Filters: Done visible.
+- [ ] Same screens at normal size look unchanged.
+
 ### Signup
 - [ ] Full signup in English; email code arrives; under-18 date of birth is refused.
 - [ ] After photos, the **Aadhaar step** appears with the guide open; "I'll do this later" skips to horoscope.

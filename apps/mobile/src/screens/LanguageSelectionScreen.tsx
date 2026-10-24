@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ThemePalette } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
@@ -24,11 +25,23 @@ export function LanguageSelectionScreen() {
   const { setLanguage, t } = useAppLanguage();
   const [selected, setSelected] = useState<AppLanguage>('en-IN');
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const insets = useSafeAreaInsets();
 
   const selectedOption = options.find((o) => o.key === selected)!;
 
   return (
-    <View style={styles.container}>
+    /*
+     * The first screen anyone sees, so it must never trap them: with a large
+     * font or display size the options pushed Gujarati and Continue off the
+     * bottom, under the navigation bar, and nothing could be tapped. It now
+     * scrolls when it has to; flexGrow keeps the normal layout unchanged.
+     */
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      bounces={false}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Hero */}
       <View style={styles.hero}>
         <Svg style={StyleSheet.absoluteFill as any} width="100%" height="100%" viewBox="0 0 390 340" preserveAspectRatio="xMidYMid slice">
@@ -60,7 +73,7 @@ export function LanguageSelectionScreen() {
       </View>
 
       {/* Language Options */}
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingBottom: insets.bottom + 16 }]}>
         <Text style={styles.sectionLabel}>{t('langChoose')}</Text>
 
         <View style={styles.optionsList}>
@@ -98,15 +111,18 @@ export function LanguageSelectionScreen() {
           <Ionicons name="arrow-forward" size={18} color="#fff" />
         </Pressable>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 function createStyles(palette: ThemePalette) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: palette.bg },
+    scrollContent: { flexGrow: 1 },
     hero: {
-      height: 300,
+      // A floor rather than a fixed height: large text grows the hero instead
+      // of being clipped under the sheet.
+      minHeight: 300,
       position: 'relative',
       overflow: 'hidden',
     },

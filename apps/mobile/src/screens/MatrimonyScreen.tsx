@@ -886,6 +886,9 @@ function createStyles(palette: ThemePalette) {
     color: palette.text,
     fontWeight: '800',
     fontSize: 18,
+    // Wrap rather than push "Done" off the screen at large font sizes.
+    flexShrink: 1,
+    marginRight: 12,
   },
   modalClose: {
     color: palette.primary,

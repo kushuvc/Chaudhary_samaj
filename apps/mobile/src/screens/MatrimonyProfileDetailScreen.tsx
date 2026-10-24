@@ -484,7 +484,9 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        // The page is drawn behind the navigation bar; without the inset the
+        // last rows could never be scrolled out from under it.
+        contentContainerStyle={[styles.content, { paddingBottom: 16 + insets.bottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.primary} />}
       >
         {error ? <InlineError message={error} /> : null}
@@ -665,34 +667,49 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
 
       <Modal visible={reportOpen} transparent animationType="slide" onRequestClose={() => setReportOpen(false)}>
         <Pressable style={styles.reportOverlay} onPress={() => setReportOpen(false)}>
-          <Pressable style={styles.reportSheet} onPress={(event) => event.stopPropagation()}>
-            <Text style={styles.reportTitle}>{t('actReportProfile')}</Text>
-            <Text style={styles.reportSubtitle}>{t('rptIntro')}</Text>
+          <Pressable
+            style={[styles.reportSheet, { paddingBottom: 20 + insets.bottom }]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            {/*
+             * The reasons scroll and the buttons stay pinned below them. With a
+             * large font the sheet hit its height cap and simply cut off,
+             * leaving "Send report" unreachable.
+             */}
+            <ScrollView
+              style={styles.reportScroll}
+              contentContainerStyle={styles.reportScrollContent}
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+            >
+              <Text style={styles.reportTitle}>{t('actReportProfile')}</Text>
+              <Text style={styles.reportSubtitle}>{t('rptIntro')}</Text>
 
-            {REPORT_REASONS.map((item) => (
-              <Pressable
-                key={item.id}
-                style={[styles.reportReason, reportReason === item.id && styles.reportReasonActive]}
-                onPress={() => setReportReason(item.id)}
-              >
-                <Ionicons
-                  name={reportReason === item.id ? 'radio-button-on' : 'radio-button-off'}
-                  size={18}
-                  color={reportReason === item.id ? palette.primary : palette.muted}
-                />
-                <Text style={styles.reportReasonText}>{item.label}</Text>
-              </Pressable>
-            ))}
+              {REPORT_REASONS.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[styles.reportReason, reportReason === item.id && styles.reportReasonActive]}
+                  onPress={() => setReportReason(item.id)}
+                >
+                  <Ionicons
+                    name={reportReason === item.id ? 'radio-button-on' : 'radio-button-off'}
+                    size={18}
+                    color={reportReason === item.id ? palette.primary : palette.muted}
+                  />
+                  <Text style={styles.reportReasonText}>{item.label}</Text>
+                </Pressable>
+              ))}
 
-            <TextInput
-              style={styles.reportInput}
-              value={reportDetails}
-              onChangeText={(text) => setReportDetails(text.slice(0, 2000))}
-              placeholder={t('rptDetailsPlaceholder')}
-              placeholderTextColor={palette.muted}
-              multiline
-              textAlignVertical="top"
-            />
+              <TextInput
+                style={styles.reportInput}
+                value={reportDetails}
+                onChangeText={(text) => setReportDetails(text.slice(0, 2000))}
+                placeholder={t('rptDetailsPlaceholder')}
+                placeholderTextColor={palette.muted}
+                multiline
+                textAlignVertical="top"
+              />
+            </ScrollView>
 
             <View style={styles.reportActions}>
               <Pressable style={styles.reportCancel} onPress={() => setReportOpen(false)}>
@@ -725,8 +742,10 @@ function createStyles(palette: ThemePalette, insetTop = 0) {
     },
     reportSheet: {
       backgroundColor: palette.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-      padding: 20, gap: 8, maxHeight: '88%',
+      padding: 20, maxHeight: '88%',
     },
+    reportScroll: { flexShrink: 1 },
+    reportScrollContent: { gap: 8 },
     reportTitle: { color: palette.text, fontSize: 19, fontWeight: '800', letterSpacing: -0.2 },
     reportSubtitle: { color: palette.muted, fontSize: 13.5, lineHeight: 19, marginBottom: 6 },
     reportReason: {

@@ -317,7 +317,8 @@ export function SettingsScreen() {
         {/* Language Picker Modal */}
         <Modal visible={showLangPicker} transparent animationType="slide" onRequestClose={() => setShowLangPicker(false)}>
           <Pressable style={styles.modalOverlay} onPress={() => setShowLangPicker(false)}>
-            <View style={[styles.modalSheet, { backgroundColor: palette.cardBg }]}>
+            {/* Clear of the navigation bar, which a large font pushed Gujarati under. */}
+            <View style={[styles.modalSheet, { backgroundColor: palette.cardBg, paddingBottom: 24 + insets.bottom }]}>
               <View style={styles.modalHandle} />
               <Text style={[styles.modalTitle, { color: palette.text }]}>{t('languageFieldLabel')}</Text>
               {LANGUAGE_OPTIONS.map((opt) => {
@@ -502,7 +503,9 @@ export function SettingsScreen() {
           <View
             style={[
               styles.deleteModalSheet,
-              { backgroundColor: palette.cardBg },
+              // Above the navigation bar; at large font sizes the two buttons
+              // ran under it.
+              { backgroundColor: palette.cardBg, marginBottom: spacing.md + insets.bottom },
               keyboard.height > 0 && { marginBottom: keyboard.height },
             ]}
           >

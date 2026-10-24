@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { useAppTheme } from '../context/ThemeContext';
@@ -28,6 +29,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
   const { palette } = useAppTheme();
   const { t } = useAppLanguage();
   const styles = useMemo(() => createStyles(palette), [palette]);
+  const insets = useSafeAreaInsets();
   const keyboardScroll = useKeyboardAwareScroll();
 
   /*
@@ -179,6 +181,10 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
         style={styles.sheet}
         contentContainerStyle={[
           styles.sheetInner,
+          // Room for the system navigation bar the app draws behind (edge to
+          // edge). Without it the last line, "Create a profile", could never be
+          // scrolled out from under the bar — at large font sizes the buttons too.
+          { paddingBottom: spacing.lg + insets.bottom },
           keyboardScroll.keyboardHeight > 0 && { paddingBottom: keyboardScroll.keyboardHeight + 24 },
         ]}
         automaticallyAdjustKeyboardInsets

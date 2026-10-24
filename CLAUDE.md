@@ -99,6 +99,7 @@ npx eas build --platform android --profile production --local --non-interactive 
 - New tables/columns go in `server/migrate.js` (idempotent `IF NOT EXISTS`), never by editing old migrations.
 - Guide text in `guide-defaults.js` is seeded once (`ON CONFLICT DO NOTHING`); changing an existing section's text needs the admin panel or a new key.
 - Mobile strings: add to all three blocks in `LanguageContext.tsx` as `    key: 'value',` single-line entries (the i18n test parses that shape).
+- Mobile layout: the app draws edge to edge (behind the Android navigation bar), and some members use the largest font and display size. Every screen and bottom sheet must scroll when its content is taller than the screen (`ScrollView` with `contentContainerStyle={{ flexGrow: 1 }}` keeps the normal layout), and the last scrollable content or sheet needs `paddingBottom: … + insets.bottom` (`useSafeAreaInsets`). Tab screens are covered by the tab bar. Fixed in Oct 2026 for Language, Welcome, Login, profile detail (+ its Report sheet), Settings language/delete pop-ups and the Filters header.
 
 ## Environment (Render)
 

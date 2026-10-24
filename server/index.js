@@ -72,6 +72,7 @@ import { startKeepAlive } from './keep-alive.js'
 import { runAdminAlerts, startAdminAlerts } from './admin-alerts.js'
 import {
   handleInboundMail, listTickets, getTicket, replyToTicket, setTicketStatus,
+  blockTicketSender, listBlockedSenders, unblockSender,
 } from './support.js'
 import { renderHelpPage } from './help-page.js'
 import {
@@ -6378,6 +6379,41 @@ app.put('/api/admin/support/tickets/:id', requireAdmin, async (request, response
     response.json({ success: true, data: updated })
   } catch (err) {
     response.status(500).json({ success: false, error: 'Could not update the ticket' })
+  }
+})
+
+/** Blocks a ticket's sender (or their domain); their later mail never becomes a ticket. */
+app.post('/api/admin/support/tickets/:id/block', requireAdmin, async (request, response) => {
+  try {
+    const result = await blockTicketSender(request.params.id, {
+      domain: Boolean(request.body?.domain),
+      reason: String(request.body?.reason || '').slice(0, 300) || null,
+    })
+    if (result.error) {
+      response.status(result.status).json({ success: false, error: result.error })
+      return
+    }
+    response.json({ success: true, data: result })
+  } catch (err) {
+    console.error('[support] block failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not block the sender' })
+  }
+})
+
+app.get('/api/admin/support/blocked', requireAdmin, async (_request, response) => {
+  try {
+    response.json({ success: true, data: await listBlockedSenders() })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not load blocked senders' })
+  }
+})
+
+app.delete('/api/admin/support/blocked/:pattern', requireAdmin, async (request, response) => {
+  try {
+    const removed = await unblockSender(request.params.pattern)
+    response.status(removed ? 200 : 404).json(removed ? { success: true } : { success: false, error: 'Not blocked' })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not unblock' })
   }
 })
 

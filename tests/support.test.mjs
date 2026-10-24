@@ -234,3 +234,59 @@ describe('admin support endpoints', () => {
     assert.equal(res.status, 400)
   })
 })
+
+describe('spam protection', () => {
+  test('a blocked sender is dropped and their open tickets are closed', async () => {
+    await inbound([mail({ From: { Address: 'spammer@junkmail.biz' }, Subject: 'Buy now 1' })])
+    const [t] = await ticketsFor('spammer@junkmail.biz')
+    const res = await server.request('POST', `/api/admin/support/tickets/${t.id}/block`, { token: admin.token, body: {} })
+    assert.equal(res.status, 200, JSON.stringify(res.body))
+    assert.equal(res.body.data.pattern, 'spammer@junkmail.biz')
+    assert.equal(res.body.data.closed, 1)
+
+    const again = await inbound([mail({ From: { Address: 'spammer@junkmail.biz' }, Subject: 'Buy now 2' })])
+    assert.equal(again.body.data[0].action, 'ignored')
+    assert.equal((await ticketsFor('spammer@junkmail.biz')).length, 1)
+  })
+
+  test('a whole domain can be blocked, but not gmail.com', async () => {
+    await inbound([mail({ From: { Address: 'a@spamfarm.example' } })])
+    const [t] = await ticketsFor('a@spamfarm.example')
+    const ok = await server.request('POST', `/api/admin/support/tickets/${t.id}/block`, { token: admin.token, body: { domain: true } })
+    assert.equal(ok.body.data.pattern, '@spamfarm.example')
+    const other = await inbound([mail({ From: { Address: 'b@spamfarm.example' } })])
+    assert.equal(other.body.data[0].action, 'ignored')
+
+    await inbound([mail({ From: { Address: 'someone@gmail.com' } })])
+    const [g] = await ticketsFor('someone@gmail.com')
+    const refused = await server.request('POST', `/api/admin/support/tickets/${g.id}/block`, { token: admin.token, body: { domain: true } })
+    assert.equal(refused.status, 400)
+  })
+
+  test('blocked senders can be listed and unblocked', async () => {
+    const list = await server.request('GET', '/api/admin/support/blocked', { token: admin.token })
+    assert.ok(list.body.data.some((b) => b.pattern === 'spammer@junkmail.biz'))
+    const del = await server.request('DELETE', `/api/admin/support/blocked/${encodeURIComponent('spammer@junkmail.biz')}`, { token: admin.token })
+    assert.equal(del.status, 200)
+    const back = await inbound([mail({ From: { Address: 'spammer@junkmail.biz' }, Subject: 'Real question' })])
+    assert.equal(back.body.data[0].action, 'created')
+  })
+})
+
+describe('daily ceiling on automatic replies', () => {
+  let capped
+  before(async () => { capped = await startServer({ env: { SUPPORT_INBOUND_TOKEN: TOKEN, SUPPORT_AUTO_REPLY_DAILY_MAX: '2' } }) })
+  after(async () => { await capped?.stop() })
+
+  test('many different senders cannot use up the mail quota', async () => {
+    for (let i = 0; i < 4; i++) {
+      await capped.request('POST', `/api/support/inbound?token=${TOKEN}`, {
+        body: { items: [mail({ From: { Address: `flood${i}@example.org` } })] },
+      })
+    }
+    const [{ tickets }] = await capped.sql('SELECT COUNT(*)::int AS tickets FROM support_tickets')
+    const [{ acks }] = await capped.sql(`SELECT COUNT(*)::int AS acks FROM support_messages WHERE direction = 'auto'`)
+    assert.equal(tickets, 4, 'every mail still becomes a ticket')
+    assert.equal(acks, 2)
+  })
+})

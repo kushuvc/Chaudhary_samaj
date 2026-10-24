@@ -21,6 +21,19 @@ import { sendSupportEmail, sendAdminEmail } from './email.js'
 import { alertRecipients } from './admin-alerts.js'
 
 export const AUTO_REPLY_DAILY_CAP = 3
+/*
+ * Brevo's free plan sends 300 mails a day and login codes share them, so a
+ * flood of spam (from many addresses) must not be able to use them up:
+ * acknowledgements and admin notices both have a daily ceiling.
+ */
+export const autoReplyDailyMax = () => Number(process.env.SUPPORT_AUTO_REPLY_DAILY_MAX) || 60
+export const adminNoticeDailyMax = () => Number(process.env.SUPPORT_ADMIN_NOTICE_DAILY_MAX) || 20
+// Whole-domain blocks are refused for these: blocking gmail.com would block
+// most members.
+const PUBLIC_MAIL_DOMAINS = [
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.in', 'outlook.com', 'hotmail.com',
+  'live.com', 'icloud.com', 'rediffmail.com', 'aol.com', 'proton.me', 'protonmail.com',
+]
 const OWN_DOMAINS = ['chaudharysamaj.com', 'reply.chaudharysamaj.com']
 const MAX_BODY = 20000
 
@@ -78,6 +91,52 @@ function messageText(item) {
     item.RawTextBody ||
     String(item.RawHtmlBody || '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ')
   return String(text || '').replace(/\r/g, '').trim().slice(0, MAX_BODY) || '(empty message)'
+}
+
+const dayAgo = () => new Date(Date.now() - 864e5).toISOString()
+const domainOf = (email) => String(email || '').toLowerCase().split('@')[1] || ''
+
+export async function isBlockedSender(email) {
+  const rows = await pgQuery(
+    'SELECT 1 FROM support_blocked_senders WHERE pattern = $1 OR pattern = $2 LIMIT 1',
+    [String(email).toLowerCase(), '@' + domainOf(email)]
+  )
+  return rows.length > 0
+}
+
+/**
+ * Blocks the ticket's sender (or their whole domain) and closes their open
+ * tickets. Refuses whole public-mail domains such as gmail.com.
+ */
+export async function blockTicketSender(ticketId, { domain = false, reason = null } = {}) {
+  const [ticket] = await pgQuery('SELECT email FROM support_tickets WHERE id = $1 LIMIT 1', [ticketId])
+  if (!ticket) return { error: 'Ticket not found', status: 404 }
+  const email = ticket.email.toLowerCase()
+  const dom = domainOf(email)
+  if (domain && PUBLIC_MAIL_DOMAINS.includes(dom)) {
+    return { error: `${dom} is used by many members; block the address instead`, status: 400 }
+  }
+  const pattern = domain ? '@' + dom : email
+  await pgQuery(
+    `INSERT INTO support_blocked_senders (pattern, reason, created_at) VALUES ($1, $2, $3)
+     ON CONFLICT (pattern) DO NOTHING`,
+    [pattern, reason, now()]
+  )
+  const closed = await pgQuery(
+    `UPDATE support_tickets SET status = 'closed', updated_at = $3
+      WHERE status <> 'closed' AND (lower(email) = $1 OR ($2::boolean AND lower(email) LIKE '%@' || $4))
+      RETURNING id`,
+    [email, domain, now(), dom]
+  )
+  return { pattern, closed: closed.length }
+}
+
+export const listBlockedSenders = () =>
+  pgQuery('SELECT pattern, reason, created_at FROM support_blocked_senders ORDER BY created_at DESC')
+
+export async function unblockSender(pattern) {
+  const rows = await pgQuery('DELETE FROM support_blocked_senders WHERE pattern = $1 RETURNING pattern', [String(pattern).toLowerCase()])
+  return rows.length > 0
 }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
@@ -163,6 +222,7 @@ export async function handleInboundMail(item) {
   const fromName = String(item?.From?.Name || '').trim() || null
   const subject = String(item?.Subject || '').trim().slice(0, 300) || '(no subject)'
   if (!fromEmail || isOwnAddress(fromEmail)) return { action: 'ignored', reason: 'own or missing sender' }
+  if (await isBlockedSender(fromEmail)) return { action: 'ignored', reason: 'blocked' }
 
   const messageId = item?.MessageId ? String(item.MessageId) : null
   if (messageId) {
@@ -199,12 +259,13 @@ export async function handleInboundMail(item) {
 
   let acknowledged = false
   if (!automated) {
-    const [{ n }] = await pgQuery(
-      `SELECT COUNT(*)::int AS n FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id
-        WHERE m.direction = 'auto' AND lower(t.email) = $1 AND m.created_at > $2`,
-      [fromEmail, new Date(Date.now() - 864e5).toISOString()]
+    const [{ n, total }] = await pgQuery(
+      `SELECT COUNT(*) FILTER (WHERE lower(t.email) = $1)::int AS n, COUNT(*)::int AS total
+         FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id
+        WHERE m.direction = 'auto' AND m.created_at > $2`,
+      [fromEmail, dayAgo()]
     )
-    if (n < AUTO_REPLY_DAILY_CAP) {
+    if (n < AUTO_REPLY_DAILY_CAP && total < autoReplyDailyMax()) {
       // What they wrote in wins; then their saved app language; else all three.
       const lang = detectLanguage(`${subject}\n${body}`) || (await languageFor(member?.id))
       const ack = acknowledgement(label, fromName || member?.full_name, lang)
@@ -221,12 +282,25 @@ export async function handleInboundMail(item) {
     }
   }
 
-  // Tell the admins; best effort, a failure must not lose the ticket.
+  // Tell the admins once per sender per day, and at most a few dozen times a
+  // day in all; the Support tab shows everything regardless. Best effort: a
+  // failure must not lose the ticket.
   try {
+    const [{ fromSender, notified }] = await pgQuery(
+      `SELECT COUNT(*) FILTER (WHERE lower(email) = $1 AND id <> $3)::int AS "fromSender",
+              COUNT(*) FILTER (WHERE admin_notified)::int AS notified
+         FROM support_tickets WHERE created_at > $2`,
+      [fromEmail, dayAgo(), ticketId]
+    )
+    if (fromSender > 0 || notified >= adminNoticeDailyMax()) throw new Error('skip')
     const html = toHtml(`New support ticket ${label} from ${fromName ? fromName + ' ' : ''}<${fromEmail}>${member ? ' (member)' : ''}\nSubject: ${subject}\n\n${body.slice(0, 1500)}\n\nAnswer it in the admin panel → Support.`)
-    for (const to of await alertRecipients()) await sendAdminEmail({ to, subject: `New support ticket ${label}: ${subject}`, html })
+    let sentAny = false
+    for (const to of await alertRecipients()) {
+      if (await sendAdminEmail({ to, subject: `New support ticket ${label}: ${subject}`, html })) sentAny = true
+    }
+    if (sentAny) await pgQuery('UPDATE support_tickets SET admin_notified = true WHERE id = $1', [ticketId])
   } catch (err) {
-    console.error('[support] admin notice failed:', err.message)
+    if (err.message !== 'skip') console.error('[support] admin notice failed:', err.message)
   }
 
   console.log(`[support] new ticket ${label} from ${fromEmail}${automated ? ' (automated, no ack)' : ''}`)

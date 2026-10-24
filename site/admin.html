@@ -374,6 +374,11 @@
       <div id="supportList"></div>
       <div id="supportThread" hidden></div>
       <div class="card" style="margin-top:1rem">
+        <div class="head"><h2>Blocked senders</h2></div>
+        <p class="hint" style="margin-top:0">Mail from these never becomes a ticket and gets no reply. Block from a ticket.</p>
+        <div id="blockedSenders"><p class="hint">None.</p></div>
+      </div>
+      <div class="card" style="margin-top:1rem">
         <div class="head"><h2>Setup</h2></div>
         <p class="hint" style="margin-top:0">
           One time, in the Gmail that support@ forwards to: open <a href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a>
@@ -1071,7 +1076,25 @@ async function refreshSupportCount() {
   } catch { /* the badge is a convenience */ }
 }
 
+async function loadBlockedSenders() {
+  const rows = (await call('/admin/support/blocked')).data;
+  $('blockedSenders').innerHTML = rows.length
+    ? rows.map((b) => `<div class="attn"><span class="t"><b>${esc(b.pattern)}</b> <span class="fold-meta">since ${esc(when(b.created_at))}</span></span>
+        <button class="secondary small" type="button" data-unblock="${esc(b.pattern)}">Unblock</button></div>`).join('')
+    : '<p class="hint">None.</p>';
+  for (const b of $('blockedSenders').querySelectorAll('[data-unblock]')) {
+    b.onclick = async () => {
+      try {
+        await call('/admin/support/blocked/' + encodeURIComponent(b.getAttribute('data-unblock')), { method: 'DELETE' });
+        msg('Unblocked.');
+        await loadBlockedSenders();
+      } catch (err) { msg(err.message, 'err'); }
+    };
+  }
+}
+
 async function loadSupport() {
+  void loadBlockedSenders().catch(() => {});
   $('supportThread').hidden = true;
   $('supportList').hidden = false;
   const rows = (await call('/admin/support/tickets?status=' + (supportFilter === 'all' ? '' : supportFilter))).data;
@@ -1122,6 +1145,7 @@ async function openTicket(id) {
         ${ticket.status === 'closed'
           ? '<button class="secondary small" type="button" id="reopenTicket">Reopen</button>'
           : '<button class="secondary small" type="button" id="closeTicket">Close without reply</button>'}
+        <button class="danger small" type="button" id="blockSender">Block sender</button>
       </div>
     </div>`;
   $('backToTickets').onclick = () => loadSupport().catch((e) => msg(e.message, 'err'));
@@ -1150,6 +1174,23 @@ async function openTicket(id) {
     await openTicket(id);
   };
   if ($('closeTicket')) $('closeTicket').onclick = () => setStatus('closed').catch((e) => msg(e.message, 'err'));
+  $('blockSender').onclick = async () => {
+    const domain = ticket.email.split('@')[1];
+    const choice = prompt(
+      'Block spam from ' + ticket.email + '?\n\nType 1 to block this address only, or 2 to block everyone at ' + domain +
+      '.\nTheir open tickets are closed and future mail is dropped.', '1');
+    if (choice !== '1' && choice !== '2') return;
+    try {
+      const res = (await call('/admin/support/tickets/' + encodeURIComponent(id) + '/block', {
+        method: 'POST', body: JSON.stringify({ domain: choice === '2' }),
+      })).data;
+      msg('Blocked ' + res.pattern + (res.closed ? ', closed ' + res.closed + ' ticket' + (res.closed === 1 ? '' : 's') : '') + '.');
+      void refreshSupportCount();
+      await loadSupport();
+    } catch (err) {
+      msg(err.message, 'err');
+    }
+  };
   if ($('reopenTicket')) $('reopenTicket').onclick = () => setStatus('open').catch((e) => msg(e.message, 'err'));
 }
 

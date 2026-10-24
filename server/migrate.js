@@ -516,6 +516,17 @@ const migrations = [
     created_at TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS support_messages_ticket_idx ON support_messages (ticket_id, created_at)`,
+  // Senders whose mail is dropped before it becomes a ticket: an address, or
+  // "@domain" for a whole domain. Blocking in Gmail does not help, because
+  // Gmail only moves blocked mail to Spam and the forwarder reads Spam.
+  `CREATE TABLE IF NOT EXISTS support_blocked_senders (
+    pattern TEXT PRIMARY KEY,
+    reason TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  // Whether the admins were emailed about this ticket; the daily cap on those
+  // notices counts these.
+  `ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS admin_notified BOOLEAN NOT NULL DEFAULT false`,
   `CREATE UNIQUE INDEX IF NOT EXISTS support_messages_message_id_key ON support_messages (message_id) WHERE message_id IS NOT NULL AND direction = 'in'`,
   /*
    * Row-Level Security on every table in `public`.

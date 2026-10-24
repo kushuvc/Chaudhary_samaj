@@ -12,7 +12,8 @@
  * Loop safety: mail from our own domains is ignored, and nothing automatic is
  * ever sent in answer to automatic mail (Auto-Submitted, Precedence, bounce
  * senders) — two auto-responders would otherwise mail each other forever and
- * burn the Brevo quota. Each sender also gets at most AUTO_REPLY_DAILY_CAP
+ * burn the Brevo quota. Each sender gets at most one new ticket (and so one
+ * acknowledgement) per day; more mail that day joins that ticket. AUTO_REPLY_DAILY_CAP
  * acknowledgements a day.
  */
 import crypto from 'node:crypto'
@@ -20,7 +21,7 @@ import { pgQuery } from './db.js'
 import { sendSupportEmail, sendAdminEmail } from './email.js'
 import { alertRecipients } from './admin-alerts.js'
 
-export const AUTO_REPLY_DAILY_CAP = 3
+export const AUTO_REPLY_DAILY_CAP = 1
 /*
  * Brevo's free plan sends 300 mails a day and login codes share them, so a
  * flood of spam (from many addresses) must not be able to use them up:
@@ -93,7 +94,17 @@ function messageText(item) {
   return String(text || '').replace(/\r/g, '').trim().slice(0, MAX_BODY) || '(empty message)'
 }
 
-const dayAgo = () => new Date(Date.now() - 864e5).toISOString()
+/*
+ * Start of today in India (IST, UTC+5:30) as an ISO string, so "one ticket a
+ * day" resets at midnight the way the operator and members count days.
+ */
+export function startOfDayIST(at = Date.now()) {
+  const IST = 330 * 60 * 1000
+  const local = new Date(at + IST)
+  local.setUTCHours(0, 0, 0, 0)
+  return new Date(local.getTime() - IST).toISOString()
+}
+const dayAgo = () => startOfDayIST()
 const domainOf = (email) => String(email || '').toLowerCase().split('@')[1] || ''
 
 export async function isBlockedSender(email) {
@@ -243,6 +254,19 @@ export async function handleInboundMail(item) {
       await pgQuery(`UPDATE support_tickets SET status = 'open', updated_at = $2 WHERE id = $1`, [rows[0].id, now()])
       return { action: 'added', ticket: ticketLabel(number) }
     }
+  }
+
+  // One ticket per sender per day: more mail the same day joins today's
+  // ticket quietly (no second acknowledgement, no second admin notice).
+  const [today] = await pgQuery(
+    `SELECT id, number FROM support_tickets WHERE lower(email) = $1 AND created_at >= $2
+      ORDER BY created_at DESC LIMIT 1`,
+    [fromEmail, startOfDayIST()]
+  )
+  if (today) {
+    await recordMessage(today.id, { direction: 'in', fromEmail, body: subject === '(no subject)' ? body : `${subject}\n\n${body}`, messageId })
+    await pgQuery(`UPDATE support_tickets SET status = 'open', updated_at = $2 WHERE id = $1`, [today.id, now()])
+    return { action: 'added', ticket: ticketLabel(today.number), reason: 'one ticket per day' }
   }
 
   const member = (

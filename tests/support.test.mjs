@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { startServer, signUpUser } from './helpers/harness.mjs'
-import { ticketNumberFromSubject, isAutomatedMail, acknowledgement, isOwnAddress, stripQuoted, detectLanguage } from '../server/support.js'
+import { ticketNumberFromSubject, isAutomatedMail, acknowledgement, isOwnAddress, stripQuoted, detectLanguage, startOfDayIST } from '../server/support.js'
 
 const TOKEN = 'support-test-token-123'
 let server
@@ -131,13 +131,26 @@ describe('inbound mail webhook', () => {
     assert.deepEqual((await messagesOf(t.id)).map((m) => m.direction), ['in'])
   })
 
-  test('one sender gets at most three automatic replies a day', async () => {
-    for (let i = 0; i < 5; i++) await inbound([mail({ From: { Address: 'flood@example.com' }, Subject: `Question ${i}` })])
-    const [{ n }] = await server.sql(
-      `SELECT COUNT(*)::int AS n FROM support_messages m JOIN support_tickets t ON t.id = m.ticket_id
-        WHERE t.email = 'flood@example.com' AND m.direction = 'auto'`
-    )
-    assert.equal(n, 3)
+  test('one ticket and one automatic reply per sender per day; more mail joins it', async () => {
+    const results = []
+    for (let i = 0; i < 5; i++) {
+      results.push((await inbound([mail({ From: { Address: 'flood@example.com' }, Subject: `Question ${i}` })])).body.data[0])
+    }
+    assert.deepEqual(results.map((r) => r.action), ['created', 'added', 'added', 'added', 'added'])
+    const tickets = await ticketsFor('flood@example.com')
+    assert.equal(tickets.length, 1)
+    const msgs = await messagesOf(tickets[0].id)
+    assert.equal(msgs.filter((m) => m.direction === 'in').length, 5)
+    assert.equal(msgs.filter((m) => m.direction === 'auto').length, 1)
+    // The later mails keep their own subject so nothing is lost.
+    assert.match(msgs.at(-1).body, /^Question 4/)
+  })
+
+  test('the day starts at midnight in India', () => {
+    // 23:00 IST on 24 Oct is 17:30 UTC; that day began at 18:30 UTC on 23 Oct.
+    assert.equal(startOfDayIST(Date.parse('2026-10-24T17:30:00Z')), '2026-10-23T18:30:00.000Z')
+    // 00:30 IST on 25 Oct (19:00 UTC on 24 Oct) is already the next day.
+    assert.equal(startOfDayIST(Date.parse('2026-10-24T19:00:00Z')), '2026-10-24T18:30:00.000Z')
   })
 
   test('a Gujarati mail gets a Gujarati reply; a member with no saved language gets all three', async () => {
@@ -268,8 +281,9 @@ describe('spam protection', () => {
     assert.ok(list.body.data.some((b) => b.pattern === 'spammer@junkmail.biz'))
     const del = await server.request('DELETE', `/api/admin/support/blocked/${encodeURIComponent('spammer@junkmail.biz')}`, { token: admin.token })
     assert.equal(del.status, 200)
+    // Unblocked mail flows again (today it joins their ticket from earlier).
     const back = await inbound([mail({ From: { Address: 'spammer@junkmail.biz' }, Subject: 'Real question' })])
-    assert.equal(back.body.data[0].action, 'created')
+    assert.equal(back.body.data[0].action, 'added')
   })
 })
 

@@ -106,12 +106,27 @@ const ACK = {
   },
 }
 
-/** The member's app language, or null when the sender is not a member. */
+/**
+ * The member's saved app language, or null when unknown. The app keeps the
+ * chosen language on the phone and most members never save settings, so a
+ * missing row means "unknown", not English — those get all three languages.
+ */
 async function languageFor(userId) {
   if (!userId) return null
   const rows = await pgQuery('SELECT language FROM user_settings WHERE user_id = $1 LIMIT 1', [userId])
-  const lang = String(rows[0]?.language || 'en-IN')
+  const lang = rows[0]?.language
+  if (!lang) return null
   return lang.startsWith('hi') ? 'hi' : lang.startsWith('gu') ? 'gu' : 'en'
+}
+
+/** Gujarati or Hindi when the mail itself is written in that script. */
+export function detectLanguage(text) {
+  const s = String(text || '')
+  const gu = (s.match(/[\u0A80-\u0AFF]/g) || []).length
+  const hi = (s.match(/[\u0900-\u097F]/g) || []).length
+  if (gu >= 3 && gu >= hi) return 'gu'
+  if (hi >= 3) return 'hi'
+  return null
 }
 
 /** Members get their own language; unknown senders get all three. */
@@ -190,7 +205,9 @@ export async function handleInboundMail(item) {
       [fromEmail, new Date(Date.now() - 864e5).toISOString()]
     )
     if (n < AUTO_REPLY_DAILY_CAP) {
-      const ack = acknowledgement(label, fromName || member?.full_name, await languageFor(member?.id))
+      // What they wrote in wins; then their saved app language; else all three.
+      const lang = detectLanguage(`${subject}\n${body}`) || (await languageFor(member?.id))
+      const ack = acknowledgement(label, fromName || member?.full_name, lang)
       const sentId = await sendSupportEmail({
         to: fromEmail,
         subject: ack.subject,

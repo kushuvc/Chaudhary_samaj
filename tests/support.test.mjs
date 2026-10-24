@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { startServer, signUpUser } from './helpers/harness.mjs'
-import { ticketNumberFromSubject, isAutomatedMail, acknowledgement, isOwnAddress, stripQuoted } from '../server/support.js'
+import { ticketNumberFromSubject, isAutomatedMail, acknowledgement, isOwnAddress, stripQuoted, detectLanguage } from '../server/support.js'
 
 const TOKEN = 'support-test-token-123'
 let server
@@ -61,6 +61,12 @@ describe('support helpers', () => {
     const text = 'Still locked, please check.\n\nOn Sat, 24 Oct 2026 at 5:21 PM Chaudhary Samaj <support@chaudharysamaj.com> wrote:\n> Namaste, please restart the app.'
     assert.equal(stripQuoted(text), 'Still locked, please check.')
     assert.equal(stripQuoted('> only quote'), '')
+  })
+
+  test('reads the language a mail is written in', () => {
+    assert.equal(detectLanguage('મારું પેમેન્ટ થયું પણ પ્લાન ચાલુ નથી'), 'gu')
+    assert.equal(detectLanguage('मेरा भुगतान हो गया लेकिन प्लान चालू नहीं'), 'hi')
+    assert.equal(detectLanguage('My payment is done but plan is not active'), null)
   })
 
   test('own addresses are ours', () => {
@@ -132,6 +138,20 @@ describe('inbound mail webhook', () => {
         WHERE t.email = 'flood@example.com' AND m.direction = 'auto'`
     )
     assert.equal(n, 3)
+  })
+
+  test('a Gujarati mail gets a Gujarati reply; a member with no saved language gets all three', async () => {
+    await inbound([mail({ From: { Address: 'gu-writer@example.com' }, ExtractedMarkdownMessage: 'મારું પેમેન્ટ થયું પણ પ્લાન ચાલુ નથી' })])
+    const [g] = await ticketsFor('gu-writer@example.com')
+    const gAuto = (await messagesOf(g.id)).find((m) => m.direction === 'auto')
+    assert.match(gAuto.body, /ટિકિટ નંબર/)
+    assert.doesNotMatch(gAuto.body, /ticket number/)
+
+    const member = await signUpUser(server)
+    await inbound([mail({ From: { Address: member.email } })])
+    const [t] = await ticketsFor(member.email.toLowerCase())
+    const auto = (await messagesOf(t.id)).find((m) => m.direction === 'auto')
+    for (const re of [/ticket number/, /टिकट नंबर/, /ટિકિટ નંબર/]) assert.match(auto.body, re)
   })
 
   test('a member is linked to their ticket', async () => {

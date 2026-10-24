@@ -34,7 +34,9 @@ export async function collectStats() {
        (SELECT COUNT(*)::int FROM users) AS members,
        (SELECT COUNT(*)::int FROM users WHERE created_at::timestamptz > now() - interval '7 days') AS new_this_week,
        (SELECT COUNT(DISTINCT user_id)::int FROM user_subscriptions
-         WHERE status = 'active' AND expires_at::timestamptz > now()) AS paying,
+         WHERE status = 'active' AND expires_at::timestamptz > now()
+           -- Paid only: not the Play reviewer's access or test rows.
+           AND (provider = 'google_play' OR payment_id LIKE 'pay\\_%')) AS paying,
        pg_database_size(current_database())::bigint AS db_bytes`
   )
   let storageBytes = 0

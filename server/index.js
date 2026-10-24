@@ -6158,6 +6158,9 @@ app.delete('/api/admin/plans/:code', requireAdmin, async (request, response) => 
   }
 })
 
+/** A subscription row that was paid for, as opposed to granted access. */
+const PAID_SUBSCRIPTION_SQL = `(provider = 'google_play' OR payment_id LIKE 'pay\\_%')`
+
 app.get('/api/admin/stats', requireAdmin, async (request, response) => {
   try {
     // Get total users count
@@ -6172,14 +6175,24 @@ app.get('/api/admin/stats', requireAdmin, async (request, response) => {
     `)
     const recentUsers = recentUsersResult[0]?.count || 0
 
-    // Get active premium subscriptions
+    /*
+     * Active subscriptions, split into paid and free access. Only a Google Play
+     * purchase (or a real Razorpay payment, pay_…) is money. The Play
+     * reviewer's access and old test rows are also "active" rows, and the
+     * reviewer's carries an amount of 20000 from older code, so summing every
+     * active row showed ₹20,050 when ₹50 had been paid.
+     */
     const activeSubscriptionsResult = await pgQuery(`
-      SELECT COUNT(*)::int as count, SUM(amount)::int as totalRevenue
-      FROM user_subscriptions 
+      SELECT
+        COUNT(*) FILTER (WHERE ${PAID_SUBSCRIPTION_SQL})::int AS count,
+        COALESCE(SUM(amount) FILTER (WHERE ${PAID_SUBSCRIPTION_SQL}), 0)::int AS totalrevenue,
+        COUNT(*) FILTER (WHERE NOT ${PAID_SUBSCRIPTION_SQL})::int AS freeaccess
+      FROM user_subscriptions
       WHERE status = 'active' AND expires_at::timestamp > NOW()
     `)
     const activePremium = activeSubscriptionsResult[0]?.count || 0
     const totalRevenue = activeSubscriptionsResult[0]?.totalrevenue || 0
+    const freeAccess = activeSubscriptionsResult[0]?.freeaccess || 0
 
     // Get matrimony profiles count
     const profilesResult = await pgQuery('SELECT COUNT(*)::int as count FROM matrimony_profiles')
@@ -6196,6 +6209,7 @@ app.get('/api/admin/stats', requireAdmin, async (request, response) => {
         recentUsers,
         activePremium,
         totalRevenue,
+        freeAccess,
         totalProfiles,
         totalInterests,
         conversionRate: totalUsers > 0 ? ((activePremium / totalUsers) * 100).toFixed(1) : '0'

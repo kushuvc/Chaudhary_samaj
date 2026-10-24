@@ -802,11 +802,12 @@ async function loadOverview() {
     ? [
         tile(Number(stats.totalUsers).toLocaleString(), 'Members'),
         tile(Number(stats.recentUsers).toLocaleString(), 'Joined in the last 7 days'),
-        tile(Number(stats.activePremium).toLocaleString(), 'Active subscribers'),
+        tile(Number(stats.activePremium).toLocaleString(), 'Active paid subscribers'),
         tile(stats.conversionRate + '%', 'Of members subscribed'),
         // Amounts are stored at each plan's list price in rupees, before Google's cut.
         tile('₹' + Number(stats.totalRevenue || 0).toLocaleString('en-IN'), 'Active subscriptions (list price)'),
         tile(Number(stats.totalInterests).toLocaleString(), 'Interests sent, ever'),
+        tile(Number(stats.freeAccess || 0).toLocaleString(), 'Free access (not paid, e.g. Play reviewer)'),
       ].join('')
     : '<p class="hint">Could not load the numbers.</p>';
 

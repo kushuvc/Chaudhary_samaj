@@ -8,6 +8,7 @@ person with a phone can check.
 
 | Build | Date | Status |
 | --- | --- | --- |
+| v46 | 24 Oct 2026 | Built (`~/Downloads/build-v46.aab` + `mapping-v46.txt`). v45 plus the new Chaudhary Matrimony logo as the home-screen icon (adaptive, maroon `#791611` background) and splash. **Upload this one**; after install check the icon on the home screen and the splash. |
 | v45 | 19 Oct 2026 | Built (`~/Downloads/build-v45.aab` + `mapping-v45.txt`). v44 plus full R8 optimization and optimized resource shrinking (Play "R8 optimization" warning). **Upload this one**; run the R8 smoke test on a phone (Plans/billing, camera scanner, photo upload were not reachable on the emulator without signing in). |
 | v44 | 18 Oct 2026 | **Uploaded to Play Console 18 Oct, status Active** (track not yet confirmed; ReTrace mapping and native debug symbols attached automatically from the bundle). Built (`~/Downloads/build-v44.aab` + `mapping-v44.txt`). v43 plus Play Console fixes: R8 minify/obfuscation on, no manifest orientation locks (phones lock portrait at runtime). Superseded by v45. Mapping file in App bundle explorer → Downloads → ReTrace mapping file). |
 | v43 | 18 Oct 2026 | Aadhaar/email verification, discount handling, DOB editing, misuse warnings. Superseded by v44. |

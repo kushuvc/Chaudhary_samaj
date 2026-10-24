@@ -71,7 +71,7 @@ npm run mobile:typecheck                   # or: cd apps/mobile && npx tsc --noE
 npm run server                             # migrate + start API on :3000 (uses .env — that is the REAL database)
 ```
 
-**Building the Android AAB** (local, with the JDK in `~/Library/Java`): from `apps/mobile`
+**Building the Android AAB** — only when the user explicitly asks ("make aab"); never on your own after a change, they batch several changes into one build. Local, with the JDK in `~/Library/Java`, from `apps/mobile`:
 
 ```bash
 export JAVA_HOME="$HOME/Library/Java/JavaVirtualMachines/jdk-17.0.20.1+1/Contents/Home" ANDROID_HOME="$HOME/Library/Android/sdk"

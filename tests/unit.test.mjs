@@ -2,6 +2,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { sslConfigFor } from '../server/pg-ssl.js'
 import { parseFromAddress } from '../server/email.js'
+import { keepAliveUrl } from '../server/keep-alive.js'
 
 describe('Postgres TLS selection', () => {
   test('a hosted database keeps TLS', () => {
@@ -53,5 +54,27 @@ describe('email sender parsing', () => {
 
   test('surrounding whitespace is trimmed', () => {
     assert.deepEqual(parseFromAddress('  hello@example.com  '), { email: 'hello@example.com' })
+  })
+})
+
+describe('Render keep-alive URL', () => {
+  test('pings our own health check on Render', () => {
+    assert.equal(
+      keepAliveUrl({ RENDER_EXTERNAL_URL: 'https://chaudhary-samaj-api.onrender.com/' }),
+      'https://chaudhary-samaj-api.onrender.com/api/health'
+    )
+  })
+
+  test('KEEP_ALIVE_URL overrides the Render URL', () => {
+    assert.equal(
+      keepAliveUrl({ KEEP_ALIVE_URL: 'https://www.chaudharysamaj.com/api/health', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }),
+      'https://www.chaudharysamaj.com/api/health'
+    )
+  })
+
+  test('stays off under test, when switched off, and off Render', () => {
+    assert.equal(keepAliveUrl({ NODE_ENV: 'test', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }), null)
+    assert.equal(keepAliveUrl({ KEEP_ALIVE: 'off', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }), null)
+    assert.equal(keepAliveUrl({}), null)
   })
 })

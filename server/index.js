@@ -68,6 +68,7 @@ import {
   welcomeNewMember, pushWelcomeIfFirstDevice, startPlanExpiryReminders, sendPlanExpiryReminders,
   notifyProfileViewed, notificationCutoff, startNotificationPruning,
 } from './push.js'
+import { startKeepAlive } from './keep-alive.js'
 import {
   authAccountExistsByEmailFast,
   getBusinessListingsFast,
@@ -6189,6 +6190,7 @@ app.use((error, request, response, next) => {
 app.listen(port, () => {
   startPlanExpiryReminders()
   startNotificationPruning()
+  startKeepAlive()
   console.log(`Matrimony backend listening on http://localhost:${port}`)
   warmUpPool()
 })

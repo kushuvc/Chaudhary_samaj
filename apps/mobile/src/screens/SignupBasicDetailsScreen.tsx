@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
@@ -55,6 +55,22 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mockOtpHint, setMockOtpHint] = useState('');
+  // A code that never comes usually means a wrong or non-existent address;
+  // after a minute on the code step, say so and point at the fix.
+  const [showNoCodeHint, setShowNoCodeHint] = useState(false);
+  useEffect(() => {
+    setShowNoCodeHint(false);
+    if (stage !== 'otp') return;
+    const timer = setTimeout(() => setShowNoCodeHint(true), 60_000);
+    return () => clearTimeout(timer);
+  }, [stage]);
+
+  // Back to the details with everything they typed kept, to fix the address.
+  const changeEmail = () => {
+    setStage('details');
+    setOtp('');
+    setError(null);
+  };
 
   const passwordValid = password.length >= PASSWORD_MIN && password.length <= PASSWORD_MAX;
   // "gamil.com" is well formed, but the code would go nowhere: stop here.
@@ -125,14 +141,10 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
   if (stage === 'otp') {
     return (
       <StepScaffold
-        onBack={() => {
-          setStage('details');
-          setOtp('');
-          setError(null);
-        }}
+        onBack={changeEmail}
         eyebrow={t('suVerify')}
         title={t('suEnterThe6DigitCode')}
-        subtitle={`Sent to ${email.trim()}. Not in your inbox? Check the spam or junk folder — it can land there.`}
+        subtitle={t('suCodeSentTo', { email: email.trim() })}
         footer={
           <>
             <PrimaryButton
@@ -142,10 +154,12 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
               onPress={handleVerify}
             />
             <TextButton label={sending ? t('suSendingCode') : t('phResendCode')} onPress={handleSendOtp} />
+            <TextButton label={t('suWrongEmail')} onPress={changeEmail} />
           </>
         }
       >
-        {mockOtpHint ? <Callout icon="flask-outline" text={`Test mode code: ${mockOtpHint}`} /> : null}
+        {mockOtpHint ? <Callout icon="flask-outline" text={t('testModeCode', { code: mockOtpHint })} /> : null}
+        {showNoCodeHint ? <Callout icon="mail-unread-outline" text={t('suNoCodeHint', { email: email.trim() })} /> : null}
 
         <Field label={t('suOneTimePassword')} error={error}>
           <Input

@@ -363,9 +363,9 @@
         <table>
           <thead><tr>
             <th>Name</th><th>Email</th><th>Phone</th><th>Gender</th><th>Age</th>
-            <th>Location</th><th>Plan</th><th>Joined</th>
+            <th>Location</th><th>Plan</th><th>Joined</th><th>Reports</th><th></th>
           </tr></thead>
-          <tbody id="membersBody"><tr><td colspan="8" class="empty">Loading…</td></tr></tbody>
+          <tbody id="membersBody"><tr><td colspan="10" class="empty">Loading…</td></tr></tbody>
         </table>
       </div>
       <div class="pager">
@@ -870,6 +870,10 @@ async function refreshReportCount() {
 
 function reportCard(r) {
   const pill = r.status === 'open' ? 'bad' : r.status === 'actioned' ? 'ok' : 'off';
+  const against = reportRows.filter((x) => x.reported_user_id === r.reported_user_id).length;
+  const removeButton = r.reported_removed || !r.reported_email
+    ? ''
+    : `<button class="danger small" type="button" data-remove-member="${esc(r.reported_user_id)}" data-label="${esc(r.reported_email)}">Remove member</button>`;
   const buttons = r.status === 'open'
     ? `<button class="small" type="button" data-report="${esc(r.id)}" data-to="actioned">Mark actioned</button>
        <button class="secondary small" type="button" data-report="${esc(r.id)}" data-to="dismissed">Dismiss</button>`
@@ -882,11 +886,13 @@ function reportCard(r) {
       </div>
       <div class="why">${esc(REASONS[r.reason] || r.reason)}</div>
       <div class="who">
-        Reported: <b>${esc(r.reported_email || r.reported_user_id || 'deleted account')}</b><br>
+        Reported: <b>${esc(r.reported_email || r.reported_user_id || 'deleted account')}</b>
+        ${r.reported_removed ? '<span class="pill off">REMOVED</span>' : ''}
+        ${against > 1 ? `<span class="pill bad">${against} reports</span>` : ''}<br>
         By: ${esc(r.reporter_email || 'deleted account')}
       </div>
       ${r.details ? `<blockquote>${esc(r.details)}</blockquote>` : ''}
-      <div class="actions">${buttons}</div>
+      <div class="actions">${buttons}${removeButton}</div>
     </div>`;
 }
 
@@ -897,6 +903,55 @@ function renderReports() {
     : `<div class="card empty">${reportFilter === 'open' ? 'Nothing waiting. Reports members file in the app appear here.' : 'None.'}</div>`;
   for (const b of $('reports').querySelectorAll('[data-report]')) {
     b.onclick = () => setReportStatus(b.getAttribute('data-report'), b.getAttribute('data-to'), b);
+  }
+  wireRemoveButtons($('reports'));
+}
+
+/*
+ * Removing a member deletes their account, photos and chats for good and stops
+ * the same email, phone or Aadhaar signing up again. Meant for the last step,
+ * after the member was warned by email and carried on.
+ */
+function wireRemoveButtons(root) {
+  for (const b of root.querySelectorAll('[data-remove-member]')) {
+    b.onclick = () => removeMember(b.getAttribute('data-remove-member'), b.getAttribute('data-label'), b);
+  }
+}
+
+async function removeMember(userId, label, button) {
+  const reason = prompt(
+    'Remove ' + label + ' completely?\n\n' +
+    'Their account, profile, photos, chats and verification are deleted permanently, open reports ' +
+    'about them are closed, and the same email, phone or Aadhaar cannot sign up again.\n\n' +
+    'Why are they being removed? (kept for your records)'
+  );
+  if (reason === null) return;
+  if (!reason.trim()) { msg('Write a reason to remove a member.', 'err'); return; }
+  if (prompt('Type REMOVE to confirm. This cannot be undone.') !== 'REMOVE') { msg('Not removed.'); return; }
+
+  button.disabled = true;
+  try {
+    const res = await call('/admin/users/' + encodeURIComponent(userId), {
+      method: 'DELETE',
+      body: JSON.stringify({ reason: reason.trim() }),
+    });
+    const sub = res.data && res.data.activeSubscription;
+    if (sub) {
+      alert(
+        label + ' was removed, but had an active "' + sub.plan + '" plan until ' + when(sub.expiresAt) + '.\n\n' +
+        (sub.viaPlay
+          ? 'Google keeps charging them until you cancel it: Play Console → Order management → search ' + sub.orderId + ' → Cancel subscription (the terms say no refund is due).'
+          : 'Order id: ' + sub.orderId + '. Cancel or refund it with the payment provider.')
+      );
+    }
+    msg(label + ' was removed.');
+    loaded.delete('overview');
+    loaded.delete('members');
+    loaded.delete('reports');
+    if (location.hash === '#members') await loadMembers(); else await loadReports();
+  } catch (err) {
+    msg(err.message, 'err');
+    button.disabled = false;
   }
 }
 
@@ -1022,7 +1077,7 @@ let memberPage = 1;
 const MEMBERS_PER_PAGE = 25;
 
 async function loadMembers() {
-  $('membersBody').innerHTML = '<tr><td colspan="8" class="empty">Loading…</td></tr>';
+  $('membersBody').innerHTML = '<tr><td colspan="10" class="empty">Loading…</td></tr>';
   const body = (await call(`/admin/users?page=${memberPage}&limit=${MEMBERS_PER_PAGE}`)).data;
   const users = body.users || [];
   const { page, pages, total } = body.pagination;
@@ -1039,9 +1094,13 @@ async function loadMembers() {
           <td>${esc(u.location || '—')}</td>
           <td>${active ? `<span class="pill ok">${esc(u.subscription_plan)}</span> <span class="fold-meta">to ${esc(when(u.expires_at))}</span>` : '<span class="fold-meta">Free</span>'}</td>
           <td class="num">${esc(when(u.created_at))}</td>
+          <td class="num">${u.report_count ? `<span class="pill bad">${esc(u.report_count)}</span>` : '<span class="fold-meta">0</span>'}</td>
+          <td>${u.is_admin ? '<span class="fold-meta">Admin</span>'
+            : `<button type="button" class="danger small" data-remove-member="${esc(u.id)}" data-label="${esc(u.full_name || u.email || u.id)}">Remove</button>`}</td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="8" class="empty">No members yet.</td></tr>';
+    : '<tr><td colspan="10" class="empty">No members yet.</td></tr>';
+  wireRemoveButtons($('membersBody'));
 
   $('pageInfo').textContent = total ? `Page ${page} of ${pages} · ${total.toLocaleString()} members` : '';
   $('prevPage').disabled = page <= 1;

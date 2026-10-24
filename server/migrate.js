@@ -466,6 +466,23 @@ const migrations = [
      WHERE status IN ('verified', 'review')`,
   `CREATE INDEX IF NOT EXISTS member_verifications_status_idx
      ON member_verifications (status, submitted_at)`,
+  // Members an admin removed for breaking the rules. Their account and data
+  // are deleted; this row is all that stays, so the same email, phone or
+  // Aadhaar cannot simply sign up again. Also lets the reports list still name
+  // who a report was about.
+  `CREATE TABLE IF NOT EXISTS removed_members (
+    user_id TEXT PRIMARY KEY,
+    email TEXT,
+    phone TEXT,
+    aadhaar_fingerprint TEXT,
+    full_name TEXT,
+    reason TEXT,
+    removed_by TEXT,
+    removed_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS removed_members_email_idx ON removed_members (lower(email))`,
+  `CREATE INDEX IF NOT EXISTS removed_members_phone_idx ON removed_members (phone)`,
+  `CREATE INDEX IF NOT EXISTS removed_members_fingerprint_idx ON removed_members (aadhaar_fingerprint)`,
   /*
    * Row-Level Security on every table in `public`.
    *

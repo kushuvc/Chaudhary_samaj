@@ -257,6 +257,28 @@ async function phoneAlreadyRegistered(rawPhone) {
   return rows.length > 0
 }
 
+const REMOVED_MEMBER_ERROR = {
+  success: false,
+  code: 'ACCOUNT_REMOVED',
+  error: 'This account was removed for breaking the community rules. Write to support@chaudharysamaj.com if you think this is a mistake.',
+}
+
+/**
+ * True if an admin removed a member with this email or phone. Without it a
+ * removed member could sign straight up again with the same details.
+ */
+async function isRemovedMember({ email, phone } = {}) {
+  const normalizedEmail = String(email || '').trim().toLowerCase()
+  const normalizedPhone = String(phone || '').replace(/\D/g, '').slice(-10)
+  if (!normalizedEmail && normalizedPhone.length !== 10) return false
+  const rows = await pgQuery(
+    `SELECT 1 FROM removed_members
+      WHERE ($1 <> '' AND lower(email) = $1) OR ($2 <> '' AND phone = $2) LIMIT 1`,
+    [normalizedEmail, normalizedPhone.length === 10 ? normalizedPhone : '']
+  )
+  return rows.length > 0
+}
+
 /* ------------------------------------------------------------------ */
 /* Authentication                                                      */
 /* ------------------------------------------------------------------ */
@@ -462,6 +484,10 @@ app.post('/api/auth/signup', async (request, response) => {
   try {
     // Only check for existing email when actually creating the account
     if (createAccount) {
+      if (await isRemovedMember({ email, phone })) {
+        response.status(403).json(REMOVED_MEMBER_ERROR)
+        return
+      }
       const existing = await pgQuery('SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1', [String(email).trim()])
       if (existing.length > 0) {
         response.status(409).json({ success: false, error: 'Email already registered' })
@@ -1033,6 +1059,20 @@ app.post('/api/auth/otp/request', async (request, response) => {
   if (normalizedPurpose === 'signup' && doesAccountExist) {
     response.status(409).json({ success: false, error: 'Email already registered' })
     return
+  }
+
+  // Refused before a code is emailed, so a removed member learns at the first
+  // step rather than after filling in the whole signup.
+  if (normalizedPurpose === 'signup') {
+    try {
+      if (await isRemovedMember({ email: normalizedEmail, phone })) {
+        response.status(403).json(REMOVED_MEMBER_ERROR)
+        return
+      }
+    } catch (err) {
+      response.status(500).json({ success: false, error: err.message })
+      return
+    }
   }
 
   if (normalizedPurpose === 'signup' && phone) {
@@ -4827,6 +4867,68 @@ app.post('/api/payments/create-link', requirePayments, async (request, response)
   }
 })
 
+/**
+ * Deletes a member's account and everything tied to it. Shared by a member
+ * deleting their own account and an admin removing one, so the two cannot
+ * drift apart. Reports filed by or about the member are kept for the admin
+ * record.
+ */
+async function deleteMemberData(userId) {
+  await pgQuery('DELETE FROM matrimony_messages WHERE sender_id = $1', [userId])
+  await pgQuery('DELETE FROM matrimony_interests WHERE sender_id = $1 OR receiver_id = $1', [userId])
+  await pgQuery('DELETE FROM matrimony_matches WHERE user1_id = $1 OR user2_id = $1', [userId])
+  await pgQuery('DELETE FROM user_subscriptions WHERE user_id = $1', [userId])
+  // Both directions: the grants this member held, and anyone who was
+  // granted this member's profile.
+  await pgQuery(
+    `DELETE FROM matrimony_free_allocations
+      WHERE viewer_user_id = $1
+         OR profile_id IN (SELECT id FROM matrimony_profiles WHERE user_id = $1)`,
+    [userId]
+  )
+  await pgQuery('DELETE FROM user_settings WHERE user_id = $1', [userId])
+  await pgQuery('DELETE FROM push_tokens WHERE user_id = $1', [userId])
+  await pgQuery('DELETE FROM notifications WHERE user_id = $1', [userId])
+  await pgQuery('DELETE FROM member_verifications WHERE user_id = $1', [userId])
+  await pgQuery('DELETE FROM matrimony_profiles WHERE user_id = $1', [userId])
+  await pgQuery('DELETE FROM auth_accounts WHERE user_id = $1', [userId])
+  await pgQuery('DELETE FROM users WHERE id = $1', [userId])
+  await pgQuery('DELETE FROM member_blocks WHERE blocker_user_id = $1 OR blocked_user_id = $1', [userId])
+  cacheInvalidate(`user:${userId}`)
+  cacheInvalidate(`memberPayload:${userId}`)
+  invalidateFastCache('publicProfiles')
+}
+
+/**
+ * Deletes every photo under the member's folder. Best effort: a storage error
+ * is logged but does not stop the account itself being deleted.
+ */
+async function removeMemberPhotos(userId) {
+  try {
+    if (!useSupabaseStorage) {
+      const dir = path.resolve(localUploadDir, userId)
+      if (dir.startsWith(localUploadDir + path.sep)) await fs.promises.rm(dir, { recursive: true, force: true })
+      return
+    }
+    const listRes = await fetch(`${SUPABASE_URL}/storage/v1/object/list/${STORAGE_BUCKET}`, {
+      method: 'POST',
+      headers: supabaseStorageHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ prefix: `${userId}/`, limit: 1000 }),
+    })
+    if (!listRes.ok) throw new Error(`list failed: ${listRes.status}`)
+    const files = (await listRes.json()).map((f) => `${userId}/${f.name}`)
+    if (!files.length) return
+    const delRes = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}`, {
+      method: 'DELETE',
+      headers: supabaseStorageHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ prefixes: files }),
+    })
+    if (!delRes.ok) throw new Error(`delete failed: ${delRes.status}`)
+  } catch (err) {
+    console.error(`[delete account] photos of ${userId} not removed:`, err.message)
+  }
+}
+
 app.delete('/api/auth/account', async (request, response) => {
   const activeUserId = resolveUserId(request)
   if (!activeUserId) {
@@ -4834,27 +4936,8 @@ app.delete('/api/auth/account', async (request, response) => {
     return
   }
   try {
-    await pgQuery('DELETE FROM matrimony_messages WHERE sender_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM matrimony_interests WHERE sender_id = $1 OR receiver_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM matrimony_matches WHERE user1_id = $1 OR user2_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM user_subscriptions WHERE user_id = $1', [activeUserId])
-    // Both directions: the grants this member held, and anyone who was
-    // granted this member's profile.
-    await pgQuery(
-      `DELETE FROM matrimony_free_allocations
-        WHERE viewer_user_id = $1
-           OR profile_id IN (SELECT id FROM matrimony_profiles WHERE user_id = $1)`,
-      [activeUserId]
-    )
-    await pgQuery('DELETE FROM user_settings WHERE user_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM push_tokens WHERE user_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM notifications WHERE user_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM member_verifications WHERE user_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM matrimony_profiles WHERE user_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM auth_accounts WHERE user_id = $1', [activeUserId])
-    await pgQuery('DELETE FROM users WHERE id = $1', [activeUserId])
-    cacheInvalidate(`user:${activeUserId}`)
-    cacheInvalidate(`memberPayload:${activeUserId}`)
+    await removeMemberPhotos(activeUserId)
+    await deleteMemberData(activeUserId)
     response.json({ success: true })
   } catch (err) {
     console.error('[delete account] error:', err.message)
@@ -5439,6 +5522,16 @@ app.post('/api/verification/aadhaar', aadhaarLimiter, async (request, response) 
         WHERE fingerprint = $1 AND status IN ('verified', 'review') AND user_id <> $2 LIMIT 1`,
       [fingerprint, activeUserId]
     )
+    // A card that belonged to a removed member cannot vouch for a new account.
+    const removedCard = await pgQuery(
+      'SELECT 1 FROM removed_members WHERE aadhaar_fingerprint = $1 LIMIT 1',
+      [fingerprint]
+    )
+    if (removedCard.length) {
+      console.warn(`[aadhaar] card of a removed member scanned (user ${activeUserId})`)
+      response.status(403).json(REMOVED_MEMBER_ERROR)
+      return
+    }
     if (taken.length) {
       console.warn(`[aadhaar] card already used by another account (user ${activeUserId})`)
       response.status(409).json({
@@ -5665,11 +5758,13 @@ app.get('/api/admin/reports', requireAdmin, async (_request, response) => {
     const rows = await pgQuery(
       `SELECT r.id, r.reason, r.details, r.status, r.created_at,
               reporter.email AS reporter_email,
-              reported.email AS reported_email,
-              r.reported_user_id
+              COALESCE(reported.email, removed.email) AS reported_email,
+              r.reported_user_id,
+              (removed.user_id IS NOT NULL) AS reported_removed
        FROM member_reports r
        LEFT JOIN users reporter ON reporter.id = r.reporter_user_id
        LEFT JOIN users reported ON reported.id = r.reported_user_id
+       LEFT JOIN removed_members removed ON removed.user_id = r.reported_user_id
        ORDER BY (r.status = 'open') DESC, r.created_at DESC
        LIMIT 200`
     )
@@ -6118,7 +6213,8 @@ app.get('/api/admin/users', requireAdmin, async (request, response) => {
 
     const usersResult = await pgQuery(`
       SELECT 
-        u.id, u.full_name, u.email, u.phone, u.created_at,
+        u.id, u.full_name, u.email, u.phone, u.created_at, u.is_admin,
+        (SELECT COUNT(*)::int FROM member_reports r WHERE r.reported_user_id = u.id) AS report_count,
         p.age, p.gender, p.location, p.education, p.occupation,
         s.plan as subscription_plan, s.status as subscription_status, s.expires_at
       FROM users u
@@ -6146,6 +6242,89 @@ app.get('/api/admin/users', requireAdmin, async (request, response) => {
   } catch (err) {
     console.error('[admin/users] error:', err.message)
     response.status(500).json({ success: false, error: 'Failed to fetch users' })
+  }
+})
+
+/**
+ * Removes a member completely: account, profile, photos, chats and
+ * verification are deleted, open reports about them are closed as actioned,
+ * and their email, phone and Aadhaar go on the removed list so they cannot
+ * sign up again. For members who keep breaking the rules after a warning.
+ *
+ * A Google Play subscription is not cancelled by this — Google keeps charging
+ * until it is cancelled or refunded in Play Console — so the response hands
+ * back the order id for the admin to do that.
+ */
+app.delete('/api/admin/users/:id', requireAdmin, async (request, response) => {
+  const adminId = resolveUserId(request)
+  const userId = String(request.params.id || '')
+  const reason = String(request.body?.reason || '').trim().slice(0, 500)
+  if (!reason) {
+    response.status(400).json({ success: false, error: 'Write down why this member is being removed' })
+    return
+  }
+  if (userId === adminId) {
+    response.status(400).json({ success: false, error: 'You cannot remove your own account here' })
+    return
+  }
+
+  try {
+    const rows = await pgQuery(
+      `SELECT u.id, u.email, u.phone, u.full_name, u.is_admin, v.fingerprint
+         FROM users u LEFT JOIN member_verifications v ON v.user_id = u.id
+        WHERE u.id = $1 LIMIT 1`,
+      [userId]
+    )
+    const member = rows[0]
+    if (!member) {
+      response.status(404).json({ success: false, error: 'Member not found' })
+      return
+    }
+    if (member.is_admin) {
+      response.status(400).json({ success: false, error: 'This is an admin account; remove admin access first' })
+      return
+    }
+
+    const now = new Date().toISOString()
+    const subs = await pgQuery(
+      `SELECT plan, order_id, expires_at, play_purchase_token FROM user_subscriptions
+        WHERE user_id = $1 AND status = 'active' AND expires_at > $2 LIMIT 1`,
+      [userId, now]
+    )
+    const phone = String(member.phone || '').replace(/\D/g, '').slice(-10)
+
+    await pgQuery(
+      `INSERT INTO removed_members
+         (user_id, email, phone, aadhaar_fingerprint, full_name, reason, removed_by, removed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (user_id) DO UPDATE SET reason = EXCLUDED.reason, removed_at = EXCLUDED.removed_at`,
+      [
+        userId, String(member.email || '').trim().toLowerCase() || null, phone.length === 10 ? phone : null,
+        member.fingerprint || null, member.full_name || null, reason, adminId, now,
+      ]
+    )
+    await pgQuery(
+      `UPDATE member_reports SET status = 'actioned', reviewed_at = $2
+        WHERE reported_user_id = $1 AND status = 'open'`,
+      [userId, now]
+    )
+    await removeMemberPhotos(userId)
+    await deleteMemberData(userId)
+    console.log(`[admin] member ${userId} removed by ${adminId}: ${reason}`)
+
+    const sub = subs[0]
+    response.json({
+      success: true,
+      data: {
+        removed: true,
+        activeSubscription: sub
+          ? { plan: sub.plan, orderId: sub.order_id, expiresAt: sub.expires_at, viaPlay: Boolean(sub.play_purchase_token) }
+          : null,
+      },
+    })
+  } catch (err) {
+    console.error('[admin] remove member failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not remove this member' })
   }
 })
 

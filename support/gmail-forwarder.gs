@@ -9,7 +9,8 @@
  */
 const SERVER = 'https://www.chaudharysamaj.com/api/support/inbound?token=';
 const TOKEN = 'PASTE_SUPPORT_INBOUND_TOKEN_HERE';
-const SEARCH = 'to:support@chaudharysamaj.com newer_than:3d';
+// in:anywhere also covers Spam, where forwarded mail often lands.
+const SEARCH = 'in:anywhere to:support@chaudharysamaj.com newer_than:3d';
 const SENT_KEY = 'sentMessageIds';
 
 /** Run once: creates the 5-minute timer and asks for Gmail permission. */
@@ -25,8 +26,12 @@ function forwardSupportMail() {
   const sent = JSON.parse(props.getProperty(SENT_KEY) || '[]');
   const seen = new Set(sent);
   const items = [];
-  for (const thread of GmailApp.search(SEARCH, 0, 50)) {
+  const threads = GmailApp.search(SEARCH, 0, 50);
+  for (const thread of threads) {
+    // A support mail in Spam is moved back to the inbox so you see it too.
+    if (thread.isInSpam()) thread.moveToInbox();
     for (const m of thread.getMessages()) {
+      if (m.isInTrash()) continue;
       const id = m.getHeader('Message-ID') || m.getId();
       if (seen.has(id)) continue;
       if (!/support@chaudharysamaj\.com/i.test(m.getTo() + ' ' + m.getCc())) continue;
@@ -47,6 +52,7 @@ function forwardSupportMail() {
       sent.push(id);
     }
   }
+  Logger.log('Support threads found: ' + threads.length + ', new messages to send: ' + items.length);
   if (!items.length) return;
   const res = UrlFetchApp.fetch(SERVER + encodeURIComponent(TOKEN), {
     method: 'post',
@@ -59,4 +65,5 @@ function forwardSupportMail() {
     throw new Error('Server answered ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
   }
   props.setProperty(SENT_KEY, JSON.stringify(sent.slice(-1500)));
+  Logger.log('Sent to server: ' + res.getContentText().slice(0, 300));
 }

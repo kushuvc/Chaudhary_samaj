@@ -61,7 +61,7 @@ describe('email and phone are not editable through a profile update', () => {
 
   test('the app does not offer the fields for editing either', () => {
     const src = readFileSync(new URL('../apps/mobile/src/screens/ProfileScreen.tsx', import.meta.url), 'utf8')
-    const emailBlock = src.slice(src.indexOf("label={t('emailLabel')}"), src.indexOf("label={t('locationLabel')}"))
+    const emailBlock = src.slice(src.indexOf("label={t('emailLabel')}"), src.indexOf("t('locationLabel')"))
     assert.match(emailBlock, /editable=\{false\}/, 'email must be read-only')
     assert.doesNotMatch(emailBlock, /editable=\{isEditing\}/, 'neither field may follow edit mode')
   })

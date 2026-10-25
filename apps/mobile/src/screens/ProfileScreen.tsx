@@ -22,7 +22,7 @@ import { Select } from '../components/ui';
 import {
   CASTES, COUNTRIES, DOSH_OPTIONS, EATING_HABITS, EMPLOYMENT_TYPES, FAMILY_STATUSES,
   FAMILY_TYPES, FAMILY_WEALTH, HEIGHTS, INCOME_CURRENCIES, MARITAL_STATUSES,
-  MOTHER_TONGUES, NAKSHATRAS, PHYSICAL_STATUSES, RAASIS, RELIGIONS, STATES, SUBCASTES,
+  MOTHER_TONGUES, NAKSHATRAS, PHYSICAL_STATUSES, RAASIS, RELIGIONS, STATES, SUBCASTES, CITIES, OTHER,
 } from '../constants/signupOptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../context/ThemeContext';
@@ -300,6 +300,11 @@ export function ProfileScreen() {
   // The server drops name and date-of-birth changes once Aadhaar matched
   // them; until then both can be edited. The app says which.
   const nameLocked = idStatus === 'verified';
+  // Where they live is frozen with the name once verified (the server drops
+  // changes too), so a verified profile cannot quietly move town.
+  const locationLocked = nameLocked;
+  const lockedLabel = (label: string) => (locationLocked ? `${label} · ${t('verifyLockedField')}` : label);
+  const [typingCity, setTypingCity] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   // What the profile looked like when Edit was tapped, so Cancel can put it back.
   const snapshot = useRef<{ profile: typeof profile; matrimony: typeof matrimony } | null>(null);
@@ -612,10 +617,12 @@ export function ProfileScreen() {
           <Text style={[styles.fieldHint, { color: palette.muted }]}>{t('fieldLockedNote')}</Text>
         ) : null}
         <LabeledInput
-          label={t('locationLabel')}
+          label={lockedLabel(t('locationLabel'))}
           value={profile.location}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, location: value }))}
-          editable={isEditing}
+          // City and location are one column on the server; edit them together
+          // or the stale one wins on save (location used to override the city).
+          onChangeText={(value) => setProfile((prev) => ({ ...prev, location: value, city: value }))}
+          editable={isEditing && !locationLocked}
           placeholder={t('locationPlaceholder')}
           styles={styles}
         />
@@ -720,31 +727,66 @@ export function ProfileScreen() {
       <SectionCard>
         <Text style={styles.sectionTitle}>{t('secLocationDetails')}</Text>
         <LabeledSelect
-          label={t('fldCountry')}
+          label={lockedLabel(t('fldCountry'))}
           value={profile.country}
           options={asOptions(COUNTRIES)}
-          editable={isEditing}
-          onSelect={(value) => setProfile((prev) => ({ ...prev, country: value, state: '' }))}
+          editable={isEditing && !locationLocked}
+          onSelect={(value) => {
+            setTypingCity(false);
+            setProfile((prev) => ({ ...prev, country: value, state: '', city: '', location: '' }));
+          }}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
         <LabeledSelect
-          label={t('fldState')}
+          label={lockedLabel(t('fldState'))}
           value={profile.state}
           options={asOptions(STATES[profile.country || ""] || ["Other"])}
-          editable={isEditing}
-          onSelect={(value) => setProfile((prev) => ({ ...prev, state: value }))}
+          editable={isEditing && !locationLocked}
+          onSelect={(value) => {
+            // A city from the old state would be wrong under the new one.
+            setTypingCity(false);
+            setProfile((prev) => ({ ...prev, state: value, city: '', location: '' }));
+          }}
           placeholder={t('lblNotSet')}
           styles={styles}
         />
-        <LabeledInput
-          label={t('fldCity')}
-          value={profile.city || ''}
-          onChangeText={(value) => setProfile((prev) => ({ ...prev, city: value }))}
-          editable={isEditing}
-          placeholder={t('lblNotSet')}
-          styles={styles}
-        />
+        {(() => {
+          // A state with a list gets the dropdown; "Other", a state without a
+          // list, or a town typed earlier that is not in the list gets a box.
+          const cityList = CITIES[profile.state || ''];
+          const city = profile.city || '';
+          const typed = !cityList || typingCity || (city !== '' && !cityList.includes(city));
+          return (
+            <>
+              {cityList ? (
+                <LabeledSelect
+                  label={lockedLabel(t('fldCity'))}
+                  value={typed ? OTHER : city}
+                  options={asOptions(cityList)}
+                  editable={isEditing && !locationLocked}
+                  onSelect={(value) => {
+                    const other = value === OTHER;
+                    setTypingCity(other);
+                    setProfile((prev) => ({ ...prev, city: other ? '' : value, location: other ? '' : value }));
+                  }}
+                  placeholder={t('lblNotSet')}
+                  styles={styles}
+                />
+              ) : null}
+              {typed ? (
+                <LabeledInput
+                  label={lockedLabel(cityList ? t('suTypeCity') : t('fldCity'))}
+                  value={city}
+                  onChangeText={(value) => setProfile((prev) => ({ ...prev, city: value, location: value }))}
+                  editable={isEditing && !locationLocked}
+                  placeholder={cityList ? t('suTypeCityPlaceholder') : t('lblNotSet')}
+                  styles={styles}
+                />
+              ) : null}
+            </>
+          );
+        })()}
         <LabeledInput
           label={t('fldVillage')}
           value={profile.village || ''}

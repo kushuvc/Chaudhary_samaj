@@ -7,7 +7,7 @@ import {
   Select,
   StepScaffold,
 } from '../components/ui';
-import { CITIES, COUNTRIES, STATES } from '../constants/signupOptions';
+import { CITIES, COUNTRIES, OTHER, STATES } from '../constants/signupOptions';
 import { subjectFor, type ProfileSubject } from '../constants/profileSubject';
 import { useAppLanguage } from '../context/LanguageContext';
 
@@ -33,6 +33,8 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
   const [country, setCountry] = useState<string | null>(null);
   const [state, setState] = useState<string | null>(null);
   const [city, setCity] = useState<string | null>(null);
+  // Typed when the town is not in the list ("Other").
+  const [customCity, setCustomCity] = useState('');
   const [village, setVillage] = useState('');
   const [nativeCity, setNativeCity] = useState('');
   const [nativeVillage, setNativeVillage] = useState('');
@@ -47,7 +49,9 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
     [state]
   );
 
-  const canContinue = Boolean(country && state && city);
+  const typingCity = city === OTHER;
+  const finalCity = typingCity ? customCity.trim() : city;
+  const canContinue = Boolean(country && state && finalCity);
 
   return (
     <StepScaffold
@@ -63,8 +67,8 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
           icon="arrow-forward"
           disabled={!canContinue}
           onPress={() => {
-            if (country && state && city) {
-              onNext({ country, state, city, village, nativeCity, nativeVillage });
+            if (country && state && finalCity) {
+              onNext({ country, state, city: finalCity, village, nativeCity, nativeVillage });
             }
           }}
         />
@@ -108,6 +112,12 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
           disabled={!state}
         />
       </Field>
+
+      {typingCity ? (
+        <Field label={t('suTypeCity')}>
+          <Input value={customCity} onChangeText={setCustomCity} placeholder={t('suTypeCityPlaceholder')} autoCapitalize="words" />
+        </Field>
+      ) : null}
 
       <SectionHeading title={t('suNativePlace')} caption={t('hintOptionalFamily')} />
 

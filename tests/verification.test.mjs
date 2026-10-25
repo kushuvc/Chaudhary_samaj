@@ -212,6 +212,27 @@ describe('Aadhaar Secure QR', () => {
     assert.equal(row.bio, 'Updated bio', 'other fields still save')
   })
 
+  test('once verified, where they live can no longer be changed', async () => {
+    const me = await signUpUser(server, { fullName: 'Lata Location' })
+    await server.request('PUT', '/api/matrimony/me', {
+      token: me.token,
+      body: { profile: { country: 'India', state: 'Gujarat', city: 'Mahesana', location: 'Mahesana, Gujarat' } },
+    })
+    const verified = await submit(me, makeQr({ name: 'Lata Location', last4: '8888' }))
+    assert.equal(verified.body.data?.aadhaar?.status, 'verified', JSON.stringify(verified.body))
+
+    const res = await server.request('PUT', '/api/matrimony/me', {
+      token: me.token,
+      body: { profile: { country: 'USA', state: 'Texas', city: 'Dallas', location: 'Dallas', bio: 'Moved?' } },
+    })
+    assert.equal(res.status, 200)
+    const [row] = await server.sql('SELECT country, state, location AS city, bio FROM matrimony_profiles WHERE user_id = $1', [me.userId])
+    assert.equal(row.country, 'India')
+    assert.equal(row.state, 'Gujarat')
+    assert.equal(row.city, 'Mahesana, Gujarat')
+    assert.equal(row.bio, 'Moved?', 'other fields still save')
+  })
+
   test('nothing beyond the result and the few signed details is stored', async () => {
     const [columns] = await server.sql(
       `SELECT string_agg(column_name, ',' ORDER BY column_name) AS names

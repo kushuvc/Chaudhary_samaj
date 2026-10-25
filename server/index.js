@@ -3588,13 +3588,13 @@ app.put('/api/matrimony/me', async (request, response) => {
   /*
    * Name and date of birth are what the Aadhaar check matched. Editing them
    * after would keep the badge on details nobody checked, so once verified
-   * they are dropped, like gender, rather than refused.
+   * they are dropped, like gender, rather than refused. Where they live is
+   * frozen too: a verified profile should not quietly move town afterwards.
    */
   if (await isIdVerified(activeUserId)) {
     for (const bag of [profile, matrimony, user]) {
       if (bag && typeof bag === 'object') {
-        delete bag.fullName
-        delete bag.dateOfBirth
+        for (const key of IDENTITY_LOCKED_FIELDS) delete bag[key]
       }
     }
   }
@@ -5530,6 +5530,9 @@ const aadhaarLimiter = rateLimit({
   store: new PostgresRateLimitStore({ prefix: 'aadhaar' }),
   message: { success: false, error: 'Too many attempts. Please try again in an hour.' },
 })
+
+/** Fields a member cannot change once their Aadhaar is verified. */
+const IDENTITY_LOCKED_FIELDS = ['fullName', 'dateOfBirth', 'location', 'country', 'state', 'city']
 
 async function isIdVerified(userId) {
   const rows = await pgQuery(

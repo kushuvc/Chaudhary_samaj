@@ -1,3 +1,5 @@
+import { INDIA_CITIES, INDIA_STATES } from './indiaLocations';
+
 /** Option lists shared across the signup flow. */
 
 export const MOTHER_TONGUES = [
@@ -30,10 +32,7 @@ export const DOSH_OPTIONS = [
 export const COUNTRIES = ['India', 'USA', 'UK', 'Canada', 'Australia', 'UAE', 'Other'];
 
 export const STATES: Record<string, string[]> = {
-  India: [
-    'Gujarat', 'Rajasthan', 'Maharashtra', 'Delhi', 'Haryana', 'Punjab',
-    'Madhya Pradesh', 'Uttar Pradesh', 'Karnataka', 'Tamil Nadu', 'Other',
-  ],
+  India: [...INDIA_STATES, 'Other'],
   USA: ['California', 'Texas', 'New Jersey', 'New York', 'Illinois', 'Other'],
   UK: ['England', 'Scotland', 'Wales', 'Northern Ireland', 'Other'],
   Canada: ['Ontario', 'British Columbia', 'Alberta', 'Quebec', 'Other'],
@@ -41,14 +40,14 @@ export const STATES: Record<string, string[]> = {
   UAE: ['Dubai', 'Abu Dhabi', 'Sharjah', 'Other'],
 };
 
-export const CITIES: Record<string, string[]> = {
-  Gujarat: ['Ahmedabad', 'Surat', 'Vadodara', 'Rajkot', 'Gandhinagar', 'Bhuj', 'Mehsana', 'Patan', 'Other'],
-  Rajasthan: ['Jaipur', 'Jodhpur', 'Udaipur', 'Kota', 'Ajmer', 'Other'],
-  Maharashtra: ['Mumbai', 'Pune', 'Nagpur', 'Nashik', 'Other'],
-  Delhi: ['New Delhi', 'Dwarka', 'Rohini', 'Other'],
-  Haryana: ['Gurugram', 'Faridabad', 'Hisar', 'Other'],
-  Punjab: ['Ludhiana', 'Amritsar', 'Jalandhar', 'Other'],
-};
+// Every Indian state's cities, with "Other" last so an unlisted town can be
+// typed in. Other countries have no city list; the city is typed.
+export const CITIES: Record<string, string[]> = Object.fromEntries(
+  Object.entries(INDIA_CITIES).map(([state, cities]) => [state, [...cities, 'Other']])
+);
+
+/** The dropdown's "type it yourself" choice. */
+export const OTHER = 'Other';
 
 export const HEIGHTS = (() => {
   const list: { id: string; label: string }[] = [];

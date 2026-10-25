@@ -75,3 +75,15 @@ describe('account deletion', () => {
     assert.equal(rows.length, 1, 'the header must not select whose account is deleted')
   })
 })
+
+describe('admin accounts', () => {
+  test('an admin cannot delete their own account', async () => {
+    const admin = await signUpUser(server)
+    await server.sql('UPDATE users SET is_admin = true WHERE id = $1', [admin.userId])
+    const res = await server.request('DELETE', '/api/auth/account', { token: admin.token })
+    assert.equal(res.status, 403)
+    assert.equal(res.body.code, 'ADMIN_CANNOT_DELETE')
+    const rows = await server.sql('SELECT 1 FROM users WHERE id = $1', [admin.userId])
+    assert.equal(rows.length, 1, 'the admin account is still there')
+  })
+})

@@ -5053,6 +5053,18 @@ app.delete('/api/auth/account', async (request, response) => {
     return
   }
   try {
+    // An admin deleting their own account by mistake left the panel with no
+    // admin at all (25 Oct 2026). Admin accounts cannot be deleted from the
+    // app; remove admin access in the database first if it is really meant.
+    const [me] = await pgQuery('SELECT is_admin FROM users WHERE id = $1 LIMIT 1', [activeUserId])
+    if (me?.is_admin) {
+      response.status(403).json({
+        success: false,
+        code: 'ADMIN_CANNOT_DELETE',
+        error: 'This is an admin account and cannot be deleted from the app. Write to support@chaudharysamaj.com if it really must go.',
+      })
+      return
+    }
     await removeMemberPhotos(activeUserId)
     await deleteMemberData(activeUserId)
     response.json({ success: true })

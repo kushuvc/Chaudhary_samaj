@@ -291,6 +291,8 @@ export async function pruneOldNotifications() {
   const cutoff = notificationCutoff()
   const removed = await pgQuery('DELETE FROM notifications WHERE created_at < $1 RETURNING id', [cutoff])
   await pgQuery('DELETE FROM profile_view_notices WHERE day < $1', [cutoff.slice(0, 10)])
+  // Daily view counts only matter for today; keep a week for support questions.
+  await pgQuery('DELETE FROM profile_daily_views WHERE day < $1', [new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)])
   return removed.length
 }
 

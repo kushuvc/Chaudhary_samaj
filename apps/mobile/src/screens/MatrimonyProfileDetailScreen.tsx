@@ -170,11 +170,13 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
     } catch (err) {
       // A locked profile comes back as 403 rather than a failure — say what it
       // is and what to do, instead of surfacing a raw error string.
-      const apiError = err as { code?: string; message?: string };
+      const apiError = err as { code?: string; message?: string; limit?: number };
       setError(
         apiError.code === 'SUBSCRIPTION_REQUIRED'
           ? t('mpSubscribeToView')
-          : apiError.message || t('mpCouldNotLoad')
+          : apiError.code === 'DAILY_VIEW_LIMIT'
+            ? t('mpDailyLimit')
+            : apiError.message || t('mpCouldNotLoad')
       );
     } finally {
       setLoading(false);

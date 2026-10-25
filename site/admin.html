@@ -515,6 +515,10 @@
               <option value="male">Men only</option>
             </select>
           </div>
+          <div>
+            <label for="new-views">Profile views per day</label>
+            <input type="number" id="new-views" min="1" step="1" placeholder="Unlimited">
+          </div>
         </div>
         <div class="actions">
           <button id="addPlan" type="button">Add plan</button>
@@ -1576,7 +1580,7 @@ function planCard(plan, isOpen) {
         <span class="pill ${plan.isActive ? 'ok' : 'off'}">${plan.isActive ? 'ON SALE' : 'HIDDEN'}</span>
         ${plan.audience && plan.audience !== 'all'
           ? `<span class="pill aud">${plan.audience === 'female' ? 'WOMEN ONLY' : 'MEN ONLY'}</span>` : ''}
-        <span class="fold-meta">₹${rupees.toLocaleString('en-IN')} / ${days} days · ≈ ₹${perMonth}/mo</span>
+        <span class="fold-meta">₹${rupees.toLocaleString('en-IN')} / ${days} days · ≈ ₹${perMonth}/mo · ${plan.dailyProfileViews ? plan.dailyProfileViews + ' profiles/day' : 'unlimited views'}</span>
         </span>${CHEVRON}
       </summary>
       <div class="fold-body">
@@ -1619,7 +1623,12 @@ function planCard(plan, isOpen) {
             <label for="aud-${c}">Offered to</label>
             ${audienceSelect('aud-' + c, plan.audience)}
           </div>
+          <div>
+            <label for="views-${c}">Profile views per day</label>
+            <input type="number" id="views-${c}" min="1" step="1" value="${plan.dailyProfileViews || ''}" placeholder="Unlimited">
+          </div>
         </div>
+        <p class="hint" style="margin-top:.3rem">Leave "Profile views per day" empty for unlimited. A number limits how many new full profiles a subscriber can open each day (India time); profiles already opened that day and people they have an interest with stay open. Changing it does not affect anyone mid-way through a day.</p>
 
         <div class="actions">
           <button type="button" data-save-plan="${c}">Save</button>
@@ -1653,6 +1662,9 @@ function readPlanForm(prefixes) {
   if (!Number.isInteger(days) || days < 1) return { error: 'Length must be at least one day.' };
   if (!Number.isInteger(rupees) || rupees < 0) return { error: 'Price must be a whole number of rupees.' };
   if (!Number.isInteger(sort)) return { error: 'Order must be a whole number.' };
+  const viewsRaw = prefixes.views ? $(prefixes.views).value.trim() : '';
+  const views = viewsRaw === '' ? null : Number(viewsRaw);
+  if (views !== null && (!Number.isInteger(views) || views < 1)) return { error: 'Profile views per day must be a whole number, or empty for unlimited.' };
 
   return {
     body: {
@@ -1664,6 +1676,7 @@ function readPlanForm(prefixes) {
       badge: $(prefixes.badge).value.trim(),
       sortOrder: sort,
       audience: $(prefixes.audience).value,
+      ...(prefixes.views ? { dailyProfileViews: views } : {}),
       ...readCaps(prefixes.caps),
       ...(prefixes.active ? { isActive: $(prefixes.active).checked } : {}),
     },
@@ -1674,7 +1687,7 @@ async function savePlan(code, button) {
   const form = readPlanForm({
     name: 'name-' + code, days: 'days-' + code, price: 'price-p-' + code,
     sort: 'sort-' + code, product: 'prod-' + code, badge: 'badge-' + code,
-    active: 'on-' + code, caps: code, audience: 'aud-' + code,
+    active: 'on-' + code, caps: code, audience: 'aud-' + code, views: 'views-' + code,
   });
   if (form.error) return msg(form.error, 'err');
   if (!form.body.name) return msg('Give the plan a name.', 'err');
@@ -1729,7 +1742,7 @@ $('addPlan').onclick = async () => {
   const form = readPlanForm({
     name: 'new-name', days: 'new-days', price: 'new-price',
     sort: 'new-sort', product: 'new-product', badge: 'new-badge', caps: 'new',
-    audience: 'new-audience',
+    audience: 'new-audience', views: 'new-views',
   });
   if (form.error) return msg(form.error, 'err');
   if (!form.body.name) return msg('Give the plan a name.', 'err');
@@ -1741,7 +1754,7 @@ $('addPlan').onclick = async () => {
       body: JSON.stringify({ ...form.body, isActive: true }),
     });
     msg(form.body.name + ' added. Live now.');
-    for (const id of ['new-code', 'new-name', 'new-days', 'new-price', 'new-product', 'new-badge']) {
+    for (const id of ['new-code', 'new-name', 'new-days', 'new-price', 'new-product', 'new-badge', 'new-views']) {
       $(id).value = '';
     }
     for (const [key] of CAPABILITIES) $('cap-new-' + key).checked = true;

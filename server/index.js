@@ -2062,8 +2062,55 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     }
   }
 
+  // A plan with a daily cap: a new profile past the cap waits until tomorrow.
+  // Profiles already opened today, and people you have an interest with, stay
+  // open so the cap never hides a conversation.
+  if (access.entitled && access.dailyProfileViews && !interestStatus) {
+    try {
+      const allowed = await recordDailyView(activeUserId, profile.id, access.dailyProfileViews)
+      if (!allowed) {
+        response.status(403).json({
+          success: false,
+          code: 'DAILY_VIEW_LIMIT',
+          limit: access.dailyProfileViews,
+          error: `You have opened ${access.dailyProfileViews} profiles today, the most your plan allows. More tomorrow.`,
+        })
+        return
+      }
+    } catch (err) {
+      // A counting failure must not lock out someone who paid.
+      console.error('[daily views] count failed:', err.message)
+    }
+  }
+
   response.json({ success: true, data: { ...profile, interestStatus } })
 })
+
+/** Today's date in India, the day a daily view limit resets on. */
+function istDay(at = Date.now()) {
+  return new Date(at + 330 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+/**
+ * Records that the member opened this profile today, unless that would go
+ * past the plan's daily cap. Returns whether they may see it.
+ */
+async function recordDailyView(userId, profileId, limit) {
+  const day = istDay()
+  const [{ seen, total }] = await pgQuery(
+    `SELECT COUNT(*) FILTER (WHERE profile_id = $3)::int AS seen, COUNT(*)::int AS total
+       FROM profile_daily_views WHERE viewer_user_id = $1 AND day = $2`,
+    [userId, day, profileId]
+  )
+  if (seen) return true
+  if (total >= limit) return false
+  await pgQuery(
+    `INSERT INTO profile_daily_views (viewer_user_id, profile_id, day) VALUES ($1, $2, $3)
+     ON CONFLICT DO NOTHING`,
+    [userId, profileId, day]
+  )
+  return true
+}
 
 /* ------------------------------------------------------------------ */
 /* Paywall                                                             */
@@ -2222,6 +2269,8 @@ function planFromRow(row) {
     sortOrder: Number(row.sort_order) || 0,
     capabilities: capabilitiesFromRow(row),
     audience: PLAN_AUDIENCES.has(row.audience) ? row.audience : 'all',
+    // null = unlimited
+    dailyProfileViews: Number(row.daily_profile_views) > 0 ? Number(row.daily_profile_views) : null,
     updatedAt: row.updated_at || null,
   }
 }
@@ -2259,7 +2308,8 @@ async function loadPlans() {
 
   const rows = await pgQuery(
     `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-            is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at
+            is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience,
+            daily_profile_views, updated_at
      FROM subscription_plans
      ORDER BY sort_order, price_paise`
   )
@@ -2435,6 +2485,9 @@ async function resolveAccess(userId) {
     capabilities: heldPlan?.capabilities || ALL_CAPABILITIES,
     reason: 'subscribed',
     planCode,
+    // Only a plan bought by someone whose gender is not free can carry a cap;
+    // free-for-gender access above stays unlimited.
+    dailyProfileViews: heldPlan?.dailyProfileViews ?? null,
   }
 }
 
@@ -4831,6 +4884,7 @@ app.get('/api/payments/plans', async (request, response) => {
         badge: plan.badge,
         capabilities: plan.capabilities,
         audience: plan.audience,
+        dailyProfileViews: plan.dailyProfileViews,
       })),
     })
   } catch (err) {
@@ -6034,7 +6088,8 @@ app.get('/api/admin/plans', requireAdmin, async (_request, response) => {
   try {
     const rows = await pgQuery(
       `SELECT code, name, duration_days, price_paise, play_product_id, badge,
-              is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at
+              is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience,
+              daily_profile_views, updated_at
        FROM subscription_plans
        ORDER BY sort_order, price_paise`
     )
@@ -6065,7 +6120,15 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
   const {
     name, durationDays, pricePaise, playProductId, badge, isActive, sortOrder,
     canViewPhone, canSendInterest, canChat, canViewPhoneUnmatched, canHidePhone, audience,
+    dailyProfileViews,
   } = request.body || {}
+
+  // undefined = leave as is; null or 0 = unlimited; otherwise a daily cap.
+  if (dailyProfileViews !== undefined && dailyProfileViews !== null &&
+      (!Number.isInteger(dailyProfileViews) || dailyProfileViews < 0 || dailyProfileViews > 10000)) {
+    response.status(400).json({ success: false, error: 'Profile views per day must be a whole number (empty for unlimited)' })
+    return
+  }
 
   if (audience !== undefined && !PLAN_AUDIENCES.has(audience)) {
     response.status(400).json({ success: false, error: "audience must be 'all', 'female' or 'male'" })
@@ -6121,9 +6184,11 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
     const rows = await pgQuery(
       `INSERT INTO subscription_plans
          (code, name, duration_days, price_paise, play_product_id, badge,
-          is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at)
+          is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience,
+          daily_profile_views, updated_at)
        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), COALESCE($8, 0),
-               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), COALESCE($13, false), COALESCE($14, false), COALESCE($12, 'all'), NOW()::text)
+               COALESCE($9, true), COALESCE($10, true), COALESCE($11, true), COALESCE($13, false), COALESCE($14, false), COALESCE($12, 'all'),
+               $15, NOW()::text)
        ON CONFLICT (code) DO UPDATE SET
          name = $2,
          duration_days = $3,
@@ -6138,9 +6203,11 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
          can_view_phone_unmatched = COALESCE($13, subscription_plans.can_view_phone_unmatched),
          can_hide_phone = COALESCE($14, subscription_plans.can_hide_phone),
          audience = COALESCE($12, subscription_plans.audience),
+         daily_profile_views = CASE WHEN $16 THEN $15 ELSE subscription_plans.daily_profile_views END,
          updated_at = NOW()::text
        RETURNING code, name, duration_days, price_paise, play_product_id, badge,
-                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience, updated_at`,
+                 is_active, sort_order, can_view_phone, can_send_interest, can_chat, can_view_phone_unmatched, can_hide_phone, audience,
+                 daily_profile_views, updated_at`,
       [
         code,
         name.trim(),
@@ -6156,6 +6223,8 @@ app.put('/api/admin/plans/:code', requireAdmin, async (request, response) => {
         audience === undefined ? null : audience,
         canViewPhoneUnmatched === undefined ? null : canViewPhoneUnmatched,
         canHidePhone === undefined ? null : canHidePhone,
+        dailyProfileViews ? dailyProfileViews : null,
+        dailyProfileViews !== undefined,
       ]
     )
 

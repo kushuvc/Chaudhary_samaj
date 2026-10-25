@@ -350,6 +350,17 @@ const migrations = [
   // Who a plan is offered to: 'all', 'female' or 'male'. Defaults to 'all' so
   // every plan that exists today stays on sale to everyone it is now.
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'all'`,
+  // Full profiles a subscriber may open per day (India time). NULL means
+  // unlimited, which every existing plan stays until an admin sets a number.
+  `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS daily_profile_views INTEGER`,
+  // Which profiles each member opened on which day, for that limit. Opening
+  // the same profile again the same day does not count twice.
+  `CREATE TABLE IF NOT EXISTS profile_daily_views (
+    viewer_user_id TEXT NOT NULL,
+    profile_id TEXT NOT NULL,
+    day TEXT NOT NULL,
+    PRIMARY KEY (viewer_user_id, day, profile_id)
+  )`,
   `DO $$ BEGIN
      ALTER TABLE subscription_plans
        ADD CONSTRAINT subscription_plans_audience_check CHECK (audience IN ('all', 'female', 'male'));

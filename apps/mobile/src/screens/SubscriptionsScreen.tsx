@@ -253,6 +253,7 @@ export function SubscriptionsScreen() {
    * every plan unlocking the same things, "check the list on each" is noise.
    */
   const plansDifferInWhatTheyUnlock = plans.some((plan) =>
+    (plan.dailyProfileViews ?? null) !== (plans[0]?.dailyProfileViews ?? null) ||
     PERKS.some(
       (perk) =>
         perk.capability &&
@@ -479,7 +480,9 @@ export function SubscriptionsScreen() {
                           />
                         </View>
                         <Text style={[styles.perkText, !included && styles.perkTextOff]}>
-                          {t(perk.key)}
+                          {perk.key === 'capViewProfiles' && selectedPlan?.dailyProfileViews
+                            ? t('capViewProfilesDaily', { count: selectedPlan.dailyProfileViews })
+                            : t(perk.key)}
                         </Text>
                         {!included ? (
                           <Text style={styles.perkOffLabel}>{t('capNotIncluded')}</Text>

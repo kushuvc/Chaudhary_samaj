@@ -127,6 +127,8 @@ export interface SubscriptionPlan {
   playProductId: string | null;
   badge: string | null;
   capabilities: PlanCapabilities;
+  /** Full profiles a member on this plan may open per day; null or absent = unlimited. */
+  dailyProfileViews?: number | null;
 }
 
 export interface SubscriptionStatus {

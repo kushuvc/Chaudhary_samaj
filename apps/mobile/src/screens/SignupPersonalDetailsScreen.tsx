@@ -90,8 +90,8 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
       step={1}
       totalSteps={5}
       eyebrow={t('suPersonalDetails')}
-      title={`Tell us about ${subject.full}`}
-      subtitle={`These basics power the matches ${subject.isSelf ? "you'll" : `${subject.pronoun}'ll`} see.`}
+      title={t('suTitlePersonal', { full: subject.full })}
+      subtitle={t('suSubPersonal')}
       footer={
         <PrimaryButton
           label={t('suContinue')}
@@ -142,7 +142,7 @@ export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNe
             <Select value={year} placeholder={t('suYear')} title={t('suYear')} options={YEAR_OPTIONS} onChange={setYear} />
           </View>
         </View>
-        {age !== null ? <Callout icon="calendar-outline" text={`You are ${age} years old`} /> : null}
+        {age !== null ? <Callout icon="calendar-outline" text={t('suAgeIs', { age })} /> : null}
       </View>
 
       <Field label={t('suHeight')}>

@@ -59,8 +59,8 @@ export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNe
       step={3}
       totalSteps={5}
       eyebrow={t('suLocationDetails')}
-      title={`Where ${subject.verb} ${subject.pronoun} based?`}
-      subtitle={`Matches nearby show up first, and ${subject.possessive} native place helps families connect.`}
+      title={t('suTitleLocation', { verb: subject.verb, pronoun: subject.pronoun })}
+      subtitle={t('suSubLocation', { possessive: subject.possessive })}
       footer={
         <PrimaryButton
           label={t('suContinue')}

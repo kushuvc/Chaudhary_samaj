@@ -117,7 +117,7 @@ export function PhoneLoginScreen({ onLoginSuccess, onBack }: PhoneLoginScreenPro
           </View>
         }
       >
-        {testOtp ? <Callout icon="flask-outline" text={`Test mode code: ${testOtp}`} /> : null}
+        {testOtp ? <Callout icon="flask-outline" text={t('testModeCode', { code: testOtp })} /> : null}
 
         <Field label={t('phOtpLabel')}>
           <Input

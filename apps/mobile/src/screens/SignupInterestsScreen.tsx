@@ -88,8 +88,8 @@ export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, on
     <StepScaffold
       onBack={onBack}
       eyebrow={t('suInterests')}
-      title={`What ${subject.verb} ${subject.pronoun} into?`}
-      subtitle={`These appear on ${subject.possessive} profile and help spark conversations.`}
+      title={t('suTitleInterests', { verb: subject.verb, pronoun: subject.pronoun, possessive: subject.possessive })}
+      subtitle={t('suSubInterests', { possessive: subject.possessive })}
       footer={
         <>
           <PrimaryButton

@@ -315,7 +315,7 @@ export function LoginScreen({ onPhoneLogin, onSignup }: LoginScreenProps) {
           </>
         ) : (
           <>
-            {devCode ? <Callout icon="flask-outline" text={`Test mode code: ${devCode}`} /> : null}
+            {devCode ? <Callout icon="flask-outline" text={t('testModeCode', { code: devCode })} /> : null}
 
             <Field
               label={t('loginCodeLabel')}

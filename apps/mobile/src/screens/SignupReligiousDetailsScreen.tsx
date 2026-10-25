@@ -52,7 +52,7 @@ export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onN
       totalSteps={5}
       eyebrow={t('suReligiousDetails')}
       title={t('suFaithAndCommunity')}
-      subtitle={`Used to find matches who share ${subject.possessive} background.`}
+      subtitle={t('suSubReligious', { possessive: subject.possessive })}
       footer={
         <PrimaryButton
           label={t('suContinue')}

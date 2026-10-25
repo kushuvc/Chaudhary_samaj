@@ -24,7 +24,7 @@ export function SignupEatingHabitsScreen({ subject: subjectProp, onBack, onNext,
     <StepScaffold
       onBack={onBack}
       eyebrow={t('suLifestyle')}
-      title={`${capitalise(subject.possessive)} eating habits`}
+      title={capitalise(t('suTitleEating', { possessive: subject.possessive }))}
       subtitle={t('suManyFamiliesConsiderThisWhenShortlisting')}
       footer={
         <>

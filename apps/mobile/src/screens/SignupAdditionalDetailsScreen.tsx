@@ -61,7 +61,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       step={5}
       totalSteps={5}
       eyebrow={t('suAdditionalDetails')}
-      title={`Family and ${subject.possessive} story`}
+      title={t('suTitleFamily', { possessive: subject.possessive })}
       subtitle={t('suTheLastStepBeforeWeCreate')}
       footer={
         <PrimaryButton

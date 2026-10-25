@@ -128,6 +128,17 @@ describe('no hardcoded English left in the UI', () => {
         offenders.push(`${rel}: ${value}`)
       }
     }
+    // Template-literal titles ("Where ${x} based?") slipped through the
+    // checks above and stayed English in Hindi and Gujarati (Oct 2026).
+    const templateProp = /\b(?:title|subtitle|label|placeholder|caption|text)=\{`([^`]*)`\}/g
+    for (const file of screenFiles(mobileSrc)) {
+      const src = readFileSync(file, 'utf8')
+      const rel = file.slice(root.length + 1)
+      for (const m of src.matchAll(templateProp)) {
+        const words = m[1].replace(/\$\{[^}]*\}/g, ' ')
+        if (/[A-Za-z]{3}/.test(words)) offenders.push(`${rel}: \`${m[1]}\``)
+      }
+    }
     assert.deepEqual(offenders, [], 'these strings never change with the language')
   })
 })

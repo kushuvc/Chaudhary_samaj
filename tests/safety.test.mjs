@@ -124,8 +124,10 @@ describe('blocking', () => {
     const one = await signUpUser(server, { gender: 'male' })
     const two = await signUpUser(server, { gender: 'female' })
 
-    const list = await server.request('GET', '/api/matrimony/profiles', { token: one.token })
-    const targetProfile = list.body.data.find((p) => !p.isLocked)?.id
+    // The member just registered, looked up directly: free members' unlocked
+    // profiles are the earliest registered, not the newest.
+    const [row] = await server.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [two.userId])
+    const targetProfile = row?.id
     assert.ok(targetProfile)
 
     const blocked = await server.request('POST', `/api/matrimony/profiles/${targetProfile}/block`, {

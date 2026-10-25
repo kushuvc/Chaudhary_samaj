@@ -119,12 +119,13 @@ describe('interest status on a profile', () => {
     const sender = await signUpUser(server, { gender: 'male' })
     const receiver = await signUpUser(server, { gender: 'female' })
 
-    const senderList = await server.request('GET', '/api/matrimony/profiles', { token: sender.token })
-    const receiverProfile = senderList.body.data.find((p) => !p.isLocked)
+    // Looked up directly: free members' unlocked profiles are the earliest
+    // registered, not these two new ones.
+    const profileOf = async (u) => (await server.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [u.userId]))[0]
+    const receiverProfile = await profileOf(receiver)
     await server.request('POST', `/api/matrimony/profiles/${receiverProfile.id}/interest`, { token: sender.token })
 
-    const receiverList = await server.request('GET', '/api/matrimony/profiles', { token: receiver.token })
-    const senderProfile = receiverList.body.data.find((p) => !p.isLocked)
+    const senderProfile = await profileOf(sender)
     const res = await server.request('GET', `/api/matrimony/profiles/${senderProfile.id}`, { token: receiver.token })
     assert.equal(res.body.data.interestStatus, 'received')
   })

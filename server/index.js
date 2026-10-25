@@ -1783,7 +1783,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   // they have filtered or sorted to.
   const allProfiles = baseProfiles || getPublicProfiles(activeUserId)
 
-  const profiles = allProfiles.filter((profile) => {
+  let profiles = allProfiles.filter((profile) => {
     const searchText = String(search || '').trim().toLowerCase()
     const matchesSearch =
       !searchText ||
@@ -1866,14 +1866,10 @@ app.get('/api/matrimony/profiles', async (request, response) => {
    * SQL would also mean giving up the per-user cache of the whole list, so it
    * is left as a separate change.
    */
-  const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 50)
-  const offset = Math.max(Number(request.query.offset) || 0, 0)
-  const page = profiles.slice(offset, offset + limit)
-
   // Redact anything past the free allowance for members without a subscription.
-  // The ordering is deterministic (compatibility score, then age of profile), so
-  // "the first N" is the same set on every request and matches what the detail
-  // endpoint allows.
+  // The allowance is the earliest-registered profiles (see
+  // resolveFreeAllocation), and those are listed first so a free member does
+  // not have to scroll past locked cards to find the ones they can open.
   let access
   try {
     access = await resolveAccess(activeUserId)
@@ -1885,9 +1881,8 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   }
 
   const freeLimit = access.rule.freeProfileLimit
-  let visible = page
+  let allowed = null
   if (!access.entitled) {
-    let allowed
     try {
       allowed = await resolveFreeAllocation(activeUserId, allProfiles, freeLimit)
     } catch (err) {
@@ -1896,8 +1891,17 @@ app.get('/api/matrimony/profiles', async (request, response) => {
       response.status(503).json({ success: false, error: 'Could not verify your subscription. Please try again.' })
       return
     }
-    visible = page.map((profile) => (allowed.has(profile.id) ? profile : lockedProfile(profile)))
+    const open = profiles.filter((profile) => allowed.has(profile.id))
+    const rest = profiles.filter((profile) => !allowed.has(profile.id))
+    profiles = [...open, ...rest]
   }
+
+  const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 50)
+  const offset = Math.max(Number(request.query.offset) || 0, 0)
+  const page = profiles.slice(offset, offset + limit)
+  const visible = allowed
+    ? page.map((profile) => (allowed.has(profile.id) ? profile : lockedProfile(profile)))
+    : page
 
   response.json({
     success: true,
@@ -2530,61 +2534,28 @@ async function requireCapability(userId, capability, response, message) {
  * contact detail leaves the server for a profile the caller has not paid for.
  */
 /**
- * The set of profile ids a free member may read, fixed once and then kept.
+ * The profiles a free member may read: the first N to register, of the
+ * profiles this member can see (opposite gender, not blocked either way),
+ * oldest first. Owner's rule (Oct 2026): "first 2 registered", and if one of
+ * them deletes their account the next in line takes its place; raising the
+ * allowance to 10 opens the first 10.
  *
- * The free allowance used to be "the first N of the current ordering". That
- * ordering is `compatibility_score DESC, created_at DESC` — newest first — so
- * every new registration pushed two fresh profiles to the top of every free
- * member's list and retired the two they had. Free browsing was therefore
- * unlimited, given patience, and nobody ever saw the same two profiles twice.
+ * Computed fresh on each request rather than stored. Ordering by registration
+ * keeps it stable: a new member joins at the end and never displaces anyone,
+ * which was the reason the old newest-first "first N" had to be frozen per
+ * member in matrimony_free_allocations (no longer read).
  *
- * The grant is now recorded the first time a member browses, so it survives
- * new registrations. It is also resolved against the member's full list
- * rather than whatever they have filtered or sorted to — otherwise setting an
- * education filter, or flipping the sort, would each reveal a different two.
- *
- * Only tops up: if a granted profile is deleted or blocks the viewer it is
- * replaced, and if the plan's allowance is raised the extra slots are filled.
- * Lowering the allowance keeps the oldest grants and simply shows fewer.
+ * Resolved against the member's full list, not whatever they have filtered or
+ * sorted to, so a filter cannot reveal a different two.
  */
 async function resolveFreeAllocation(viewerUserId, baseProfiles, freeLimit) {
-  if (freeLimit <= 0) return new Set()
-
-  const available = new Map(baseProfiles.map((profile) => [profile.id, profile]))
-
-  const rows = await pgQuery(
-    `SELECT profile_id FROM matrimony_free_allocations
-      WHERE viewer_user_id = $1
-      ORDER BY created_at, profile_id`,
-    [viewerUserId]
-  )
-
-  // Grants for profiles that have since gone are dropped from the count, so
-  // the member keeps a full allowance rather than silently losing a slot.
-  const granted = rows.map((row) => row.profile_id).filter((id) => available.has(id))
-  const allowed = new Set(granted.slice(0, freeLimit))
-
-  if (allowed.size < freeLimit) {
-    const held = new Set(rows.map((row) => row.profile_id))
-    const additions = []
-    for (const profile of baseProfiles) {
-      if (allowed.size + additions.length >= freeLimit) break
-      if (held.has(profile.id)) continue
-      additions.push(profile.id)
-    }
-
-    if (additions.length > 0) {
-      await pgQuery(
-        `INSERT INTO matrimony_free_allocations (viewer_user_id, profile_id)
-         SELECT $1, unnest($2::text[])
-         ON CONFLICT DO NOTHING`,
-        [viewerUserId, additions]
-      )
-      for (const id of additions) allowed.add(id)
-    }
-  }
-
-  return allowed
+  if (!(freeLimit > 0)) return new Set()
+  const byRegistration = [...baseProfiles].sort((a, b) => {
+    const ta = new Date(a.createdAt || 0).getTime() || 0
+    const tb = new Date(b.createdAt || 0).getTime() || 0
+    return ta - tb || String(a.id).localeCompare(String(b.id))
+  })
+  return new Set(byRegistration.slice(0, freeLimit).map((profile) => profile.id))
 }
 
 function lockedProfile(profile) {

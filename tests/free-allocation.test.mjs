@@ -116,3 +116,65 @@ describe('the free allowance is a fixed set of profiles', () => {
     assert.deepEqual(await unlockedIds(), before, 'the allowance changed across a subscription')
   })
 })
+
+describe('the allowance is the first members to register', () => {
+  let s
+  let viewer
+  let admin
+  const women = []
+  // Through the admin route, as the panel does, so the rules cache is cleared.
+  const setLimit = async (n) => {
+    const res = await s.request('PUT', '/api/admin/subscription-rules/male', {
+      token: admin.token, body: { isFree: false, freeProfileLimit: n },
+    })
+    assert.equal(res.status, 200, JSON.stringify(res.body))
+  }
+  before(async () => {
+    s = await startServer()
+    viewer = await signUpUser(s, { gender: 'male' })
+    admin = await signUpUser(s, { gender: 'male' })
+    await s.sql('UPDATE users SET is_admin = true WHERE id = $1', [admin.userId])
+    await setLimit(2)
+    for (let i = 0; i < 4; i += 1) women.push(await signUpUser(s, { gender: 'female', fullName: `Early ${i}` }))
+    // Spread registration times so the order is unambiguous.
+    for (let i = 0; i < women.length; i += 1) {
+      await s.sql(`UPDATE matrimony_profiles SET created_at = $2 WHERE user_id = $1`, [women[i].userId, `2026-0${i + 1}-01T00:00:00.000Z`])
+    }
+  })
+  after(async () => { await s?.stop() })
+
+  const profileIdOf = async (user) => (await s.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [user.userId]))[0].id
+  async function list() {
+    const res = await s.request('GET', '/api/matrimony/profiles?limit=50', { token: viewer.token })
+    assert.equal(res.status, 200)
+    return res.body.data
+  }
+
+  test('the two unlocked are the two earliest, and are listed first', async () => {
+    const data = await list()
+    const expected = [await profileIdOf(women[0]), await profileIdOf(women[1])]
+    assert.deepEqual(data.filter((p) => !p.isLocked).map((p) => p.id).sort(), expected.sort())
+    assert.equal(data[0].isLocked, undefined)
+    assert.equal(data[1].isLocked, undefined)
+  })
+
+  test('if one of them deletes their account, the next in line opens', async () => {
+    await s.request('DELETE', '/api/auth/account', { token: women[0].token })
+    const open = (await list()).filter((p) => !p.isLocked).map((p) => p.id).sort()
+    assert.deepEqual(open, [await profileIdOf(women[1]), await profileIdOf(women[2])].sort())
+  })
+
+  test('raising the allowance opens the next earliest', async () => {
+    await setLimit(3)
+    const open = (await list()).filter((p) => !p.isLocked).map((p) => p.id).sort()
+    assert.deepEqual(open, [await profileIdOf(women[1]), await profileIdOf(women[2]), await profileIdOf(women[3])].sort())
+  })
+
+  test('the detail screen agrees with the list', async () => {
+    await setLimit(1)
+    const first = await profileIdOf(women[1])
+    const later = await profileIdOf(women[3])
+    assert.equal((await s.request('GET', `/api/matrimony/profiles/${first}`, { token: viewer.token })).status, 200)
+    assert.equal((await s.request('GET', `/api/matrimony/profiles/${later}`, { token: viewer.token })).status, 403)
+  })
+})

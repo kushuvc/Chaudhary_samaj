@@ -4695,6 +4695,15 @@ app.post('/api/payments/play/verify', async (request, response) => {
       ]
     )
 
+    // Log the order for per-plan counts (admin alerts). Renewals carry their
+    // own order ids (..0, ..1); counts use distinct buyers, so they do not
+    // inflate "how many bought". Best effort.
+    pgQuery(
+      `INSERT INTO plan_purchases (order_id, user_id, plan, created_at) VALUES ($1, $2, $3, $4)
+       ON CONFLICT (order_id) DO NOTHING`,
+      [purchase.orderId || purchaseToken.slice(0, 40), activeUserId, bought.code, new Date().toISOString()]
+    ).catch((err) => console.error('[play] purchase log failed:', err.message))
+
     // Play refunds and revokes anything not acknowledged within three days, so
     // this has to happen once access is actually granted.
     if (purchase.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING' && purchase.productId) {

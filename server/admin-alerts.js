@@ -13,6 +13,10 @@ import { sendAdminEmail } from './email.js'
 export const MEMBER_MILESTONES = [25, 50, 100, 250, 500, 1000, 2000, 5000, 10000, 25000, 50000, 100000]
 export const PAID_MILESTONES = [5, 10, 15, 25, 50, 100, 250, 500, 1000, 2500, 5000]
 export const CAPACITY_WARNINGS = [70, 90]
+// Buyers of one plan. At 100 yearly buyers the operator planned to stop
+// selling yearly before view limits arrive, so that one gets a reminder.
+export const PLAN_MILESTONES = [10, 25, 50, 100, 250, 500, 1000]
+export const YEARLY_REVIEW_AT = 100
 
 /**
  * Plan limits in MB. The defaults are Supabase's free plan; after upgrading,
@@ -48,12 +52,30 @@ export async function collectStats() {
   } catch {
     // No storage schema outside Supabase (tests, local Postgres).
   }
+  // Per plan: distinct people who ever bought it, and how many hold it now.
+  let plans = []
+  try {
+    plans = (
+      await pgQuery(
+        `SELECT p.code, p.name, p.duration_days,
+                (SELECT COUNT(DISTINCT b.user_id)::int FROM plan_purchases b WHERE b.plan = p.code) AS buyers,
+                (SELECT COUNT(*)::int FROM user_subscriptions s
+                  WHERE s.plan = p.code AND s.status = 'active' AND s.expires_at::timestamptz > now()
+                    AND (s.provider = 'google_play' OR s.payment_id LIKE 'pay\\_%')) AS active
+           FROM subscription_plans p
+          ORDER BY p.duration_days, p.price_paise`
+      )
+    ).map((r) => ({ code: r.code, name: r.name, durationDays: Number(r.duration_days), buyers: Number(r.buyers), active: Number(r.active) }))
+  } catch (err) {
+    console.error('[admin-alerts] plan counts failed:', err.message)
+  }
   return {
     members: Number(counts.members),
     newThisWeek: Number(counts.new_this_week),
     paying: Number(counts.paying),
     dbMb: Number(counts.db_bytes) / MB,
     storageMb: storageBytes / MB,
+    plans,
   }
 }
 
@@ -69,6 +91,21 @@ export function pendingAlerts(stats, sentKeys, limits = capacityLimits()) {
   for (const n of PAID_MILESTONES) {
     if (stats.paying >= n && !sent.has(`paying:${n}`)) {
       out.push({ key: `paying:${n}`, line: `${n} members now have an active paid plan.` })
+    }
+  }
+  for (const plan of stats.plans || []) {
+    for (const n of PLAN_MILESTONES) {
+      if (plan.buyers >= n && !sent.has(`plan:${plan.code}:${n}`)) {
+        const yearly = plan.durationDays >= 365 && n >= YEARLY_REVIEW_AT
+        out.push({
+          key: `plan:${plan.code}:${n}`,
+          warning: yearly,
+          line: `${n} members have bought the ${plan.name} plan.` +
+            (yearly
+              ? ' You planned to review the yearly plan at this point: hide it in Admin → Plans (current buyers keep it) or relaunch it at a new price before adding view limits.'
+              : ''),
+        })
+      }
     }
   }
   for (const [name, used, limit, label] of [
@@ -112,6 +149,7 @@ export function summaryHtml(stats, lines, limits = capacityLimits()) {
       <table style="border-collapse: collapse; margin-top: 14px; font-size: 14px;">
         <tr><td style="padding: 4px 16px 4px 0;">Members</td><td><b>${stats.members}</b> (${stats.newThisWeek} new this week)</td></tr>
         <tr><td style="padding: 4px 16px 4px 0;">Paying members</td><td><b>${stats.paying}</b></td></tr>
+        ${(stats.plans || []).filter((p) => p.buyers || p.active).map((p) => `<tr><td style="padding: 4px 16px 4px 0;">&nbsp;&nbsp;${esc(p.name)}</td><td>${p.active} active · ${p.buyers} bought so far</td></tr>`).join('')}
         <tr><td style="padding: 4px 16px 4px 0;">Database</td><td>${stats.dbMb.toFixed(0)} of ${limits.dbMb} MB (${pct(stats.dbMb, limits.dbMb)})</td></tr>
         <tr><td style="padding: 4px 16px 4px 0;">Photo storage</td><td>${stats.storageMb.toFixed(0)} of ${limits.storageMb} MB (${pct(stats.storageMb, limits.storageMb)})</td></tr>
       </table>
@@ -135,7 +173,9 @@ export async function runAdminAlerts({ force = false } = {}) {
 
   const recipients = await alertRecipients()
   const lines = due.length ? due.map((a) => a.line) : ['Here is where the app stands today.']
-  const subject = due.some((a) => a.warning)
+  const subject = due.some((a) => a.warning && a.key.startsWith('plan:'))
+    ? 'Chaudhary Samaj: time to review the yearly plan'
+    : due.some((a) => a.warning)
     ? 'Chaudhary Samaj: a plan limit is getting close'
     : due.length
       ? `Chaudhary Samaj: ${due[0].line}`

@@ -43,3 +43,18 @@ describe('admin overview revenue', () => {
     assert.equal(res.body.data.stats.paying, 2)
   })
 })
+
+describe('plan purchase log', () => {
+  test('counts distinct buyers per plan from the purchase log', async () => {
+    const a = await signUpUser(server)
+    const b = await signUpUser(server)
+    await server.sql(`INSERT INTO plan_purchases (order_id, user_id, plan, created_at) VALUES
+      ('GPA.y1', $1, 'yearly', NOW()::text), ('GPA.y1..0', $1, 'yearly', NOW()::text), ('GPA.y2', $2, 'yearly', NOW()::text)`,
+      [a.userId, b.userId])
+    await server.sql(`INSERT INTO subscription_plans (code, name, duration_days, price_paise, is_active, sort_order, updated_at)
+      VALUES ('yearly', 'Yearly', 365, 150000, true, 9, NOW()::text) ON CONFLICT (code) DO NOTHING`)
+    const res = await server.request('POST', '/api/admin/alerts/check', { token: admin.token })
+    const yearly = res.body.data.stats.plans.find((p) => p.code === 'yearly')
+    assert.equal(yearly.buyers, 2, 'a renewal does not count as a second buyer')
+  })
+})

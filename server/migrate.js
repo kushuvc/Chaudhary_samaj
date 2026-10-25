@@ -494,6 +494,20 @@ const migrations = [
   `CREATE INDEX IF NOT EXISTS removed_members_email_idx ON removed_members (lower(email))`,
   `CREATE INDEX IF NOT EXISTS removed_members_phone_idx ON removed_members (phone)`,
   `CREATE INDEX IF NOT EXISTS removed_members_fingerprint_idx ON removed_members (aadhaar_fingerprint)`,
+  // One row per paid order (Play order id, or pay_… for Razorpay), so we can
+  // count how many people bought each plan; user_subscriptions only keeps a
+  // member's current plan. Back-filled once from the paid rows already there.
+  `CREATE TABLE IF NOT EXISTS plan_purchases (
+    order_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `INSERT INTO plan_purchases (order_id, user_id, plan, created_at)
+     SELECT COALESCE(NULLIF(order_id, ''), payment_id), user_id, plan, COALESCE(started_at, NOW()::text)
+       FROM user_subscriptions
+      WHERE provider = 'google_play' OR payment_id LIKE 'pay\\_%'
+   ON CONFLICT (order_id) DO NOTHING`,
   // Which operator alerts (member milestones, capacity warnings) have been
   // emailed, so each goes out once.
   `CREATE TABLE IF NOT EXISTS admin_alerts_sent (

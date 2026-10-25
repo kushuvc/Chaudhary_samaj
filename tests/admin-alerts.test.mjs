@@ -36,6 +36,21 @@ describe('which alerts are due', () => {
     )
   })
 
+  test('plan buyer milestones, with a review reminder at 100 yearly buyers', () => {
+    const plans = [
+      { code: 'premium', name: 'Monthly', durationDays: 30, buyers: 100, active: 40 },
+      { code: 'yearly', name: 'Yearly', durationDays: 365, buyers: 100, active: 100 },
+    ]
+    const due = pendingAlerts({ ...base, plans }, [], limits)
+    const monthly100 = due.find((a) => a.key === 'plan:premium:100')
+    const yearly100 = due.find((a) => a.key === 'plan:yearly:100')
+    assert.ok(monthly100 && !monthly100.warning)
+    assert.ok(yearly100.warning)
+    assert.match(yearly100.line, /review the yearly plan/)
+    assert.ok(due.some((a) => a.key === 'plan:yearly:10'))
+    assert.equal(pendingAlerts({ ...base, plans }, due.map((a) => a.key), limits).length, 0)
+  })
+
   test('limits default to the free plan and follow the env', () => {
     assert.deepEqual(capacityLimits({}), { dbMb: 500, storageMb: 1024 })
     assert.deepEqual(capacityLimits({ DB_LIMIT_MB: '8192', STORAGE_LIMIT_MB: '102400' }), { dbMb: 8192, storageMb: 102400 })
@@ -68,6 +83,7 @@ describe('admin "email me a summary" check', () => {
     // The suite has no Brevo key, so nothing is sent and nothing is recorded:
     // the alert must go out once email works, not be lost.
     assert.equal(sent, false)
+    assert.ok(Array.isArray(stats.plans), 'per-plan counts are reported')
     const rows = await server.sql('SELECT key FROM admin_alerts_sent')
     assert.equal(rows.length, 0)
   })

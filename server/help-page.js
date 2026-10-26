@@ -10,6 +10,18 @@ export const HELP_LANGS = ['en', 'hi', 'gu']
 export const FAQ = [
   {
     q: {
+      en: 'How do I create a profile?',
+      hi: 'प्रोफ़ाइल कैसे बनाएँ?',
+      gu: 'પ્રોફાઇલ કેવી રીતે બનાવવી?',
+    },
+    a: {
+      en: 'Open the app, choose your language and tap "Create your profile". Choose who the profile is for (yourself, son, daughter…), then fill in name, email, password and mobile number. We email a 6-digit code: type it in (check Spam if it is not in your inbox). Then answer the questions step by step (personal, religion, location, education, family), add 1–2 photos, and you are done. Optional steps can be skipped and filled in later from the Profile tab.',
+      hi: 'ऐप खोलें, भाषा चुनें और "अपनी प्रोफ़ाइल बनाएँ" दबाएँ। चुनें कि प्रोफ़ाइल किसके लिए है (स्वयं, बेटा, बेटी…), फिर नाम, ईमेल, पासवर्ड और मोबाइल नंबर भरें। हम 6 अंकों का कोड ईमेल करते हैं: उसे डालें (इनबॉक्स में न हो तो स्पैम देखें)। फिर एक-एक करके सवालों के जवाब दें (व्यक्तिगत, धर्म, स्थान, शिक्षा, परिवार), 1–2 फ़ोटो जोड़ें, बस हो गया। वैकल्पिक चरण छोड़ सकते हैं और बाद में प्रोफ़ाइल टैब से भर सकते हैं।',
+      gu: 'એપ ખોલો, ભાષા પસંદ કરો અને "તમારી પ્રોફાઇલ બનાવો" દબાવો. પસંદ કરો કે પ્રોફાઇલ કોના માટે છે (પોતે, દીકરો, દીકરી…), પછી નામ, ઈમેલ, પાસવર્ડ અને મોબાઇલ નંબર ભરો. અમે 6 અંકનો કોડ ઈમેલ કરીએ છીએ: તે નાખો (ઇનબૉક્સમાં ન હોય તો સ્પામ જુઓ). પછી એક પછી એક પ્રશ્નોના જવાબ આપો (વ્યક્તિગત, ધર્મ, સ્થાન, શિક્ષણ, પરિવાર), 1–2 ફોટા ઉમેરો, બસ થઈ ગયું. વૈકલ્પિક પગલાં છોડી શકો છો અને પછી પ્રોફાઇલ ટૅબમાંથી ભરી શકો છો.',
+    },
+  },
+  {
+    q: {
       en: 'I paid, but my plan is not active / profiles are still locked',
       hi: 'मैंने भुगतान किया, लेकिन प्लान चालू नहीं हुआ / प्रोफ़ाइल अब भी बंद हैं',
       gu: 'મેં ચુકવણી કરી, પણ પ્લાન ચાલુ થયો નથી / પ્રોફાઇલ હજુ બંધ છે',

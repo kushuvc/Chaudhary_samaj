@@ -108,7 +108,7 @@ export function SignupManagePhotosScreen({ onBack, onComplete }: SignupManagePho
       footer={
         <>
           <PrimaryButton
-            label={uploaded.length > 0 ? `Continue with ${uploaded.length} photo${uploaded.length === 1 ? '' : 's'}` : t('actAddPhoto')}
+            label={uploaded.length > 0 ? t('suContinueWithPhotos', { count: uploaded.length }) : t('actAddPhoto')}
             onPress={uploaded.length > 0 ? () => onComplete(uploaded) : pickAndUpload}
           />
           <TextButton label={t('suILlDoThisLater')} onPress={() => onComplete(uploaded)} />

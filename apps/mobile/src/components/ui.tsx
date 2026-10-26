@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme, type ThemePalette } from '../context/ThemeContext';
 import { useAppLanguage } from '../context/LanguageContext';
 import { optionLabel } from '../constants/optionTranslations';
+import { openHelpGuide, openSupportEmail } from '../utils/support';
 
 /* ------------------------------------------------------------------ */
 /* Gradient                                                            */
@@ -253,7 +254,7 @@ export function StepScaffold({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
-  const { t } = useAppLanguage();
+  const { t, language } = useAppLanguage();
   const { palette } = useAppTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -383,6 +384,30 @@ export function StepScaffold({
         <KeyboardScrollContext.Provider value={keyboardScroll}>
           <View style={styles.content}>{children}</View>
         </KeyboardScrollContext.Provider>
+
+        {/*
+         * Help on every step: most people who give up at signup are stuck on
+         * one field. The guide opens in their language, and the mail names
+         * the step so support knows where without asking.
+         */}
+        <View style={styles.stepHelp}>
+          <Text style={styles.stepHelpTitle}>{t('suStuckTitle')}</Text>
+          <View style={styles.stepHelpRow}>
+            <Pressable accessibilityRole="button" style={styles.stepHelpButton} onPress={() => openHelpGuide(language)} hitSlop={6}>
+              <Ionicons name="book-outline" size={16} color={palette.primary} />
+              <Text style={styles.stepHelpLabel}>{t('suHelpGuide')}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              style={styles.stepHelpButton}
+              onPress={() => void openSupportEmail(t, language, `signup${showProgress ? ` step ${step}/${totalSteps}` : ''}: ${title}`)}
+              hitSlop={6}
+            >
+              <Ionicons name="mail-outline" size={16} color={palette.primary} />
+              <Text style={styles.stepHelpLabel}>{t('helpEmailUs')}</Text>
+            </Pressable>
+          </View>
+        </View>
       </ScrollView>
 
       {footer && keyboardHeight === 0 ? (
@@ -842,6 +867,18 @@ function createStyles(palette: ThemePalette) {
       marginTop: 26,
       gap: 20,
     },
+    stepHelp: {
+      marginTop: 28,
+      paddingTop: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: palette.border,
+      alignItems: 'center',
+      gap: 10,
+    },
+    stepHelpTitle: { fontSize: 13.5, color: palette.muted, textAlign: 'center' },
+    stepHelpRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 18 },
+    stepHelpButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
+    stepHelpLabel: { fontSize: 14.5, fontWeight: '700', color: palette.primary },
     footer: {
       paddingHorizontal: 22,
       paddingTop: 14,

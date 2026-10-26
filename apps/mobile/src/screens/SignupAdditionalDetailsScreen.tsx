@@ -173,7 +173,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
         label={t('suAFewWordsAboutYourself')}
         hint={
           bioRemaining > 0
-            ? `${bioRemaining} more character${bioRemaining === 1 ? '' : 's'} needed`
+            ? t('suBioMoreNeeded', { count: bioRemaining })
             : undefined
         }
       >
@@ -186,7 +186,7 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
           autoCapitalize="sentences"
         />
         <Text style={{ fontSize: 12, color: palette.muted, textAlign: 'right' }}>
-          {bio.trim().length}/{MIN_BIO} minimum
+          {t('suBioCount', { count: bio.trim().length, min: MIN_BIO })}
         </Text>
       </Field>
     </StepScaffold>

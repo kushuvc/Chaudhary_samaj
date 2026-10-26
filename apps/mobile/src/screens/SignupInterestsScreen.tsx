@@ -126,8 +126,12 @@ export function SignupInterestsScreen({ subject: subjectProp, onBack, onNext, on
       </View>
 
       <Text style={{ fontSize: 12.5, color: palette.muted }}>
-        Selected so far — hobbies {data.hobbies.length}, music {data.music.length}, sports{' '}
-        {data.sports.length}, food {data.cuisine.length}.
+        {t('suSelectedSoFar', {
+          hobbies: data.hobbies.length,
+          music: data.music.length,
+          sports: data.sports.length,
+          food: data.cuisine.length,
+        })}
       </Text>
     </StepScaffold>
   );

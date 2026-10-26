@@ -71,6 +71,10 @@ Release checklist and manual test list: [TESTING.md](TESTING.md).
 - **Never screen members by religion.** The framing is "real person, genuine samaj member".
 - **Terms** (`site/terms.html`): members are responsible for their own dealings; the badge only means Aadhaar details matched; using someone else's Aadhaar is a crime (IT Act 66C/66D, BNS); operator not liable for fraud by members. Grievances: acknowledge within 48 hours, resolve within 15 days (IT Rules 2021 expect 24-hour acknowledgement — the user chose to keep 48). A lawyer review was recommended.
 
+## Backups
+
+Supabase free has no backups. Until Supabase Pro: `scripts/backup.mjs` copies every table (JSON) and every photo to `~/Documents/chaudhary-samaj-backups/<date>/` daily at 1 PM via launchd `~/Library/LaunchAgents/com.chaudharysamaj.backup.plist` (runs on wake if the Mac slept; keeps 14 days; log `backup.log`). Read-only against production. Restore steps: `scripts/RESTORE.md`. After buying Pro, the job can be removed.
+
 ## Commands
 
 ```bash

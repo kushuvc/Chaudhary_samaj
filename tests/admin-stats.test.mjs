@@ -73,3 +73,16 @@ describe('total sales', () => {
     assert.equal(after.totalRevenue, before + 1500, 'nothing was refunded, so the sale still counts')
   })
 })
+
+describe('men and women', () => {
+  test('the overview counts members by gender', async () => {
+    const before = (await server.request('GET', '/api/admin/stats', { token: admin.token })).body.data.byGender
+    await signUpUser(server, { gender: 'female' })
+    await signUpUser(server, { gender: 'female' })
+    await signUpUser(server, { gender: 'male' })
+    const after = (await server.request('GET', '/api/admin/stats', { token: admin.token })).body.data.byGender
+    assert.equal(after.female.total, before.female.total + 2)
+    assert.equal(after.male.total, before.male.total + 1)
+    assert.equal(after.female.recent, before.female.recent + 2)
+  })
+})

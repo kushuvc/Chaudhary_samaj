@@ -6378,6 +6378,23 @@ app.get('/api/admin/stats', requireAdmin, async (request, response) => {
     const totalRevenue = sales?.total || 0
     const totalOrders = sales?.orders || 0
 
+    // Men and women, overall, new this week, and paying, so the balance the
+    // community depends on is visible at a glance.
+    const genderRows = await pgQuery(`
+      SELECT lower(p.gender) AS gender,
+             COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE p.created_at::timestamptz >= NOW() - INTERVAL '7 days')::int AS recent,
+             COUNT(*) FILTER (WHERE EXISTS (
+               SELECT 1 FROM user_subscriptions s
+                WHERE s.user_id = p.user_id AND s.status = 'active' AND s.expires_at::timestamp > NOW()
+                  AND ${PAID_SUBSCRIPTION_SQL}))::int AS paying
+        FROM matrimony_profiles p
+       GROUP BY 1`)
+    const byGender = { male: { total: 0, recent: 0, paying: 0 }, female: { total: 0, recent: 0, paying: 0 } }
+    for (const row of genderRows) {
+      if (byGender[row.gender]) byGender[row.gender] = { total: row.total, recent: row.recent, paying: row.paying }
+    }
+
     // Get matrimony profiles count
     const profilesResult = await pgQuery('SELECT COUNT(*)::int as count FROM matrimony_profiles')
     const totalProfiles = profilesResult[0]?.count || 0
@@ -6394,6 +6411,7 @@ app.get('/api/admin/stats', requireAdmin, async (request, response) => {
         activePremium,
         totalRevenue,
         totalOrders,
+        byGender,
         activeValue,
         freeAccess,
         totalProfiles,

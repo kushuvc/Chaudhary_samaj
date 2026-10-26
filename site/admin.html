@@ -859,6 +859,11 @@ async function loadOverview() {
   $('tiles').innerHTML = stats
     ? [
         tile(Number(stats.totalUsers).toLocaleString(), 'Members'),
+        // Women are what the community needs most; show the balance up front.
+        ...(stats.byGender ? [
+          tile(Number(stats.byGender.male.total).toLocaleString(), 'Men · ' + stats.byGender.male.recent + ' new this week · ' + stats.byGender.male.paying + ' paying'),
+          tile(Number(stats.byGender.female.total).toLocaleString(), 'Women · ' + stats.byGender.female.recent + ' new this week · ' + stats.byGender.female.paying + ' paying'),
+        ] : []),
         tile(Number(stats.recentUsers).toLocaleString(), 'Joined in the last 7 days'),
         tile(Number(stats.activePremium).toLocaleString(), 'Active paid subscribers'),
         tile(stats.conversionRate + '%', 'Of members subscribed'),

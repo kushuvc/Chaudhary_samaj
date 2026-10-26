@@ -2090,6 +2090,19 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
   response.json({ success: true, data: { ...profile, interestStatus } })
 })
 
+/**
+ * Records a paid order (first purchase or renewal) once. This log is never
+ * deleted with an account, so revenue and buyer counts only ever grow. Best
+ * effort: a failure is logged, never thrown at the buyer.
+ */
+function logPlanPurchase(orderId, userId, plan, amount) {
+  return pgQuery(
+    `INSERT INTO plan_purchases (order_id, user_id, plan, amount, created_at) VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (order_id) DO NOTHING`,
+    [orderId, userId, plan, Number.isFinite(Number(amount)) ? Math.round(Number(amount)) : null, new Date().toISOString()]
+  ).catch((err) => console.error('[play] purchase log failed:', err.message))
+}
+
 /** Today's date in India, the day a daily view limit resets on. */
 function istDay(at = Date.now()) {
   return new Date(at + 330 * 60 * 1000).toISOString().slice(0, 10)
@@ -4669,11 +4682,7 @@ app.post('/api/payments/play/verify', async (request, response) => {
     // Log the order for per-plan counts (admin alerts). Renewals carry their
     // own order ids (..0, ..1); counts use distinct buyers, so they do not
     // inflate "how many bought". Best effort.
-    pgQuery(
-      `INSERT INTO plan_purchases (order_id, user_id, plan, created_at) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (order_id) DO NOTHING`,
-      [purchase.orderId || purchaseToken.slice(0, 40), activeUserId, bought.code, new Date().toISOString()]
-    ).catch((err) => console.error('[play] purchase log failed:', err.message))
+    logPlanPurchase(purchase.orderId || purchaseToken.slice(0, 40), activeUserId, bought.code, Math.round(bought.pricePaise / 100))
 
     // Play refunds and revokes anything not acknowledged within three days, so
     // this has to happen once access is actually granted.
@@ -4767,12 +4776,18 @@ app.post('/api/payments/play/rtdn', async (request, response) => {
     const purchase = await getSubscriptionFromPlay(notification.purchaseToken)
     if (!purchase.valid) return
 
-    await pgQuery(
+    const updated = await pgQuery(
       `UPDATE user_subscriptions
        SET status = $1, expires_at = COALESCE($2, expires_at), play_state = $4
-       WHERE play_purchase_token = $3`,
+       WHERE play_purchase_token = $3
+       RETURNING user_id, plan, amount`,
       [purchase.entitled ? 'active' : 'expired', purchase.expiryTime, notification.purchaseToken, purchase.state || null]
     )
+    // A renewal is a new order id (GPA…..0, ..1) and new money; record it so
+    // revenue counts every charge, not only first purchases.
+    if (purchase.entitled && purchase.orderId && updated[0]) {
+      logPlanPurchase(purchase.orderId, updated[0].user_id, updated[0].plan, updated[0].amount)
+    }
   } catch (err) {
     console.error('[play] rtdn handling failed:', err.message)
   }
@@ -6308,8 +6323,16 @@ app.get('/api/admin/stats', requireAdmin, async (request, response) => {
       WHERE status = 'active' AND expires_at::timestamp > NOW()
     `)
     const activePremium = activeSubscriptionsResult[0]?.count || 0
-    const totalRevenue = activeSubscriptionsResult[0]?.totalrevenue || 0
+    const activeValue = activeSubscriptionsResult[0]?.totalrevenue || 0
     const freeAccess = activeSubscriptionsResult[0]?.freeaccess || 0
+    // Every paid order ever (first purchases and renewals), from the purchase
+    // log, which outlives a deleted account. The figure above dropped whenever
+    // a paying member deleted their account, though nothing was refunded.
+    const [sales] = await pgQuery(
+      `SELECT COALESCE(SUM(amount), 0)::int AS total, COUNT(*)::int AS orders FROM plan_purchases`
+    )
+    const totalRevenue = sales?.total || 0
+    const totalOrders = sales?.orders || 0
 
     // Get matrimony profiles count
     const profilesResult = await pgQuery('SELECT COUNT(*)::int as count FROM matrimony_profiles')
@@ -6326,6 +6349,8 @@ app.get('/api/admin/stats', requireAdmin, async (request, response) => {
         recentUsers,
         activePremium,
         totalRevenue,
+        totalOrders,
+        activeValue,
         freeAccess,
         totalProfiles,
         totalInterests,

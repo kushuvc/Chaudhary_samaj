@@ -508,6 +508,17 @@ const migrations = [
        FROM user_subscriptions
       WHERE provider = 'google_play' OR payment_id LIKE 'pay\\_%'
    ON CONFLICT (order_id) DO NOTHING`,
+  // What each order cost (rupees, list price), so revenue is the sum of orders
+  // ever paid and does not drop when a paying member deletes their account
+  // (it did: the figure was read off live subscriptions). Back-filled from the
+  // member's subscription row, else from the plan's price.
+  `ALTER TABLE plan_purchases ADD COLUMN IF NOT EXISTS amount INTEGER`,
+  `UPDATE plan_purchases b SET amount = s.amount
+     FROM user_subscriptions s
+    WHERE b.amount IS NULL AND s.user_id = b.user_id AND s.plan = b.plan`,
+  `UPDATE plan_purchases b SET amount = ROUND(p.price_paise / 100.0)
+     FROM subscription_plans p
+    WHERE b.amount IS NULL AND p.code = b.plan`,
   // Which operator alerts (member milestones, capacity warnings) have been
   // emailed, so each goes out once.
   `CREATE TABLE IF NOT EXISTS admin_alerts_sent (

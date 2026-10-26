@@ -34,7 +34,7 @@ describe('admin overview revenue', () => {
     const res = await server.request('GET', '/api/admin/stats', { token: admin.token })
     assert.equal(res.status, 200, JSON.stringify(res.body))
     assert.equal(res.body.data.activePremium, 2)
-    assert.equal(res.body.data.totalRevenue, 249)
+    assert.equal(res.body.data.activeValue, 249)
     assert.equal(res.body.data.freeAccess, 2)
   })
 
@@ -56,5 +56,20 @@ describe('plan purchase log', () => {
     const res = await server.request('POST', '/api/admin/alerts/check', { token: admin.token })
     const yearly = res.body.data.stats.plans.find((p) => p.code === 'yearly')
     assert.equal(yearly.buyers, 2, 'a renewal does not count as a second buyer')
+  })
+})
+
+describe('total sales', () => {
+  test('a paying member deleting their account does not lower total sales', async () => {
+    const before = (await server.request('GET', '/api/admin/stats', { token: admin.token })).body.data.totalRevenue
+    const buyer = await signUpUser(server)
+    await subscribe(buyer, { provider: 'google_play', amount: 1500, paymentId: 'GPA.year', token: 'tok-year' })
+    await server.sql(`INSERT INTO plan_purchases (order_id, user_id, plan, amount, created_at) VALUES ('GPA.year', $1, 'yearly', 1500, NOW()::text)`, [buyer.userId])
+    const withSale = (await server.request('GET', '/api/admin/stats', { token: admin.token })).body.data
+    assert.equal(withSale.totalRevenue, before + 1500)
+
+    assert.equal((await server.request('DELETE', '/api/auth/account', { token: buyer.token })).status, 200)
+    const after = (await server.request('GET', '/api/admin/stats', { token: admin.token })).body.data
+    assert.equal(after.totalRevenue, before + 1500, 'nothing was refunded, so the sale still counts')
   })
 })

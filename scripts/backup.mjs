@@ -38,8 +38,15 @@ const manifest = { takenAt: new Date().toISOString(), tables: {}, photos: 0, pho
 async function backupTables() {
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } })
   await client.connect()
-  // Read-only for the whole session: a backup must never change anything.
-  await client.query('SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY')
+  /*
+   * One read-only transaction for the whole export: a backup must never
+   * change anything. NOT `SET SESSION ... READ ONLY`: DATABASE_URL goes
+   * through Supabase's transaction pooler, which hands the same server
+   * connection to the live API next, so a session setting stays behind and
+   * the API's writes fail (26 Oct 2026: 4 minutes of refused saves and a
+   * failed deploy). A transaction's read-only flag ends with the transaction.
+   */
+  await client.query('BEGIN TRANSACTION READ ONLY')
   const { rows: tables } = await client.query(
     `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`
   )
@@ -52,6 +59,7 @@ async function backupTables() {
       manifest.errors.push(`table ${tablename}: ${err.message}`)
     }
   }
+  await client.query('COMMIT')
   await client.end()
 }
 

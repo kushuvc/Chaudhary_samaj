@@ -8,6 +8,7 @@ person with a phone can check.
 
 | Build | Date | Status |
 | --- | --- | --- |
+| v50 | 26 Oct 2026 | Built (`~/Downloads/build-v50.aab` + `mapping-v50.txt`). **Upload this one.** v49 plus: help guide + email on every signup step, signup fully in Hindi/Gujarati (headings, place names, counters), photo-privacy message, admin-delete guard (server). Release build tested end to end in Gujarati on the emulator: signup → code → all steps → Add Photo → Aadhaar step → Home; Profile city change saves. |
 | v49 | 25 Oct 2026 | Built (`~/Downloads/build-v49.aab` + `mapping-v49.txt`). **Upload this one** (supersedes v48). v48 plus: city dropdowns for every state (signup + Profile), city edit actually saves, location locked after Aadhaar, daily-view-limit wording. Smoke test: Add Photo, Plans prices, location dropdowns. |
 | v48 | 25 Oct 2026 | Built, superseded by v49 before upload. Urgent fix: R8 optimization removed (v45–v47 broke the photo picker in release builds; checked on the emulator that a release build without it opens the picker and uploads). Signup catches misspelt emails (gamil.com → gmail.com). Plus support tickets/help page (server) since v47. |
 | v47 | 24 Oct 2026 | Built (`~/Downloads/build-v47.aab` + `mapping-v47.txt`). **Upload this one** (v46 was never uploaded). Since v45: new logo icon + splash, large-text fixes (Language/Welcome scroll, nav-bar insets on Login, profile detail, report sheet, Settings pop-ups, Filters header), Housewife in mother's occupation. Run the Large text and R8 smoke tests on a phone. |

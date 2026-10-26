@@ -470,6 +470,15 @@ export function MatrimonyScreen() {
               <Pressable style={styles.imageContainer} onPress={() => { setSelectedProfileId(profile.id); setProfileDetailVisible(true); }}>
                 {primaryPhoto?.uri ? (
                   <Image source={{ uri: primaryPhoto.uri }} style={styles.profileImage} />
+                ) : profile.photosHidden ? (
+                  // Photo privacy: the server withheld the photos until an
+                  // interest is accepted. Say so, rather than look photo-less.
+                  <View style={styles.profileImagePlaceholder}>
+                    <Ionicons name="eye-off-outline" size={44} color={palette.muted} />
+                    <Text style={{ color: palette.muted, marginTop: 8, paddingHorizontal: 24, textAlign: 'center', fontSize: 13 }}>
+                      {t('photoAfterAccept')}
+                    </Text>
+                  </View>
                 ) : (
                   <View style={styles.profileImagePlaceholder}>
                     <Ionicons name="person" size={80} color={palette.muted} />

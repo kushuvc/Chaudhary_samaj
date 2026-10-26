@@ -499,6 +499,15 @@ export function MatrimonyProfileDetailScreen({ profileId, onBack }: MatrimonyPro
             const primaryPhoto = profile.photos?.find((p) => p.isPrimary && p.status === 'done' && p.uri);
             return primaryPhoto ? (
               <Image source={{ uri: primaryPhoto.uri }} style={styles.avatar} resizeMode="cover" />
+            ) : profile.photosHidden ? (
+              <View style={{ alignItems: 'center' }}>
+                <View style={styles.avatarPlaceholder}>
+                  <Ionicons name="eye-off-outline" size={44} color={palette.muted} />
+                </View>
+                <Text style={{ color: palette.muted, marginTop: 6, fontSize: 12.5, textAlign: 'center', maxWidth: 260 }}>
+                  {t('photoAfterAccept')}
+                </Text>
+              </View>
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="person" size={60} color={palette.muted} />

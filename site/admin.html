@@ -1503,6 +1503,10 @@ function ruleCard(rule) {
         <input type="checkbox" id="free-${rule.gender}" ${free ? 'checked' : ''}>
         <label for="free-${rule.gender}" style="margin:0;color:var(--soft)">Free — everything unlocked, no payment</label>
       </div>
+      <div class="switch">
+        <input type="checkbox" id="pp-${rule.gender}" ${rule.photo_privacy ? 'checked' : ''}>
+        <label for="pp-${rule.gender}" style="margin:0;color:var(--soft)">Photo privacy — their photos are shown only after they accept an interest</label>
+      </div>
 
       ${capsBlock('r-' + rule.gender, rule, 'What they get without paying')}
 
@@ -1541,7 +1545,7 @@ async function saveRule(gender, button) {
   try {
     await call('/admin/subscription-rules/' + gender, {
       method: 'PUT',
-      body: JSON.stringify({ isFree, freeProfileLimit: limit, ...readCaps('r-' + gender) }),
+      body: JSON.stringify({ isFree, freeProfileLimit: limit, photoPrivacy: $('pp-' + gender).checked, ...readCaps('r-' + gender) }),
     });
     msg(gender.charAt(0).toUpperCase() + gender.slice(1) + ' members updated. Live now.');
     await loadRules();

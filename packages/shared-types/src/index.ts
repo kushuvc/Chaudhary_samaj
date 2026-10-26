@@ -97,6 +97,8 @@ export interface MatrimonyProfile {
   /** The account's email address was proved with a code. */
   emailVerified?: boolean;
   photos?: Array<{ id: string; uri?: string; url?: string; status?: string; isPrimary?: boolean }> | null;
+  /** Photo privacy is on for this member's gender and no interest is accepted yet. */
+  photosHidden?: boolean;
 }
 
 export interface MatrimonyFilterOptions {

@@ -353,6 +353,10 @@ const migrations = [
   // Full profiles a subscriber may open per day (India time). NULL means
   // unlimited, which every existing plan stays until an admin sets a number.
   `ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS daily_profile_views INTEGER`,
+  // Admin switch per gender: when on, photos of members of this gender are
+  // shown only to people whose interest they have accepted (or who accepted
+  // theirs). Off by default, so nothing changes until the admin turns it on.
+  `ALTER TABLE subscription_rules ADD COLUMN IF NOT EXISTS photo_privacy BOOLEAN NOT NULL DEFAULT false`,
   // Which profiles each member opened on which day, for that limit. Opening
   // the same profile again the same day does not count twice.
   `CREATE TABLE IF NOT EXISTS profile_daily_views (

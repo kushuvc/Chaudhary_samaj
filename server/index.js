@@ -1899,9 +1899,11 @@ app.get('/api/matrimony/profiles', async (request, response) => {
   const limit = Math.min(Math.max(Number(request.query.limit) || 20, 1), 50)
   const offset = Math.max(Number(request.query.offset) || 0, 0)
   const page = profiles.slice(offset, offset + limit)
-  const visible = allowed
+  const hidePhotos = await photoPrivacyFilter(activeUserId)
+  const visible = (allowed
     ? page.map((profile) => (allowed.has(profile.id) ? profile : lockedProfile(profile)))
     : page
+  ).map(hidePhotos)
 
   response.json({
     success: true,
@@ -2087,7 +2089,8 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
     }
   }
 
-  response.json({ success: true, data: { ...profile, interestStatus } })
+  const hidePhotos = await photoPrivacyFilter(activeUserId)
+  response.json({ success: true, data: { ...hidePhotos(profile), interestStatus } })
 })
 
 /**
@@ -2203,6 +2206,7 @@ const DEFAULT_RULE = {
   pricePaise: 20000,
   freeProfileLimit: 2,
   capabilities: { ...ALL_CAPABILITIES },
+  photoPrivacy: false,
 }
 
 /*
@@ -2225,7 +2229,7 @@ async function loadSubscriptionRules() {
 
   const rows = await pgQuery(
     `SELECT gender, is_free, price_paise, free_profile_limit,
-            can_view_phone, can_send_interest, can_chat
+            can_view_phone, can_send_interest, can_chat, photo_privacy
      FROM subscription_rules`
   )
 
@@ -2238,6 +2242,7 @@ async function loadSubscriptionRules() {
         ? Number(row.free_profile_limit)
         : DEFAULT_RULE.freeProfileLimit,
       capabilities: capabilitiesFromRow(row),
+      photoPrivacy: row.photo_privacy === true || row.photo_privacy === 't',
     }
   }
 
@@ -2569,6 +2574,39 @@ async function resolveFreeAllocation(viewerUserId, baseProfiles, freeLimit) {
     return ta - tb || String(a.id).localeCompare(String(b.id))
   })
   return new Set(byRegistration.slice(0, freeLimit).map((profile) => profile.id))
+}
+
+/**
+ * Photo privacy (admin switch per gender in Free access). For a profile whose
+ * gender has it on, the photos are withheld unless the viewer and the owner
+ * have an accepted interest between them. The card still shows name and
+ * details; `photosHidden` lets the app draw a "photo after acceptance" frame.
+ * Withheld on the server, so no app version can show them.
+ */
+async function photoPrivacyFilter(viewerUserId) {
+  const rules = await loadSubscriptionRules().catch(() => ({}))
+  const privateGenders = new Set(Object.entries(rules).filter(([, r]) => r.photoPrivacy).map(([g]) => g))
+  if (!privateGenders.size) return (profile) => profile
+  const rows = await pgQuery(
+    `SELECT p.id FROM matrimony_interests i
+       JOIN matrimony_profiles p
+         ON p.user_id = CASE WHEN i.sender_id = $1 THEN i.receiver_id ELSE i.sender_id END
+      WHERE i.status = 'accepted' AND (i.sender_id = $1 OR i.receiver_id = $1)`,
+    [viewerUserId]
+  )
+  const accepted = new Set(rows.map((r) => r.id))
+  return (profile) => {
+    if (!profile || profile.isLocked) return profile
+    const gender = String(profile.gender || '').toLowerCase()
+    if (!privateGenders.has(gender) || accepted.has(profile.id)) return profile
+    return {
+      ...profile,
+      photos: [],
+      image: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(profile.name || 'Member')}`,
+      avatar: null,
+      photosHidden: true,
+    }
+  }
 }
 
 function lockedProfile(profile) {
@@ -5929,7 +5967,7 @@ app.get('/api/admin/subscription-rules', requireAdmin, async (_request, response
   try {
     const rows = await pgQuery(
       `SELECT gender, is_free, price_paise, free_profile_limit,
-              can_view_phone, can_send_interest, can_chat, updated_at
+              can_view_phone, can_send_interest, can_chat, photo_privacy, updated_at
        FROM subscription_rules ORDER BY gender`
     )
     response.json({ success: true, data: rows })
@@ -5946,8 +5984,12 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
     return
   }
 
-  const { isFree, pricePaise, freeProfileLimit, canViewPhone, canSendInterest, canChat } =
+  const { isFree, pricePaise, freeProfileLimit, canViewPhone, canSendInterest, canChat, photoPrivacy } =
     request.body || {}
+  if (photoPrivacy !== undefined && typeof photoPrivacy !== 'boolean') {
+    response.status(400).json({ success: false, error: 'photoPrivacy must be true or false' })
+    return
+  }
 
   if (isFree !== undefined && typeof isFree !== 'boolean') {
     response.status(400).json({ success: false, error: 'isFree must be true or false' })
@@ -5979,9 +6021,9 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
     const rows = await pgQuery(
       `INSERT INTO subscription_rules
          (gender, is_free, price_paise, free_profile_limit,
-          can_view_phone, can_send_interest, can_chat, updated_at)
+          can_view_phone, can_send_interest, can_chat, photo_privacy, updated_at)
        VALUES ($1, COALESCE($2, false), COALESCE($3, 20000), COALESCE($4, 2),
-               COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), NOW()::text)
+               COALESCE($5, true), COALESCE($6, true), COALESCE($7, true), COALESCE($8, false), NOW()::text)
        ON CONFLICT (gender) DO UPDATE SET
          is_free = COALESCE($2, subscription_rules.is_free),
          price_paise = COALESCE($3, subscription_rules.price_paise),
@@ -5989,9 +6031,10 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
          can_view_phone = COALESCE($5, subscription_rules.can_view_phone),
          can_send_interest = COALESCE($6, subscription_rules.can_send_interest),
          can_chat = COALESCE($7, subscription_rules.can_chat),
+         photo_privacy = COALESCE($8, subscription_rules.photo_privacy),
          updated_at = NOW()::text
        RETURNING gender, is_free, price_paise, free_profile_limit,
-                 can_view_phone, can_send_interest, can_chat, updated_at`,
+                 can_view_phone, can_send_interest, can_chat, photo_privacy, updated_at`,
       [
         gender,
         isFree === undefined ? null : isFree,
@@ -6000,6 +6043,7 @@ app.put('/api/admin/subscription-rules/:gender', requireAdmin, async (request, r
         canViewPhone === undefined ? null : canViewPhone,
         canSendInterest === undefined ? null : canSendInterest,
         canChat === undefined ? null : canChat,
+        photoPrivacy === undefined ? null : photoPrivacy,
       ]
     )
 

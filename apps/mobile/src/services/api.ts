@@ -268,6 +268,18 @@ async function shrinkPhoto(uri: string): Promise<string> {
 }
 
 export const api = {
+  /** Which builds the operator wants updated (0 = no prompt). Never throws. */
+  getVersionPolicy: async (): Promise<{ latestVersionCode: number; minVersionCode: number }> => {
+    try {
+      const res = await request<{ data?: { latestVersionCode?: number; minVersionCode?: number } }>('/app/version-policy');
+      return {
+        latestVersionCode: Number(res.data?.latestVersionCode) || 0,
+        minVersionCode: Number(res.data?.minVersionCode) || 0,
+      };
+    } catch {
+      return { latestVersionCode: 0, minVersionCode: 0 };
+    }
+  },
   /**
    * `phone` is only meaningful for signup — the server checks it alongside the
    * email so a number already in use is caught before the profile questions.

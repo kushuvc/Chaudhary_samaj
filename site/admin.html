@@ -324,6 +324,27 @@
         <div id="attention"><p class="hint" style="margin:0">Loading…</p></div>
       </div>
       <div class="card">
+        <div class="head"><h2>App updates</h2></div>
+        <p class="hint" style="margin-top:0">
+          Ask members on older app versions to update. Use the version code (the vNN number of the build you uploaded).
+          Leave 0 to switch a prompt off. Works on app v51 and newer; reach older versions with a notification.
+        </p>
+        <div class="row">
+          <div>
+            <label for="ver-latest">Suggest update below version</label>
+            <input type="number" id="ver-latest" min="0" step="1" placeholder="0 = off">
+          </div>
+          <div>
+            <label for="ver-min">Require update below version</label>
+            <input type="number" id="ver-min" min="0" step="1" placeholder="0 = off">
+          </div>
+          <div style="flex:0 0 auto">
+            <button type="button" id="saveVersion">Save</button>
+          </div>
+        </div>
+        <p class="hint">"Suggest" shows a message they can close. "Require" blocks the app until they update — only for a broken build.</p>
+      </div>
+      <div class="card">
         <div class="head"><h2>Email updates</h2></div>
         <p class="hint" style="margin-top:0">
           You get an email when members reach 25, 50, 100, 250, 500, 1,000 and on; when paying members reach
@@ -901,11 +922,34 @@ async function loadOverview() {
     `${guide.length - hiddenGuide} guide section${guide.length - hiddenGuide === 1 ? '' : 's'} shown in the app` +
     (hiddenGuide ? `, ${hiddenGuide} hidden` : ''), '#guide', 'Edit'));
   $('attention').innerHTML = rows.join('');
+  void loadVersionPolicy();
 
   setReportCount(open);
 }
 
 $('refreshOverview').onclick = () => { loaded.delete('overview'); void show('overview'); };
+
+async function loadVersionPolicy() {
+  try {
+    const v = (await call('/admin/app/version-policy')).data;
+    $('ver-latest').value = v.latestVersionCode || '';
+    $('ver-min').value = v.minVersionCode || '';
+  } catch { /* the card stays empty; Save still works */ }
+}
+$('saveVersion').onclick = async () => {
+  const latestVersionCode = Number($('ver-latest').value || 0);
+  const minVersionCode = Number($('ver-min').value || 0);
+  if (minVersionCode && !confirm('Members below version ' + minVersionCode + ' will not be able to use the app until they update. Continue?')) return;
+  $('saveVersion').disabled = true;
+  try {
+    await call('/admin/app/version-policy', { method: 'PUT', body: JSON.stringify({ latestVersionCode, minVersionCode }) });
+    msg('Update settings saved. Live now.');
+  } catch (err) {
+    msg(err.message, 'err');
+  } finally {
+    $('saveVersion').disabled = false;
+  }
+};
 
 $('emailSummary').onclick = async () => {
   const button = $('emailSummary');

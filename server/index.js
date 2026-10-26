@@ -6559,6 +6559,76 @@ app.put('/api/admin/support/tickets/:id', requireAdmin, async (request, response
   }
 })
 
+/* ------------------------------------------------------------------ */
+/* App update prompt                                                   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Which app builds should be asked to update (Android versionCode).
+ * latestVersionCode: builds below it see a dismissible "update available".
+ * minVersionCode: builds below it must update to continue (only for builds
+ * that are broken or unsafe). 0 or empty switches either off. Builds older
+ * than the first one with the prompt (v51) cannot show it; reach them with a
+ * broadcast notification instead.
+ */
+const VERSION_POLICY_KEY = 'version_policy'
+const EMPTY_VERSION_POLICY = { latestVersionCode: 0, minVersionCode: 0 }
+
+async function loadVersionPolicy() {
+  const cached = cacheGet(VERSION_POLICY_KEY)
+  if (cached) return cached
+  const rows = await pgQuery('SELECT value FROM app_settings WHERE key = $1 LIMIT 1', [VERSION_POLICY_KEY])
+  const policy = { ...EMPTY_VERSION_POLICY, ...(rows[0]?.value || {}) }
+  cacheSet(VERSION_POLICY_KEY, policy, 60000)
+  return policy
+}
+
+// Public: the app asks before sign-in too, so a stuck old build can be told.
+app.get('/api/app/version-policy', async (_request, response) => {
+  try {
+    response.json({ success: true, data: await loadVersionPolicy() })
+  } catch (err) {
+    // Never block the app because the setting could not be read.
+    response.json({ success: true, data: EMPTY_VERSION_POLICY })
+  }
+})
+
+app.get('/api/admin/app/version-policy', requireAdmin, async (_request, response) => {
+  try {
+    response.json({ success: true, data: await loadVersionPolicy() })
+  } catch (err) {
+    response.status(500).json({ success: false, error: 'Could not read the update settings' })
+  }
+})
+
+app.put('/api/admin/app/version-policy', requireAdmin, async (request, response) => {
+  const read = (v) => (v === null || v === undefined || v === '' ? 0 : Number(v))
+  const latest = read(request.body?.latestVersionCode)
+  const min = read(request.body?.minVersionCode)
+  if (![latest, min].every((n) => Number.isInteger(n) && n >= 0 && n < 100000)) {
+    response.status(400).json({ success: false, error: 'Version codes must be whole numbers (0 = off)' })
+    return
+  }
+  if (min && latest && min > latest) {
+    response.status(400).json({ success: false, error: 'The required version cannot be newer than the latest version' })
+    return
+  }
+  try {
+    const value = { latestVersionCode: latest, minVersionCode: min }
+    await pgQuery(
+      `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2::jsonb, $3)
+       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`,
+      [VERSION_POLICY_KEY, JSON.stringify(value), new Date().toISOString()]
+    )
+    cacheInvalidate(VERSION_POLICY_KEY)
+    console.log(`[admin] version policy set: ${JSON.stringify(value)}`)
+    response.json({ success: true, data: value })
+  } catch (err) {
+    console.error('[admin] version policy save failed:', err.message)
+    response.status(500).json({ success: false, error: 'Could not save the update settings' })
+  }
+})
+
 /** Blocks a ticket's sender (or their domain); their later mail never becomes a ticket. */
 app.post('/api/admin/support/tickets/:id/block', requireAdmin, async (request, response) => {
   try {

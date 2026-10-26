@@ -523,6 +523,13 @@ const migrations = [
   `UPDATE plan_purchases b SET amount = ROUND(p.price_paise / 100.0)
      FROM subscription_plans p
     WHERE b.amount IS NULL AND p.code = b.plan`,
+  // Small operator settings that are not per gender or per plan, keyed by
+  // name. First used for the app update prompt ('version_policy').
+  `CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   // Which operator alerts (member milestones, capacity warnings) have been
   // emailed, so each goes out once.
   `CREATE TABLE IF NOT EXISTS admin_alerts_sent (

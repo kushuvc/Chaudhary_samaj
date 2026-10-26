@@ -11,6 +11,7 @@ import { registerForPush } from './src/services/push';
 import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { UpdatePrompt } from './src/components/UpdatePrompt';
 
 const navigationRef = createNavigationContainerRef<any>();
 
@@ -84,6 +85,7 @@ function AppRoot() {
       <StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} />
       <AppNavigator />
       <PushBridge />
+      <UpdatePrompt />
     </NavigationContainer>
   );
 }

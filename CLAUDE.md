@@ -68,6 +68,7 @@ Release checklist and manual test list: [TESTING.md](TESTING.md).
 
 - **No phone/SMS verification** — TRAI DLT registration was not wanted; Firebase phone auth too expensive in India. Don't propose it again unless asked.
 - **Verification is optional**, encouraged by the badge, banners and the discount. Making Aadhaar mandatory was rejected (drop-off, untested QR reader, likely legal risk for private services after the 2018 Aadhaar judgment).
+- **Photos stay in the public `profile-photos` bucket** (decided 27 Oct 2026): names are random UUIDs and the bucket can't be listed, but anyone holding a link can open it. Moving to a private bucket with expiring links was offered and declined as too risky with live members. Don't propose it again unless asked.
 - **Never screen members by religion.** The framing is "real person, genuine samaj member".
 - **Terms** (`site/terms.html`): members are responsible for their own dealings; the badge only means Aadhaar details matched; using someone else's Aadhaar is a crime (IT Act 66C/66D, BNS); operator not liable for fraud by members. Grievances: acknowledge within 48 hours, resolve within 15 days (IT Rules 2021 expect 24-hour acknowledgement — the user chose to keep 48). A lawyer review was recommended.
 

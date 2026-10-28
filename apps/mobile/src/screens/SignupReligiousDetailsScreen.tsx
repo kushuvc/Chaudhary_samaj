@@ -25,18 +25,20 @@ export interface ReligiousDetailsData {
 interface SignupReligiousDetailsScreenProps {
   /** Who the profile is being created for, so the copy can address them. */
   subject?: ProfileSubject;
+  /** Answers already given (Back, or a resumed signup), shown again. */
+  initial?: ReligiousDetailsData;
   onBack: () => void;
   onNext: (data: ReligiousDetailsData) => void;
 }
 
-export function SignupReligiousDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupReligiousDetailsScreenProps) {
+export function SignupReligiousDetailsScreen({ subject: subjectProp, initial, onBack, onNext }: SignupReligiousDetailsScreenProps) {
   const { t, language } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null, language);
-  const [religion, setReligion] = useState<string | null>(null);
-  const [caste, setCaste] = useState<string | null>(null);
-  const [subcaste, setSubcaste] = useState<string | null>(null);
-  const [openToAnySubcaste, setOpenToAnySubcaste] = useState(true);
-  const [dosh, setDosh] = useState<string>('no');
+  const [religion, setReligion] = useState<string | null>(initial?.religion || null);
+  const [caste, setCaste] = useState<string | null>(initial?.caste || null);
+  const [subcaste, setSubcaste] = useState<string | null>(initial?.subcaste || null);
+  const [openToAnySubcaste, setOpenToAnySubcaste] = useState(initial?.openToAnySubcaste ?? true);
+  const [dosh, setDosh] = useState<string>(initial?.dosh || 'no');
 
   const subcasteOptions = useMemo(() => {
     const list = (caste && SUBCASTES[caste]) || ['Other'];

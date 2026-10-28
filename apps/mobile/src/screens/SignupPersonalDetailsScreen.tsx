@@ -26,6 +26,8 @@ export interface PersonalDetailsData {
 interface SignupPersonalDetailsScreenProps {
   /** Who the profile is being created for, so the copy can address them. */
   subject?: ProfileSubject;
+  /** Answers already given (Back, or a resumed signup), shown again. */
+  initial?: PersonalDetailsData;
   onBack: () => void;
   onNext: (data: PersonalDetailsData) => void;
 }
@@ -70,16 +72,16 @@ function calculateAge(day: string | null, month: string | null, year: string | n
   return age;
 }
 
-export function SignupPersonalDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupPersonalDetailsScreenProps) {
+export function SignupPersonalDetailsScreen({ subject: subjectProp, initial, onBack, onNext }: SignupPersonalDetailsScreenProps) {
   const { t, language } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null, language);
-  const [gender, setGender] = useState<string | null>(null);
-  const [day, setDay] = useState<string | null>(null);
-  const [month, setMonth] = useState<string | null>(null);
-  const [year, setYear] = useState<string | null>(null);
-  const [height, setHeight] = useState<string | null>(null);
-  const [physicalStatus, setPhysicalStatus] = useState<string>('normal');
-  const [maritalStatus, setMaritalStatus] = useState<string | null>(null);
+  const [gender, setGender] = useState<string | null>(initial?.gender || null);
+  const [day, setDay] = useState<string | null>(initial?.dateOfBirth?.day || null);
+  const [month, setMonth] = useState<string | null>(initial?.dateOfBirth?.month || null);
+  const [year, setYear] = useState<string | null>(initial?.dateOfBirth?.year || null);
+  const [height, setHeight] = useState<string | null>(initial?.height || null);
+  const [physicalStatus, setPhysicalStatus] = useState<string>(initial?.physicalStatus || 'normal');
+  const [maritalStatus, setMaritalStatus] = useState<string | null>(initial?.maritalStatus || null);
 
   const age = useMemo(() => calculateAge(day, month, year), [day, month, year]);
   const canContinue = Boolean(gender && day && month && year && height && maritalStatus && age !== null && age >= 18);

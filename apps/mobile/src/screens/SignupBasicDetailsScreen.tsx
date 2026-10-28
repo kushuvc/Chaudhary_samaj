@@ -25,6 +25,14 @@ export interface BasicDetailsData {
 }
 
 interface SignupBasicDetailsScreenProps {
+  /** Details already given (Back, or a resumed signup), shown again. */
+  initial?: BasicDetailsData;
+  /**
+   * An address whose code was already entered and is still accepted by the
+   * server, lower-cased. Continuing with it skips the code instead of sending
+   * another one.
+   */
+  verifiedEmail?: string | null;
   onBack: () => void;
   onSubmit: (data: BasicDetailsData) => Promise<void> | void;
   /** Called when the entered phone already belongs to an account. */
@@ -38,16 +46,16 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 }
 
-export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }: SignupBasicDetailsScreenProps) {
+export function SignupBasicDetailsScreen({ initial, verifiedEmail, onBack, onSubmit, onExistingAccount }: SignupBasicDetailsScreenProps) {
   const { t } = useAppLanguage();
   const { palette } = useAppTheme();
   const styles = createStyles(palette);
 
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [fullName, setFullName] = useState(initial?.fullName || '');
+  const [email, setEmail] = useState(initial?.email || '');
+  const [password, setPassword] = useState(initial?.password || '');
+  const [phone, setPhone] = useState(initial?.phone || '');
+  const [agreeToTerms, setAgreeToTerms] = useState(initial?.agreeToTerms ?? false);
 
   const [stage, setStage] = useState<'details' | 'otp'>('details');
   const [otp, setOtp] = useState('');
@@ -80,6 +88,16 @@ export function SignupBasicDetailsScreen({ onBack, onSubmit, onExistingAccount }
 
   const handleSendOtp = async () => {
     if (!detailsValid || sending) {
+      return;
+    }
+    // Already verified (they came back here, or resumed): no second code.
+    if (verifiedEmail && email.trim().toLowerCase() === verifiedEmail) {
+      setSending(true);
+      try {
+        await onSubmit({ fullName, email, password, phone, agreeToTerms });
+      } finally {
+        setSending(false);
+      }
       return;
     }
     setSending(true);

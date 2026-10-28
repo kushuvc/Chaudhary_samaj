@@ -25,17 +25,19 @@ export interface ProfessionalDetailsData {
 }
 
 interface SignupProfessionalDetailsScreenProps {
+  /** Answers already given (Back, or a resumed signup), shown again. */
+  initial?: ProfessionalDetailsData;
   onBack: () => void;
   onNext: (data: ProfessionalDetailsData) => void;
 }
 
-export function SignupProfessionalDetailsScreen({ onBack, onNext }: SignupProfessionalDetailsScreenProps) {
+export function SignupProfessionalDetailsScreen({ initial, onBack, onNext }: SignupProfessionalDetailsScreenProps) {
   const { t } = useAppLanguage();
-  const [education, setEducation] = useState<string | null>(null);
-  const [employmentType, setEmploymentType] = useState<string | null>(null);
-  const [occupation, setOccupation] = useState<string | null>(null);
-  const [incomeCurrency, setIncomeCurrency] = useState<string | null>('INR');
-  const [annualIncome, setAnnualIncome] = useState<string | null>(null);
+  const [education, setEducation] = useState<string | null>(initial?.education || null);
+  const [employmentType, setEmploymentType] = useState<string | null>(initial?.employmentType || null);
+  const [occupation, setOccupation] = useState<string | null>(initial?.occupation || null);
+  const [incomeCurrency, setIncomeCurrency] = useState<string | null>(initial?.incomeCurrency || 'INR');
+  const [annualIncome, setAnnualIncome] = useState<string | null>(initial?.annualIncome || null);
 
   const notWorking = employmentType === 'Not Working';
 

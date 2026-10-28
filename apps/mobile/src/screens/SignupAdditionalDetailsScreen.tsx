@@ -30,27 +30,44 @@ export interface AdditionalDetailsData {
 interface SignupAdditionalDetailsScreenProps {
   /** Who the profile is being created for, so the copy can address them. */
   subject?: ProfileSubject;
+  /** Answers already given (Back, or a resumed signup), shown again. */
+  initial?: AdditionalDetailsData;
   onBack: () => void;
-  onSubmit: (data: AdditionalDetailsData) => void;
+  /** Creates the account; a rejection is shown here instead of being lost. */
+  onSubmit: (data: AdditionalDetailsData) => Promise<void> | void;
 }
 
 const MIN_BIO = 50;
 
 const SIBLING_OPTIONS = ['None', '1', '2', '3', '4', '5 or more'].map((item) => ({ id: item, label: item }));
 
-export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, onSubmit }: SignupAdditionalDetailsScreenProps) {
+export function SignupAdditionalDetailsScreen({ subject: subjectProp, initial, onBack, onSubmit }: SignupAdditionalDetailsScreenProps) {
   const { t, language } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null, language);
   const { palette } = useAppTheme();
-  const [familyStatus, setFamilyStatus] = useState<string | null>(null);
-  const [familyType, setFamilyType] = useState<string | null>(null);
-  const [familyWealth, setFamilyWealth] = useState<string | null>(null);
-  const [fatherName, setFatherName] = useState('');
-  const [motherName, setMotherName] = useState('');
-  const [fatherOccupation, setFatherOccupation] = useState<string | null>(null);
-  const [motherOccupation, setMotherOccupation] = useState<string | null>(null);
-  const [siblings, setSiblings] = useState<string | null>(null);
-  const [bio, setBio] = useState('');
+  const [familyStatus, setFamilyStatus] = useState<string | null>(initial?.familyStatus || null);
+  const [familyType, setFamilyType] = useState<string | null>(initial?.familyType || null);
+  const [familyWealth, setFamilyWealth] = useState<string | null>(initial?.familyWealth || null);
+  const [fatherName, setFatherName] = useState(initial?.fatherName || '');
+  const [motherName, setMotherName] = useState(initial?.motherName || '');
+  const [fatherOccupation, setFatherOccupation] = useState<string | null>(initial?.fatherOccupation || null);
+  const [motherOccupation, setMotherOccupation] = useState<string | null>(initial?.motherOccupation || null);
+  const [siblings, setSiblings] = useState<string | null>(initial?.siblings || null);
+  const [bio, setBio] = useState(initial?.bio || '');
+  /*
+   * The account is created when this step is sent. That used to happen with
+   * no spinner and no catch: a weak network or a refused request left the
+   * button doing nothing at all, and people gave up after a few taps.
+   */
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const messageFor = (err: any) => {
+    if (err?.code === 'PHONE_ALREADY_REGISTERED') return t('suAccountNumberTaken');
+    if (err?.code === 'UNDER_AGE') return t('errMinAge');
+    if (String(err?.message || '').toLowerCase().includes('email already registered')) return t('suAccountEmailTaken');
+    return t('suAccountNotCreated');
+  };
 
   const bioRemaining = Math.max(0, MIN_BIO - bio.trim().length);
   const canContinue = Boolean(familyStatus) && bio.trim().length >= MIN_BIO;
@@ -64,26 +81,37 @@ export function SignupAdditionalDetailsScreen({ subject: subjectProp, onBack, on
       title={t('suTitleFamily', { possessive: subject.possessive })}
       subtitle={t('suTheLastStepBeforeWeCreate')}
       footer={
-        <PrimaryButton
-          label={t('suContinue')}
-          icon="arrow-forward"
-          disabled={!canContinue}
-          onPress={() => {
-            if (familyStatus) {
-              onSubmit({
-                familyStatus,
-                familyType: familyType || '',
-                familyWealth: familyWealth || '',
-                fatherName,
-                motherName,
-                fatherOccupation: fatherOccupation || '',
-                motherOccupation: motherOccupation || '',
-                siblings: siblings || '',
-                bio: bio.trim(),
-              });
-            }
-          }}
-        />
+        <View style={{ gap: 10 }}>
+          {error ? <Text style={{ fontSize: 13.5, color: palette.danger, fontWeight: '600' }}>{error}</Text> : null}
+          <PrimaryButton
+            label={t('suContinue')}
+            icon="arrow-forward"
+            disabled={!canContinue || submitting}
+            loading={submitting}
+            onPress={async () => {
+              if (!familyStatus || submitting) return;
+              setSubmitting(true);
+              setError(null);
+              try {
+                await onSubmit({
+                  familyStatus,
+                  familyType: familyType || '',
+                  familyWealth: familyWealth || '',
+                  fatherName,
+                  motherName,
+                  fatherOccupation: fatherOccupation || '',
+                  motherOccupation: motherOccupation || '',
+                  siblings: siblings || '',
+                  bio: bio.trim(),
+                });
+              } catch (err: any) {
+                setError(messageFor(err));
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          />
+        </View>
       }
     >
       <View style={{ gap: 14 }}>

@@ -64,6 +64,9 @@ Android Settings → Display → Font size **largest** and Display size **larges
 
 ### Signup
 - [ ] Full signup in English; email code arrives; under-18 date of birth is refused.
+- [ ] Phone **Back** on any signup step goes to the previous step (answers still there), never closes the app; on the photos step it stays put. Back to the email step and Continue: no second code.
+- [ ] Close the app (swipe it away) on step 3, reopen: same step, earlier answers kept, no new code.
+- [ ] Step 5 with mobile data off: Continue shows a spinner, then "We could not create the account…"; data on, Continue again creates the account.
 - [ ] Email `name@gamil.com` shows "Did you mean name@gmail.com?" in red, Continue stays disabled, tapping "Use name@gmail.com" fixes it.
 - [ ] After photos, the **Aadhaar step** appears with the guide open; "I'll do this later" skips to horoscope.
 - [ ] Same in Hindi and Gujarati: guide, warnings and buttons translated.

@@ -20,14 +20,16 @@ export interface ProfileTypeData {
 }
 
 interface SignupProfileTypeScreenProps {
+  /** Answers already given (Back, or a resumed signup), shown again. */
+  initial?: ProfileTypeData;
   onBack: () => void;
   onNext: (data: ProfileTypeData) => void;
 }
 
-export function SignupProfileTypeScreen({ onBack, onNext }: SignupProfileTypeScreenProps) {
+export function SignupProfileTypeScreen({ initial, onBack, onNext }: SignupProfileTypeScreenProps) {
   const { t } = useAppLanguage();
-  const [selectedType, setSelectedType] = useState<ProfileType | null>(null);
-  const [motherTongue, setMotherTongue] = useState<string | null>(null);
+  const [selectedType, setSelectedType] = useState<ProfileType | null>(initial?.profileType ?? null);
+  const [motherTongue, setMotherTongue] = useState<string | null>(initial?.motherTongue || null);
 
   const canContinue = Boolean(selectedType && motherTongue);
 

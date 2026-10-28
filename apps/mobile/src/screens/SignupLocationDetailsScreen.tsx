@@ -23,21 +23,25 @@ export interface LocationDetailsData {
 interface SignupLocationDetailsScreenProps {
   /** Who the profile is being created for, so the copy can address them. */
   subject?: ProfileSubject;
+  /** Answers already given (Back, or a resumed signup), shown again. */
+  initial?: LocationDetailsData;
   onBack: () => void;
   onNext: (data: LocationDetailsData) => void;
 }
 
-export function SignupLocationDetailsScreen({ subject: subjectProp, onBack, onNext }: SignupLocationDetailsScreenProps) {
+export function SignupLocationDetailsScreen({ subject: subjectProp, initial, onBack, onNext }: SignupLocationDetailsScreenProps) {
   const { t, language } = useAppLanguage();
   const subject = subjectProp ?? subjectFor(null, language);
-  const [country, setCountry] = useState<string | null>(null);
-  const [state, setState] = useState<string | null>(null);
-  const [city, setCity] = useState<string | null>(null);
+  const [country, setCountry] = useState<string | null>(initial?.country || null);
+  const [state, setState] = useState<string | null>(initial?.state || null);
+  // A town typed under "Other" comes back as that choice plus the text.
+  const initialListed = Boolean(initial?.city && initial.state && CITIES[initial.state]?.includes(initial.city));
+  const [city, setCity] = useState<string | null>(initial?.city ? (initialListed ? initial.city : OTHER) : null);
   // Typed when the town is not in the list ("Other").
-  const [customCity, setCustomCity] = useState('');
-  const [village, setVillage] = useState('');
-  const [nativeCity, setNativeCity] = useState('');
-  const [nativeVillage, setNativeVillage] = useState('');
+  const [customCity, setCustomCity] = useState(initial?.city && !initialListed ? initial.city : '');
+  const [village, setVillage] = useState(initial?.village || '');
+  const [nativeCity, setNativeCity] = useState(initial?.nativeCity || '');
+  const [nativeVillage, setNativeVillage] = useState(initial?.nativeVillage || '');
 
   const stateOptions = useMemo(
     () => ((country && STATES[country]) || ['Other']).map((item) => ({ id: item, label: item })),

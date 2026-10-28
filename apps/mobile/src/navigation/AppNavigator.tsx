@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { BackHandler } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +37,7 @@ import { AnimatedTabBar } from '../components/AnimatedTabBar';
 import { useAppLanguage } from '../context/LanguageContext';
 import { api } from '../services/api';
 import { subjectFor } from '../constants/profileSubject';
+import { clearSignupDraft, loadSignupDraft, saveSignupDraft, verificationStillValid } from '../utils/signupDraft';
 
 const Stack = createNativeStackNavigator();
 const Tabs = createBottomTabNavigator();
@@ -59,27 +61,63 @@ function MainTabs() {
   );
 }
 
+type AuthMode =
+  | 'welcome'
+  | 'login'
+  | 'phone-login'
+  | 'signup-profile-type'
+  | 'signup-basic'
+  | 'signup-personal'
+  | 'signup-religious'
+  | 'signup-location'
+  | 'signup-professional'
+  | 'signup-additional'
+  | 'signup-photos'
+  | 'signup-verify'
+  | 'signup-horoscope'
+  | 'signup-star'
+  | 'signup-eating-habits'
+  | 'signup-interests';
+
+// Steps before the account exists: the only ones worth saving and resuming.
+const BEFORE_ACCOUNT: AuthMode[] = [
+  'signup-profile-type',
+  'signup-basic',
+  'signup-personal',
+  'signup-religious',
+  'signup-location',
+  'signup-professional',
+  'signup-additional',
+];
+
+/*
+ * Where the phone's Back button goes from each screen: the same place as the
+ * on-screen arrow. Nothing handled it before, so Back closed the app mid-signup
+ * and every answer was lost. `null` = stay put (the account already exists, so
+ * going back to re-create it makes no sense); missing = let Android close the app.
+ */
+const BACK_TO: Partial<Record<AuthMode, AuthMode | null>> = {
+  login: 'welcome',
+  'phone-login': 'login',
+  'signup-profile-type': 'welcome',
+  'signup-basic': 'signup-profile-type',
+  'signup-personal': 'signup-basic',
+  'signup-religious': 'signup-personal',
+  'signup-location': 'signup-religious',
+  'signup-professional': 'signup-location',
+  'signup-additional': 'signup-professional',
+  'signup-photos': null,
+  'signup-verify': 'signup-photos',
+  'signup-horoscope': 'signup-verify',
+  'signup-star': 'signup-horoscope',
+  'signup-eating-habits': 'signup-star',
+  'signup-interests': 'signup-eating-habits',
+};
+
 function AuthFlow() {
   const { signup, completeProfileSetup, isNewSignup, loginWithToken } = useAuth();
   const { language } = useAppLanguage();
-  const [authMode, setAuthMode] = useState<
-    | 'welcome'
-    | 'login'
-    | 'phone-login'
-    | 'signup-profile-type'
-    | 'signup-basic'
-    | 'signup-personal'
-    | 'signup-religious'
-    | 'signup-location'
-    | 'signup-professional'
-    | 'signup-additional'
-    | 'signup-photos'
-    | 'signup-verify'
-    | 'signup-horoscope'
-    | 'signup-star'
-    | 'signup-eating-habits'
-    | 'signup-interests'
-  >(isNewSignup ? 'signup-photos' : 'welcome');
+  const [authMode, setAuthMode] = useState<AuthMode>(isNewSignup ? 'signup-photos' : 'welcome');
 
   const [signupData, setSignupData] = useState<{
     profileTypeData?: ProfileTypeData;
@@ -105,6 +143,59 @@ function AuthFlow() {
 
   const patch = (next: Partial<typeof signupData>) => setSignupData((prev) => ({ ...prev, ...next }));
 
+  // The address whose emailed code was entered, so a resumed signup does not
+  // ask for another code while the server still accepts this one.
+  const [verified, setVerified] = useState<{ email: string; at: number } | null>(null);
+  const [restoring, setRestoring] = useState(!isNewSignup);
+  const restoringRef = useRef(restoring);
+
+  useEffect(() => {
+    if (!restoringRef.current) return;
+    let cancelled = false;
+    loadSignupDraft<typeof signupData>().then((draft) => {
+      if (cancelled) return;
+      if (draft && BEFORE_ACCOUNT.includes(draft.mode as AuthMode)) {
+        setSignupData(draft.data);
+        const stillVerified = verificationStillValid(draft) && draft.verifiedEmail && draft.data.basicDetails?.password;
+        if (stillVerified) {
+          setVerified({ email: draft.verifiedEmail as string, at: draft.verifiedAt as number });
+          setAuthMode(draft.mode as AuthMode);
+        } else {
+          // Past the email step but the code has lapsed (or the password could
+          // not be read back): the details are kept, only the code is asked again.
+          const pastBasic = BEFORE_ACCOUNT.indexOf(draft.mode as AuthMode) > BEFORE_ACCOUNT.indexOf('signup-basic');
+          setAuthMode(pastBasic ? 'signup-basic' : (draft.mode as AuthMode));
+        }
+      }
+      restoringRef.current = false;
+      setRestoring(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (restoring || !BEFORE_ACCOUNT.includes(authMode)) return;
+    saveSignupDraft({
+      mode: authMode,
+      data: signupData,
+      verifiedEmail: verified?.email ?? null,
+      verifiedAt: verified?.at ?? null,
+      savedAt: Date.now(),
+    });
+  }, [restoring, authMode, signupData, verified]);
+
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!(authMode in BACK_TO)) return false;
+      const target = BACK_TO[authMode];
+      if (target) setAuthMode(target);
+      return true;
+    });
+    return () => sub.remove();
+  }, [authMode]);
+
   const isoDateOfBirth = (() => {
     const dob = signupData.personalDetails?.dateOfBirth;
     if (!dob?.year || !dob?.month || !dob?.day) {
@@ -125,7 +216,10 @@ function AuthFlow() {
     const ld = signupData.locationDetails;
     const prof = signupData.professionalDetails;
 
-    if (!basic) {
+    if (!basic?.password) {
+      // Nothing to sign up with (a resumed draft whose password could not be
+      // read back): the email step asks for it again.
+      setAuthMode('signup-basic');
       return;
     }
 
@@ -183,6 +277,8 @@ function AuthFlow() {
       siblings: additional.siblings,
       bio: additional.bio,
     });
+    await clearSignupDraft();
+    setAuthMode('signup-photos');
   };
 
   /** Persists an optional post-signup enrichment step. */
@@ -191,6 +287,10 @@ function AuthFlow() {
       await api.updateMyMatrimonyProfile(payload as any);
     } catch {}
   };
+
+  if (restoring) {
+    return <LoadingScreen />;
+  }
 
   switch (authMode) {
     case 'welcome':
@@ -214,6 +314,7 @@ function AuthFlow() {
     case 'signup-profile-type':
       return (
         <SignupProfileTypeScreen
+          initial={signupData.profileTypeData}
           onBack={() => setAuthMode('welcome')}
           onNext={(data) => {
             patch({ profileTypeData: data });
@@ -224,9 +325,15 @@ function AuthFlow() {
     case 'signup-basic':
       return (
         <SignupBasicDetailsScreen
+          initial={signupData.basicDetails}
+          verifiedEmail={verified && verificationStillValid({ verifiedAt: verified.at }) ? verified.email : null}
           onBack={() => setAuthMode('signup-profile-type')}
           onSubmit={(data) => {
             patch({ basicDetails: data });
+            const email = data.email.trim().toLowerCase();
+            // Re-submitting with the already verified address keeps its time;
+            // a new address was just verified now.
+            if (verified?.email !== email) setVerified({ email, at: Date.now() });
             setAuthMode('signup-personal');
           }}
           onExistingAccount={() => setAuthMode('login')}
@@ -236,6 +343,7 @@ function AuthFlow() {
       return (
         <SignupPersonalDetailsScreen
           subject={signupSubject}
+          initial={signupData.personalDetails}
           onBack={() => setAuthMode('signup-basic')}
           onNext={(data) => {
             patch({ personalDetails: data });
@@ -247,6 +355,7 @@ function AuthFlow() {
       return (
         <SignupReligiousDetailsScreen
           subject={signupSubject}
+          initial={signupData.religiousDetails}
           onBack={() => setAuthMode('signup-personal')}
           onNext={(data) => {
             patch({ religiousDetails: data });
@@ -258,6 +367,7 @@ function AuthFlow() {
       return (
         <SignupLocationDetailsScreen
           subject={signupSubject}
+          initial={signupData.locationDetails}
           onBack={() => setAuthMode('signup-religious')}
           onNext={(data) => {
             patch({ locationDetails: data });
@@ -268,6 +378,7 @@ function AuthFlow() {
     case 'signup-professional':
       return (
         <SignupProfessionalDetailsScreen
+          initial={signupData.professionalDetails}
           onBack={() => setAuthMode('signup-location')}
           onNext={(data) => {
             patch({ professionalDetails: data });
@@ -279,11 +390,28 @@ function AuthFlow() {
       return (
         <SignupAdditionalDetailsScreen
           subject={signupSubject}
+          initial={signupData.additionalDetails}
           onBack={() => setAuthMode('signup-professional')}
           onSubmit={async (data) => {
             patch({ additionalDetails: data });
-            await createAccount(data);
-            setAuthMode('signup-photos');
+            // Back from the photos step lands here with the account already
+            // made; creating it again would only answer "already registered".
+            if (isNewSignup) {
+              setAuthMode('signup-photos');
+              return;
+            }
+            try {
+              await createAccount(data);
+            } catch (err: any) {
+              // The server no longer accepts the email check (over 24 hours):
+              // everything typed is kept, only the code is asked again.
+              if (err?.code === 'EMAIL_NOT_VERIFIED') {
+                setVerified(null);
+                setAuthMode('signup-basic');
+                return;
+              }
+              throw err;
+            }
           }}
         />
       );

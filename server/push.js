@@ -152,6 +152,14 @@ export async function notifyProfileViewed(viewerId, ownerId) {
   if (!viewerId || !ownerId || viewerId === ownerId) return
   const day = new Date().toISOString().slice(0, 10)
 
+  // A hidden account (the operator checking profiles) is not a real visitor:
+  // telling the member "someone viewed your profile" would mislead them.
+  const [viewer] = await pgQuery(
+    'SELECT hidden_from_listing FROM matrimony_profiles WHERE user_id = $1 LIMIT 1',
+    [viewerId]
+  )
+  if (viewer?.hidden_from_listing) return
+
   const [{ n } = { n: 0 }] = await pgQuery(
     'SELECT COUNT(*)::int AS n FROM profile_view_notices WHERE owner_id = $1 AND day = $2',
     [ownerId, day]

@@ -605,6 +605,12 @@ export async function getPublicProfilesFast(currentUserId, viewerGender = null) 
         ON s.profile_id = p.id AND s.viewer_user_id = $1
       WHERE p.user_id != $1
         /*
+         * Hidden profiles (the operator's own accounts) never list. Filtering
+         * here also keeps them out of the free members' "first N to register"
+         * allowance, which is computed from this same list.
+         */
+        AND NOT p.hidden_from_listing
+        /*
          * Hide anyone either side has blocked. A block has to cut both ways:
          * hiding them from you but leaving you visible to them defeats the
          * point of blocking someone who is harassing you.

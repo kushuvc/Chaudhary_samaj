@@ -575,6 +575,10 @@ const migrations = [
   // notices counts these.
   `ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS admin_notified BOOLEAN NOT NULL DEFAULT false`,
   `CREATE UNIQUE INDEX IF NOT EXISTS support_messages_message_id_key ON support_messages (message_id) WHERE message_id IS NOT NULL AND direction = 'in'`,
+  // A profile nobody else sees (the operator's own test accounts): left out of
+  // every listing and the detail route, while its owner still browses as usual.
+  // Set by SQL; there is no switch in the app or the admin panel.
+  `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS hidden_from_listing BOOLEAN NOT NULL DEFAULT false`,
   /*
    * Row-Level Security on every table in `public`.
    *

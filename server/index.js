@@ -1958,15 +1958,19 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
   }
 
   let profile = null
+  // A hidden profile answers "not found" to everyone but its owner, so an old
+  // link or a saved id cannot open it.
+  let hidden = false
 
   try {
     const raw = await getMatrimonyProfileByIdFast(activeUserId, request.params.id)
-    if (raw) profile = mapPublicProfile(raw)
+    if (raw?.hidden_from_listing && raw.user_id !== activeUserId) hidden = true
+    else if (raw) profile = mapPublicProfile(raw)
   } catch {
     profile = null
   }
 
-  if (!profile) {
+  if (!profile && !hidden) {
     const raw = database
       .prepare(`
         SELECT

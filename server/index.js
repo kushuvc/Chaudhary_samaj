@@ -1965,6 +1965,7 @@ app.get('/api/matrimony/profiles/:id', async (request, response) => {
   try {
     const raw = await getMatrimonyProfileByIdFast(activeUserId, request.params.id)
     if (raw?.hidden_from_listing && raw.user_id !== activeUserId) hidden = true
+    else if (raw && raw.user_id !== activeUserId && (await blockedEitherWay(activeUserId, raw.user_id))) hidden = true
     else if (raw) profile = mapPublicProfile(raw)
   } catch {
     profile = null
@@ -2635,6 +2636,58 @@ async function profileExists(profileId) {
   return rows.length > 0
 }
 
+/*
+ * Whether either member has blocked the other (reporting blocks too).
+ *
+ * A block used to be checked only in the Matrimony list. Someone who already
+ * had the profile id — from an interest, a chat or an old screen — could still
+ * open the profile, send interest after interest (each one a push), message
+ * and take the phone number. On 30 Oct 2026 a member deleted her account over
+ * exactly that (ticket CS-1016). Every route between two members asks this.
+ */
+async function blockedEitherWay(userA, userB) {
+  if (!userA || !userB || userA === userB) return false
+  const rows = await pgQuery(
+    `SELECT 1 FROM member_blocks
+      WHERE (blocker_user_id = $1 AND blocked_user_id = $2)
+         OR (blocker_user_id = $2 AND blocked_user_id = $1)
+      LIMIT 1`,
+    [userA, userB]
+  )
+  return rows.length > 0
+}
+
+/** After a block, both members' interest and chat lists must drop the other at once. */
+function forgetPairLists(userA, userB) {
+  for (const id of [userA, userB]) {
+    cacheInvalidate(`interests:${id}`)
+    cacheInvalidate(`matches:${id}`)
+  }
+}
+
+/** SQL for "neither $1 nor <otherColumn> has blocked the other", for list queries. */
+const notBlockedWith = (otherColumn) => `NOT EXISTS (
+  SELECT 1 FROM member_blocks blk
+   WHERE (blk.blocker_user_id = $1 AND blk.blocked_user_id = ${otherColumn})
+      OR (blk.blocker_user_id = ${otherColumn} AND blk.blocked_user_id = $1))`
+
+/**
+ * True if the viewer may act on this profile: it exists, and it is their own
+ * or neither side has blocked the other and it is not a hidden profile. The
+ * answer for "no" is the same 404 as a missing profile, so a blocked member
+ * learns nothing.
+ */
+async function profileOpenTo(profileId, viewerId) {
+  const [row] = await pgQuery(
+    'SELECT user_id, hidden_from_listing FROM matrimony_profiles WHERE id = $1 LIMIT 1',
+    [profileId]
+  )
+  if (!row) return false
+  if (row.user_id === viewerId) return true
+  if (row.hidden_from_listing) return false
+  return !(await blockedEitherWay(viewerId, row.user_id))
+}
+
 /**
  * Upsert one viewer's state for a profile. Null fields keep their current
  * value, which lets a single statement do what the sync helper needed a
@@ -2679,7 +2732,7 @@ app.post('/api/matrimony/profiles/:id/shortlist', async (request, response) => {
   }
 
   try {
-    if (!(await profileExists(request.params.id))) {
+    if (!(await profileOpenTo(request.params.id, activeUserId))) {
       response.status(404).json({ success: false, error: 'Profile not found' })
       return
     }
@@ -2718,7 +2771,7 @@ app.post('/api/matrimony/profiles/:id/view', async (request, response) => {
   }
 
   try {
-    if (!(await profileExists(request.params.id))) {
+    if (!(await profileOpenTo(request.params.id, activeUserId))) {
       response.status(404).json({ success: false, error: 'Profile not found' })
       return
     }
@@ -2776,7 +2829,7 @@ app.post('/api/matrimony/profiles/:id/unlock', async (request, response) => {
   if (!allowed) return
 
   try {
-    if (!(await profileExists(request.params.id))) {
+    if (!(await profileOpenTo(request.params.id, activeUserId))) {
       response.status(404).json({ success: false, error: 'Profile not found' })
       return
     }
@@ -2894,6 +2947,11 @@ app.post('/api/matrimony/profiles/:id/interest', async (request, response) => {
 
     const receiverUserId = profile.user_id
 
+    if (await blockedEitherWay(activeUserId, receiverUserId)) {
+      response.status(404).json({ success: false, error: 'Profile not found' })
+      return
+    }
+
     const existingRows = await pgQuery(
       'SELECT id, status FROM matrimony_interests WHERE sender_id = $1 AND receiver_id = $2 LIMIT 1',
       [activeUserId, receiverUserId]
@@ -2909,19 +2967,38 @@ app.post('/api/matrimony/profiles/:id/interest', async (request, response) => {
       return
     }
 
-    // A declined interest can be re-sent, so reuse the row rather than
-    // colliding with the unique (sender_id, receiver_id) constraint.
+    /*
+     * A "no" stays a no. A declined interest could be sent again at once, as
+     * often as the sender liked, and every time the other member got a "New
+     * interest" push — the harassment in CS-1016. The member who declined (or
+     * who ended a match, which also leaves 'declined') can still send their
+     * own interest later; that is a different row.
+     */
+    if (existing?.status === 'declined') {
+      response.status(409).json({
+        success: false,
+        code: 'INTEREST_DECLINED',
+        error: 'This member has declined your interest.',
+      })
+      return
+    }
+
     const interestId = existing?.id || crypto.randomUUID()
     const now = new Date().toISOString()
 
-    await pgQuery(
+    // DO NOTHING: two taps at once, or a race with a decline, must not
+    // reopen an existing interest.
+    const inserted = await pgQuery(
       `INSERT INTO matrimony_interests (id, sender_id, receiver_id, status, created_at)
        VALUES ($1, $2, $3, 'pending', $4)
-       ON CONFLICT (sender_id, receiver_id) DO UPDATE SET
-         status = 'pending',
-         updated_at = $4`,
+       ON CONFLICT (sender_id, receiver_id) DO NOTHING
+       RETURNING id`,
       [interestId, activeUserId, receiverUserId, now]
     )
+    if (!inserted.length) {
+      response.status(409).json({ success: false, error: 'Interest already sent' })
+      return
+    }
 
     cacheInvalidate(`interests:${activeUserId}`)
     cacheInvalidate(`interests:${receiverUserId}`)
@@ -2960,6 +3037,7 @@ app.get('/api/matrimony/interests', async (request, response) => {
         JOIN matrimony_profiles p ON i.receiver_id = p.user_id
         JOIN users u ON p.user_id = u.id
         WHERE i.sender_id = $1
+          AND ${notBlockedWith('i.receiver_id')}
         ORDER BY i.created_at DESC
       `, [activeUserId]),
       pgQuery(`
@@ -2968,6 +3046,7 @@ app.get('/api/matrimony/interests', async (request, response) => {
         JOIN matrimony_profiles p ON i.sender_id = p.user_id
         JOIN users u ON p.user_id = u.id
         WHERE i.receiver_id = $1
+          AND ${notBlockedWith('i.sender_id')}
         ORDER BY i.created_at DESC
       `, [activeUserId]),
     ])
@@ -3020,6 +3099,18 @@ app.put('/api/matrimony/interests/:id', async (request, response) => {
   const now = new Date().toISOString()
 
   try {
+    // Declining is always allowed; accepting across a block is not.
+    if (accept) {
+      const [pending] = await pgQuery(
+        'SELECT sender_id FROM matrimony_interests WHERE id = $1 AND receiver_id = $2',
+        [id, activeUserId]
+      )
+      if (pending && (await blockedEitherWay(activeUserId, pending.sender_id))) {
+        response.status(404).json({ success: false, error: 'Interest not found or already processed' })
+        return
+      }
+    }
+
     // Filtering on receiver_id keeps the ownership check: only the recipient of
     // an interest may respond to it. Doing it in the UPDATE rather than a
     // separate SELECT also makes a double-tap idempotent — the second request
@@ -3104,7 +3195,8 @@ app.get('/api/matrimony/matches', async (request, response) => {
         SELECT COUNT(*)::int as cnt FROM matrimony_messages
         WHERE match_id = m.id AND sender_id != $1 AND is_read::integer = 0
       ) unread ON true
-      WHERE m.user1_id = $1 OR m.user2_id = $1
+      WHERE (m.user1_id = $1 OR m.user2_id = $1)
+        AND ${notBlockedWith('p.user_id')}
       ORDER BY COALESCE(last_msg.created_at, m.created_at) DESC
     `, [activeUserId])
     const result = { success: true, data: matches.map(r => ({
@@ -3130,7 +3222,8 @@ app.get('/api/matrimony/matches', async (request, response) => {
  * read as mutually interested — the contact number would stay unlocked, and
  * the interests screen would keep offering a match that no longer exists.
  *
- * Deliberately not a block: the other member can send a fresh interest later.
+ * Deliberately not a block, but the interest left 'declined' cannot be sent
+ * again by its sender; the other member can still send one of their own.
  * Blocking is the separate, stronger action on the same menu.
  */
 app.delete('/api/matrimony/matches/:id', async (request, response) => {
@@ -3189,12 +3282,13 @@ app.get('/api/matrimony/matches/:id/messages', async (request, response) => {
   const cacheKey = `messages:${matchId}`
 
   try {
-    // Verify user is part of this match
+    // Verify user is part of this match, and that neither side has blocked the other
     const [match] = await pgQuery(
-      'SELECT id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
+      'SELECT id, user1_id, user2_id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
       [matchId, activeUserId]
     )
-    if (!match) {
+    const otherUserId = match && (match.user1_id === activeUserId ? match.user2_id : match.user1_id)
+    if (!match || (await blockedEitherWay(activeUserId, otherUserId))) {
       response.status(404).json({ success: false, error: 'Match not found' })
       return
     }
@@ -3270,11 +3364,11 @@ app.post('/api/matrimony/matches/:id/messages', async (request, response) => {
       'SELECT id, user1_id, user2_id FROM matrimony_matches WHERE id = $1 AND (user1_id = $2 OR user2_id = $2)',
       [matchId, activeUserId]
     )
-    if (!match) {
+    const otherUserId = match && (match.user1_id === activeUserId ? match.user2_id : match.user1_id)
+    if (!match || (await blockedEitherWay(activeUserId, otherUserId))) {
       response.status(404).json({ success: false, error: 'Match not found' })
       return
     }
-    const otherUserId = match.user1_id === activeUserId ? match.user2_id : match.user1_id
 
     // Pushed only when this opens a new unread run: a burst of messages is
     // one notification, not ten, and the rest are waiting in the chat.
@@ -5867,6 +5961,7 @@ app.post('/api/matrimony/profiles/:id/report', async (request, response) => {
 
     console.warn(`[report] ${reason} filed against ${reportedUserId}`)
     invalidateFastCache('publicProfiles')
+    forgetPairLists(activeUserId, reportedUserId)
     response.status(201).json({
       success: true,
       data: { message: 'Thank you. Our team will review this, and the member is now hidden from you.' },
@@ -5905,6 +6000,7 @@ app.post('/api/matrimony/profiles/:id/block', async (request, response) => {
       [activeUserId, blockedUserId, new Date().toISOString()]
     )
     invalidateFastCache('publicProfiles')
+    forgetPairLists(activeUserId, blockedUserId)
     response.json({ success: true, data: { blocked: true } })
   } catch (err) {
     console.error('[block] failed:', err.message)

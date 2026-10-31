@@ -1867,7 +1867,7 @@ app.get('/api/matrimony/profiles', async (request, response) => {
    * is left as a separate change.
    */
   // Redact anything past the free allowance for members without a subscription.
-  // The allowance is the earliest-registered profiles (see
+  // The allowance is a random pick kept per member (see
   // resolveFreeAllocation), and those are listed first so a free member does
   // not have to scroll past locked cards to find the ones they can open.
   let access
@@ -2557,28 +2557,64 @@ async function requireCapability(userId, capability, response, message) {
  * contact detail leaves the server for a profile the caller has not paid for.
  */
 /**
- * The profiles a free member may read: the first N to register, of the
- * profiles this member can see (opposite gender, not blocked either way),
- * oldest first. Owner's rule (Oct 2026): "first 2 registered", and if one of
- * them deletes their account the next in line takes its place; raising the
- * allowance to 10 opens the first 10.
+ * The profiles a free member may read: N picked at random from the profiles
+ * this member can see (opposite gender, not blocked either way, not hidden),
+ * then kept in free_profile_picks so every request shows the same ones.
+ * Owner's rule (31 Oct 2026): "random 2". The earlier "first N to register"
+ * showed every free member the same few earliest profiles, so they collected
+ * all the attention and everyone after them none.
  *
- * Computed fresh on each request rather than stored. Ordering by registration
- * keeps it stable: a new member joins at the end and never displaces anyone,
- * which was the reason the old newest-first "first N" had to be frozen per
- * member in matrimony_free_allocations (no longer read).
+ * Kept, not re-rolled: a fresh random pair per request would be unlimited free
+ * browsing by refreshing. A pick that goes away — the account is deleted or
+ * hidden, or that member blocks the viewer — is replaced by another random
+ * one, and raising the allowance adds random ones. A profile the viewer
+ * blocked themselves still uses its slot; otherwise blocking would deal new
+ * profiles on demand. Lowering the allowance keeps the oldest picks.
  *
  * Resolved against the member's full list, not whatever they have filtered or
  * sorted to, so a filter cannot reveal a different two.
  */
 async function resolveFreeAllocation(viewerUserId, baseProfiles, freeLimit) {
   if (!(freeLimit > 0)) return new Set()
-  const byRegistration = [...baseProfiles].sort((a, b) => {
-    const ta = new Date(a.createdAt || 0).getTime() || 0
-    const tb = new Date(b.createdAt || 0).getTime() || 0
-    return ta - tb || String(a.id).localeCompare(String(b.id))
-  })
-  return new Set(byRegistration.slice(0, freeLimit).map((profile) => profile.id))
+  const available = new Set(baseProfiles.map((profile) => profile.id))
+
+  const rows = await pgQuery(
+    `SELECT f.profile_id,
+            EXISTS (
+              SELECT 1 FROM member_blocks b
+                JOIN matrimony_profiles p ON p.user_id = b.blocked_user_id
+               WHERE b.blocker_user_id = $1 AND p.id = f.profile_id
+            ) AS blocked_by_viewer
+       FROM free_profile_picks f
+      WHERE f.viewer_user_id = $1
+      ORDER BY f.created_at, f.profile_id`,
+    [viewerUserId]
+  )
+  const kept = rows.filter((row) => available.has(row.profile_id)).map((row) => row.profile_id)
+  const allowed = new Set(kept.slice(0, freeLimit))
+  const used = kept.length + rows.filter((row) => row.blocked_by_viewer && !available.has(row.profile_id)).length
+
+  const wanted = freeLimit - Math.min(used, freeLimit)
+  if (wanted > 0) {
+    const held = new Set(rows.map((row) => row.profile_id))
+    const candidates = baseProfiles.map((profile) => profile.id).filter((id) => !held.has(id))
+    // Fisher–Yates with crypto randomness, only as far as needed.
+    for (let i = 0; i < Math.min(wanted, candidates.length); i += 1) {
+      const j = i + crypto.randomInt(candidates.length - i)
+      ;[candidates[i], candidates[j]] = [candidates[j], candidates[i]]
+    }
+    const picks = candidates.slice(0, wanted)
+    if (picks.length > 0) {
+      await pgQuery(
+        `INSERT INTO free_profile_picks (viewer_user_id, profile_id)
+         SELECT $1, unnest($2::text[])
+         ON CONFLICT DO NOTHING`,
+        [viewerUserId, picks]
+      )
+      for (const id of picks) allowed.add(id)
+    }
+  }
+  return allowed
 }
 
 /**
@@ -5121,6 +5157,12 @@ async function deleteMemberData(userId) {
   // granted this member's profile.
   await pgQuery(
     `DELETE FROM matrimony_free_allocations
+      WHERE viewer_user_id = $1
+         OR profile_id IN (SELECT id FROM matrimony_profiles WHERE user_id = $1)`,
+    [userId]
+  )
+  await pgQuery(
+    `DELETE FROM free_profile_picks
       WHERE viewer_user_id = $1
          OR profile_id IN (SELECT id FROM matrimony_profiles WHERE user_id = $1)`,
     [userId]

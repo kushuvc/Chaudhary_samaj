@@ -580,6 +580,21 @@ const migrations = [
   // Set by SQL; there is no switch in the app or the admin panel.
   `ALTER TABLE matrimony_profiles ADD COLUMN IF NOT EXISTS hidden_from_listing BOOLEAN NOT NULL DEFAULT false`,
   /*
+   * The profiles each free member was given, picked at random (owner's
+   * decision, 31 Oct 2026, replacing "the first N to register", which always
+   * showed every free member the same few early profiles). Kept once picked,
+   * so refreshing cannot deal a new pair. A new table rather than
+   * matrimony_free_allocations, whose rows were stale top-of-list grants from
+   * before 25 Oct: everyone starts with a fresh random pick.
+   */
+  `CREATE TABLE IF NOT EXISTS free_profile_picks (
+     viewer_user_id TEXT NOT NULL,
+     profile_id TEXT NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     PRIMARY KEY (viewer_user_id, profile_id)
+   )`,
+  `CREATE INDEX IF NOT EXISTS free_profile_picks_profile_idx ON free_profile_picks (profile_id)`,
+  /*
    * Row-Level Security on every table in `public`.
    *
    * Supabase exposes a REST API over these tables at

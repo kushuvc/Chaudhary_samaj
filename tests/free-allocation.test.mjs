@@ -3,7 +3,8 @@ import assert from 'node:assert/strict'
 import { startServer, signUpUser } from './helpers/harness.mjs'
 
 /**
- * The free allowance has to be the same profiles every time.
+ * The free allowance has to be the same profiles every time (a random pick per
+ * member since 31 Oct 2026, kept once made).
  *
  * It used to mean "the first N of the current ordering", and that ordering is
  * newest-first, so each new registration swapped out both of a free member's
@@ -117,9 +118,8 @@ describe('the free allowance is a fixed set of profiles', () => {
   })
 })
 
-describe('the allowance is the first members to register', () => {
+describe('the allowance is a random pick, kept per member', () => {
   let s
-  let viewer
   let admin
   const women = []
   // Through the admin route, as the panel does, so the rules cache is cleared.
@@ -131,50 +131,106 @@ describe('the allowance is the first members to register', () => {
   }
   before(async () => {
     s = await startServer()
-    viewer = await signUpUser(s, { gender: 'male' })
     admin = await signUpUser(s, { gender: 'male' })
     await s.sql('UPDATE users SET is_admin = true WHERE id = $1', [admin.userId])
     await setLimit(2)
-    for (let i = 0; i < 4; i += 1) women.push(await signUpUser(s, { gender: 'female', fullName: `Early ${i}` }))
-    // Spread registration times so the order is unambiguous.
+    for (let i = 0; i < 10; i += 1) women.push(await signUpUser(s, { gender: 'female', fullName: `Woman ${i}` }))
     for (let i = 0; i < women.length; i += 1) {
-      await s.sql(`UPDATE matrimony_profiles SET created_at = $2 WHERE user_id = $1`, [women[i].userId, `2026-0${i + 1}-01T00:00:00.000Z`])
+      await s.sql(`UPDATE matrimony_profiles SET created_at = $2 WHERE user_id = $1`, [women[i].userId, `2026-0${(i % 9) + 1}-0${(i % 7) + 1}T00:00:00.000Z`])
     }
   })
   after(async () => { await s?.stop() })
 
   const profileIdOf = async (user) => (await s.sql('SELECT id FROM matrimony_profiles WHERE user_id = $1', [user.userId]))[0].id
-  async function list() {
+  async function list(viewer) {
     const res = await s.request('GET', '/api/matrimony/profiles?limit=50', { token: viewer.token })
     assert.equal(res.status, 200)
     return res.body.data
   }
+  const openIds = async (viewer) => (await list(viewer)).filter((p) => !p.isLocked).map((p) => p.id).sort()
+  // The listing is cached per viewer for a few seconds; a shortlist toggle is
+  // the public route that clears it.
+  async function fresh(viewer, anyId) {
+    await s.request('POST', `/api/matrimony/profiles/${anyId}/shortlist`, { token: viewer.token })
+    await s.request('POST', `/api/matrimony/profiles/${anyId}/shortlist`, { token: viewer.token })
+  }
 
-  test('the two unlocked are the two earliest, and are listed first', async () => {
-    const data = await list()
-    const expected = [await profileIdOf(women[0]), await profileIdOf(women[1])]
-    assert.deepEqual(data.filter((p) => !p.isLocked).map((p) => p.id).sort(), expected.sort())
+  test('members get different pairs, not always the earliest two', async () => {
+    const seen = new Set()
+    const pairs = new Set()
+    for (let i = 0; i < 12; i += 1) {
+      const viewer = await signUpUser(s, { gender: 'male' })
+      const open = await openIds(viewer)
+      assert.equal(open.length, 2)
+      open.forEach((id) => seen.add(id))
+      pairs.add(open.join())
+    }
+    // 12 random pairs from 10 profiles: all the same, or never beyond the
+    // earliest two, would mean it is not random (odds well under one in a million).
+    assert.ok(pairs.size > 1, 'every member got the same pair')
+    assert.ok(seen.size > 2, 'only two profiles were ever handed out')
+  })
+
+  test('the pick is listed first and stays the same on every request', async () => {
+    const viewer = await signUpUser(s, { gender: 'male' })
+    const data = await list(viewer)
     assert.equal(data[0].isLocked, undefined)
     assert.equal(data[1].isLocked, undefined)
+    const first = await openIds(viewer)
+    for (let i = 0; i < 3; i += 1) {
+      await fresh(viewer, first[0])
+      assert.deepEqual(await openIds(viewer), first)
+    }
   })
 
-  test('if one of them deletes their account, the next in line opens', async () => {
-    await s.request('DELETE', '/api/auth/account', { token: women[0].token })
-    const open = (await list()).filter((p) => !p.isLocked).map((p) => p.id).sort()
-    assert.deepEqual(open, [await profileIdOf(women[1]), await profileIdOf(women[2])].sort())
+  test('if a picked member deletes their account, one new random profile replaces only that one', async () => {
+    const viewer = await signUpUser(s, { gender: 'male' })
+    const [gone, stays] = await openIds(viewer)
+    const ids = await Promise.all(women.map(profileIdOf))
+    const owner = women[ids.indexOf(gone)]
+    await s.request('DELETE', '/api/auth/account', { token: owner.token })
+    women.splice(women.indexOf(owner), 1)
+    await fresh(viewer, stays)
+    const open = await openIds(viewer)
+    assert.equal(open.length, 2)
+    assert.ok(open.includes(stays), 'the profile that did not go was swapped too')
+    assert.ok(!open.includes(gone))
   })
 
-  test('raising the allowance opens the next earliest', async () => {
+  test('blocking one of your own picks does not deal a new one', async () => {
+    const viewer = await signUpUser(s, { gender: 'male' })
+    const [blocked, other] = await openIds(viewer)
+    await s.request('POST', `/api/matrimony/profiles/${blocked}/block`, { token: viewer.token })
+    await fresh(viewer, other)
+    assert.deepEqual(await openIds(viewer), [other])
+  })
+
+  test('if a picked member blocks the viewer, it is replaced', async () => {
+    const viewer = await signUpUser(s, { gender: 'male' })
+    const viewerProfile = await profileIdOf(viewer)
+    const [lost, other] = await openIds(viewer)
+    const ids = await Promise.all(women.map(profileIdOf))
+    const owner = women[ids.indexOf(lost)]
+    await s.request('POST', `/api/matrimony/profiles/${viewerProfile}/block`, { token: owner.token })
+    await fresh(viewer, other)
+    const open = await openIds(viewer)
+    assert.equal(open.length, 2)
+    assert.ok(open.includes(other) && !open.includes(lost))
+  })
+
+  test('raising the allowance keeps the pick and adds to it; the detail screen agrees', async () => {
+    const viewer = await signUpUser(s, { gender: 'male' })
+    const before = await openIds(viewer)
     await setLimit(3)
-    const open = (await list()).filter((p) => !p.isLocked).map((p) => p.id).sort()
-    assert.deepEqual(open, [await profileIdOf(women[1]), await profileIdOf(women[2]), await profileIdOf(women[3])].sort())
-  })
+    await fresh(viewer, before[0])
+    const after = await openIds(viewer)
+    assert.equal(after.length, 3)
+    assert.ok(before.every((id) => after.includes(id)))
 
-  test('the detail screen agrees with the list', async () => {
-    await setLimit(1)
-    const first = await profileIdOf(women[1])
-    const later = await profileIdOf(women[3])
-    assert.equal((await s.request('GET', `/api/matrimony/profiles/${first}`, { token: viewer.token })).status, 200)
-    assert.equal((await s.request('GET', `/api/matrimony/profiles/${later}`, { token: viewer.token })).status, 403)
+    const all = (await list(viewer)).map((p) => p.id)
+    const locked = all.find((id) => !after.includes(id))
+    assert.equal((await s.request('GET', `/api/matrimony/profiles/${after[0]}`, { token: viewer.token })).status, 200)
+    assert.equal((await s.request('GET', `/api/matrimony/profiles/${locked}`, { token: viewer.token })).status, 403)
+    await setLimit(2)
   })
 })
